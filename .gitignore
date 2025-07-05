@@ -1,0 +1,70 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# Node.js dependencies and package manager caches
+/node_modules
+/.pnp
+.pnp.js
+.pnp.cjs
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+.pnpm-store/ # pnpm specific store
+
+# Build artifacts and production outputs
+/build
+.next/
+out/ # Common for static exports with Next.js
+dist/ # Another common build output directory
+
+# Testing
+/coverage
+
+# Debugging and logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+*.log
+logs/ # If you have a dedicated logs directory
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.staging.local # Added for completeness
+
+# IDE and OS specific files
+.DS_Store # macOS
+Thumbs.db # Windows
+.vscode/ # Optional: If you have user-specific VS Code settings that shouldn't be shared
+.idea/ # IntelliJ IDEA
+*.sublime-project
+*.sublime-workspace
+*.pem # Private key files
+
+# Vercel specific
+.vercel
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts # This is typically generated, so good to ignore
+
+# Genkit (assuming this is a specific project tool/framework)
+.genkit/
+# Add any specific build outputs or caches from Genkit if applicable
+# e.g., .genkit_output/
+
+# Firebase
+firebase-debug.log
+firestore-debug.log
+.firebase/ # If Firebase cli creates a local cache directory
+
+# Additional common ignores
+# temp/ # Generic temporary directory
+# *.swp # Vim swap files
+# *.bak # Backup files
+# node_modules/.cache # Specific cache within node_modules sometimes needs explicit ignoring

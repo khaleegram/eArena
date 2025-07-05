@@ -1,0 +1,44 @@
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users can read/write their own user document and it can be created.
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null;
+    }
+    
+    // Anyone can read tournaments.
+    // Authenticated users can create tournaments.
+    // Only the organizer can update or delete their tournament.
+    match /tournaments/{tournamentId} {
+      allow read;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && resource.data.organizerId == request.auth.uid;
+    }
+
+    // Anyone can read teams.
+    // Authenticated users can create teams (join a tournament).
+    // Organizer of the tournament can update/delete teams.
+    match /teams/{teamId} {
+      allow read;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && get(/databases/$(database)/documents/tournaments/$(resource.data.tournamentId)).data.organizerId == request.auth.uid;
+    }
+
+    // Anyone can read matches.
+    // Organizer can create/update/delete matches.
+    // TODO: Add rules for players to submit their own scores.
+    match /matches/{matchId} {
+      allow read;
+      allow create, update, delete: if request.auth != null && get(/databases/$(database)/documents/tournaments/$(resource.data.tournamentId)).data.organizerId == request.auth.uid;
+    }
+
+    // Standings are read-only for clients. They are only written by backend services.
+    match /standings/{standingId} {
+      allow read;
+      allow write: if false; 
+    }
+  }
+}
