@@ -3,7 +3,7 @@
 "use client";
 
 import { useAuth } from '@/hooks/use-auth';
-import { getPlayerStats, getUserProfileById, getPlayerPerformanceAnalysis, getUsersByIds } from '@/lib/actions';
+import { getPlayerStats, getUserProfileById } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 import * as React from 'react';
 import Link from 'next/link';
@@ -11,7 +11,7 @@ import { useParams } from 'next/navigation';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Trophy, FileText, Users, BrainCircuit, BarChart, Medal, MessageSquare } from 'lucide-react';
+import { Loader2, Trophy, FileText, BrainCircuit, BarChart, Medal, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { UnifiedTimestamp, PlayerStats as PlayerStatsType, UserProfile } from '@/lib/types';
 import { PlayerStats } from '@/components/player-stats';
@@ -64,8 +64,11 @@ const AIAnalysisCard = ({ analysis, archetype }: { analysis: string, archetype: 
 export default function PublicProfilePage() {
   const params = useParams() as { id: string };
   const { toast } = useToast();
+  const { user, userProfile: currentUserProfile } = useAuth();
+  
   const [profile, setProfile] = React.useState<UserProfile | null>(null);
   const [stats, setStats] = React.useState<PlayerStatsType | null>(null);
+  const [currentUserStats, setCurrentUserStats] = React.useState<PlayerStatsType | null>(null);
   const [analysis, setAnalysis] = React.useState<{archetype: string, analysis: string} | null>(null);
   const [loading, setLoading] = React.useState(true);
   
@@ -84,6 +87,13 @@ export default function PublicProfilePage() {
                 const analysisData = await getPlayerPerformanceAnalysis(statsData);
                 setAnalysis(analysisData);
             }
+            
+            // Fetch current user's stats for comparison
+            if (user) {
+                const cUserStats = await getPlayerStats(user.uid);
+                setCurrentUserStats(cUserStats);
+            }
+
         } catch (error) {
              toast({ variant: 'destructive', title: 'Error', description: 'Could not load user profile.' });
         } finally {
@@ -93,7 +103,7 @@ export default function PublicProfilePage() {
     if (params.id) {
         fetchData();
     }
-  }, [params.id, toast]);
+  }, [params.id, toast, user]);
 
   if (loading) {
       return (
@@ -117,12 +127,47 @@ export default function PublicProfilePage() {
 
   return (
     <div className="container py-10 space-y-8">
+        <Card>
+            <CardHeader className="items-center text-center">
+                <ReputationAvatar profile={profile} className="h-24 w-24" />
+                <div className="flex items-center gap-2 pt-2">
+                    <CardTitle className="font-headline text-2xl">{profile.username}</CardTitle>
+                    {profile.activeTitle && (
+                        <Badge variant="outline" className="text-sm font-bold text-amber-400 border-amber-400/50">{profile.activeTitle}</Badge>
+                    )}
+                </div>
+                <CardDescription>{profile.email}</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col items-center text-center gap-4">
+                <div className="flex gap-6">
+                    <FollowersDialog userProfile={profile} type="followers">
+                        <div className="text-center cursor-pointer">
+                            <p className="font-bold text-lg">{profile.followers?.length || 0}</p>
+                            <p className="text-xs text-muted-foreground">Followers</p>
+                        </div>
+                    </FollowersDialog>
+                    <FollowersDialog userProfile={profile} type="following">
+                        <div className="text-center cursor-pointer">
+                            <p className="font-bold text-lg">{profile.following?.length || 0}</p>
+                            <p className="text-xs text-muted-foreground">Following</p>
+                        </div>
+                    </FollowersDialog>
+                </div>
+                <div className="w-full px-4 max-w-xs space-y-2">
+                    <FollowButton targetUserId={profile.uid} />
+                    <Button className="w-full" variant="secondary" asChild>
+                        <Link href={`/messages/${profile.uid}`}><MessageSquare className="mr-2 h-4 w-4" /> Message</Link>
+                    </Button>
+                </div>
+            </CardContent>
+        </Card>
+
         <div className="grid lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 space-y-8">
                 <Card>
                     <CardHeader>
-                        <CardTitle className="font-headline text-3xl">Player Profile</CardTitle>
-                        <CardDescription>Public stats and info for {profile.username}.</CardDescription>
+                        <CardTitle className="font-headline text-xl">Game IDs</CardTitle>
+                        <CardDescription>Public game identifiers for {profile.username}.</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <div className="grid md:grid-cols-2 gap-4 text-sm">
@@ -146,58 +191,24 @@ export default function PublicProfilePage() {
                         <AchievementsDisplay userProfile={profile} playerStats={stats} />
                     </CardContent>
                  </Card>
+            </div>
+            <div className="lg:col-span-1 space-y-8">
                  <Card>
                     <CardHeader>
                         <CardTitle className="font-headline flex items-center gap-2"><BarChart className="w-5 h-5 text-primary"/> Performance Tools</CardTitle>
                         <CardDescription>
-                            Analyze your performance against others.
+                            Analyze performance against your own stats.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <PlayerComparisonDialog
-                            currentUserProfile={profile}
-                            currentUserStats={stats}
-                        />
-                    </CardContent>
-                </Card>
-            </div>
-            <div className="lg:col-span-1 space-y-8">
-                 <Card>
-                    <CardHeader className="items-center">
-                        <ReputationAvatar profile={profile} className="h-24 w-24" />
-                        <div className="flex items-center gap-2 pt-2">
-                           <CardTitle className="font-headline text-2xl">{profile.username}</CardTitle>
-                            {profile.activeTitle && (
-                                <Badge variant="outline" className="text-sm font-bold text-amber-400 border-amber-400/50">{profile.activeTitle}</Badge>
-                            )}
-                        </div>
-                        <CardDescription>{profile.email}</CardDescription>
-                    </CardHeader>
-                     <CardContent className="flex flex-col items-center text-center gap-4">
-                        <div className="flex gap-6">
-                           <FollowersDialog userProfile={profile} type="followers">
-                                <div className="text-center cursor-pointer">
-                                    <p className="font-bold text-lg">{profile.followers?.length || 0}</p>
-                                    <p className="text-xs text-muted-foreground">Followers</p>
-                                </div>
-                            </FollowersDialog>
-                            <FollowersDialog userProfile={profile} type="following">
-                                <div className="text-center cursor-pointer">
-                                    <p className="font-bold text-lg">{profile.following?.length || 0}</p>
-                                    <p className="text-xs text-muted-foreground">Following</p>
-                                </div>
-                            </FollowersDialog>
-                        </div>
-                        <div>
-                             <p className="font-semibold">{profile?.warnings || 0} Warnings</p>
-                             <p className="text-sm text-muted-foreground">Reputation impacts tournament eligibility.</p>
-                        </div>
-                         <div className="w-full px-4 space-y-2">
-                            <FollowButton targetUserId={profile.uid} />
-                            <Button className="w-full" variant="secondary" disabled>
-                                <MessageSquare className="mr-2 h-4 w-4" /> Message (Coming Soon)
-                            </Button>
-                        </div>
+                        {currentUserProfile && currentUserStats && (
+                             <PlayerComparisonDialog
+                                profileA={profile}
+                                statsA={stats}
+                                profileB={currentUserProfile}
+                                statsB={currentUserStats}
+                            />
+                        )}
                     </CardContent>
                 </Card>
                 <TrophyCase profile={profile} />
@@ -207,8 +218,12 @@ export default function PublicProfilePage() {
                         <CardDescription>A record of warnings and disputes.</CardDescription>
                     </CardHeader>
                     <CardContent>
+                        <div className="space-y-1">
+                             <p className="font-semibold">{profile?.warnings || 0} Warnings</p>
+                             <p className="text-sm text-muted-foreground">Reputation impacts tournament eligibility.</p>
+                        </div>
                         {profile?.incidentLog && profile.incidentLog.length > 0 ? (
-                        <div className="space-y-3">
+                        <div className="space-y-3 mt-4">
                             {profile.incidentLog.slice(0, 5).map((log, index) => (
                             <div key={index} className="text-xs border-l-2 pl-2">
                                 <p className="font-medium">{log.reason}</p>

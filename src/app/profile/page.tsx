@@ -179,11 +179,69 @@ export default function ProfilePage() {
 
   return (
     <div className="container py-10 space-y-8">
+        <Card>
+            <CardHeader className="items-center text-center">
+                <div className="relative">
+                    <ReputationAvatar profile={userProfile} className="h-24 w-24" />
+                        <Dialog open={isAvatarDialogOpen} onOpenChange={setIsAvatarDialogOpen}>
+                        <DialogTrigger asChild>
+                            <Button variant="outline" size="icon" className="absolute -bottom-2 -right-2 rounded-full h-8 w-8 bg-background">
+                                <Camera className="h-4 w-4"/>
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                            <DialogHeader>
+                                <DialogTitle>Change Avatar</DialogTitle>
+                                <DialogDescription>Select a new image for your profile.</DialogDescription>
+                            </DialogHeader>
+                            <div className="flex flex-col items-center gap-4 py-4">
+                                <ReputationAvatar profile={{...userProfile, photoURL: preview || userProfile.photoURL}} className="h-32 w-32" />
+                                <Input type="file" accept="image/*" onChange={handleAvatarSelect} />
+                            </div>
+                            <DialogFooter>
+                                <Button onClick={handleAvatarUpload} disabled={isUploading || !newAvatarFile}>
+                                    {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                                    Upload & Save
+                                </Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
+                </div>
+                <div className="flex items-center gap-2 pt-2">
+                    <CardTitle className="font-headline text-2xl">{userProfile.username}</CardTitle>
+                    {userProfile.activeTitle && (
+                        <Badge variant="outline" className="text-sm font-bold text-amber-400 border-amber-400/50">{userProfile.activeTitle}</Badge>
+                    )}
+                </div>
+                <CardDescription>{userProfile.email}</CardDescription>
+            </CardHeader>
+                <CardContent className="flex flex-col items-center text-center gap-4">
+                <div className="flex gap-6">
+                    <FollowersDialog userProfile={userProfile} type="followers">
+                        <div className="text-center cursor-pointer">
+                            <p className="font-bold text-lg">{userProfile.followers?.length || 0}</p>
+                            <p className="text-xs text-muted-foreground">Followers</p>
+                        </div>
+                    </FollowersDialog>
+                    <FollowersDialog userProfile={userProfile} type="following">
+                        <div className="text-center cursor-pointer">
+                            <p className="font-bold text-lg">{userProfile.following?.length || 0}</p>
+                            <p className="text-xs text-muted-foreground">Following</p>
+                        </div>
+                    </FollowersDialog>
+                </div>
+                <div>
+                        <p className="font-semibold">{userProfile?.warnings || 0} Warnings</p>
+                        <p className="text-sm text-muted-foreground">Reputation impacts tournament eligibility.</p>
+                </div>
+            </CardContent>
+        </Card>
+        
         <div className="grid lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 space-y-8">
                 <Card>
                      <CardHeader>
-                        <CardTitle className="font-headline text-3xl">Profile Settings</CardTitle>
+                        <CardTitle className="font-headline text-xl">Profile Settings</CardTitle>
                         <CardDescription>Manage your public profile and game IDs.</CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -288,63 +346,6 @@ export default function ProfilePage() {
                  </Card>
             </div>
             <div className="lg:col-span-1 space-y-8">
-                 <Card>
-                    <CardHeader className="items-center">
-                        <div className="relative">
-                            <ReputationAvatar profile={userProfile} className="h-24 w-24" />
-                             <Dialog open={isAvatarDialogOpen} onOpenChange={setIsAvatarDialogOpen}>
-                                <DialogTrigger asChild>
-                                    <Button variant="outline" size="icon" className="absolute -bottom-2 -right-2 rounded-full h-8 w-8 bg-background">
-                                        <Camera className="h-4 w-4"/>
-                                    </Button>
-                                </DialogTrigger>
-                                <DialogContent>
-                                    <DialogHeader>
-                                        <DialogTitle>Change Avatar</DialogTitle>
-                                        <DialogDescription>Select a new image for your profile.</DialogDescription>
-                                    </DialogHeader>
-                                    <div className="flex flex-col items-center gap-4 py-4">
-                                        <ReputationAvatar profile={{...userProfile, photoURL: preview || userProfile.photoURL}} className="h-32 w-32" />
-                                        <Input type="file" accept="image/*" onChange={handleAvatarSelect} />
-                                    </div>
-                                    <DialogFooter>
-                                        <Button onClick={handleAvatarUpload} disabled={isUploading || !newAvatarFile}>
-                                            {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                                            Upload & Save
-                                        </Button>
-                                    </DialogFooter>
-                                </DialogContent>
-                            </Dialog>
-                        </div>
-                        <div className="flex items-center gap-2 pt-2">
-                           <CardTitle className="font-headline text-2xl">{userProfile.username}</CardTitle>
-                            {userProfile.activeTitle && (
-                                <Badge variant="outline" className="text-sm font-bold text-amber-400 border-amber-400/50">{userProfile.activeTitle}</Badge>
-                            )}
-                        </div>
-                        <CardDescription>{userProfile.email}</CardDescription>
-                    </CardHeader>
-                     <CardContent className="flex flex-col items-center text-center gap-4">
-                        <div className="flex gap-6">
-                           <FollowersDialog userProfile={userProfile} type="followers">
-                                <div className="text-center cursor-pointer">
-                                    <p className="font-bold text-lg">{userProfile.followers?.length || 0}</p>
-                                    <p className="text-xs text-muted-foreground">Followers</p>
-                                </div>
-                            </FollowersDialog>
-                            <FollowersDialog userProfile={userProfile} type="following">
-                                <div className="text-center cursor-pointer">
-                                    <p className="font-bold text-lg">{userProfile.following?.length || 0}</p>
-                                    <p className="text-xs text-muted-foreground">Following</p>
-                                </div>
-                            </FollowersDialog>
-                        </div>
-                        <div>
-                             <p className="font-semibold">{userProfile?.warnings || 0} Warnings</p>
-                             <p className="text-sm text-muted-foreground">Reputation impacts tournament eligibility.</p>
-                        </div>
-                    </CardContent>
-                </Card>
                  <TitleSelector />
                  <TrophyCase profile={userProfile} />
                  <Card>
@@ -372,3 +373,4 @@ export default function ProfilePage() {
     </div>
   );
 }
+
