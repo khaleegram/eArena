@@ -26,27 +26,21 @@ export const metadata: Metadata = {
   manifest: '/manifest.json',
 };
 
-const MaintenancePage = () => (
-    <div className="flex flex-col items-center justify-center h-screen text-center bg-background text-foreground">
-      <HardHat className="w-20 h-20 mb-6 text-primary" />
-      <h1 className="text-4xl font-bold font-headline">Under Maintenance</h1>
-      <p className="mt-2 text-lg text-muted-foreground">eArena is currently down for scheduled maintenance.</p>
-      <p className="text-muted-foreground">Please check back soon.</p>
-    </div>
-  );
-
 export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // This server-side check is a first line of defense for non-JS users or initial load.
+  // The primary, real-time check is now in AuthProvider on the client.
   const settings = await getPlatformSettings();
   const isAdminCookie = cookies().get('isAdmin')?.value === 'true';
 
-  // Check for maintenance mode
   if (settings.isMaintenanceMode && !isAdminCookie) {
     const headersList = headers();
-    const pathname = headersList.get('x-invoke-path') || '/';
+    // Use 'next-url' for a more reliable path, as x-invoke-path can be inconsistent.
+    const nextUrl = headersList.get('next-url') || '/';
+    const pathname = new URL(nextUrl, 'http://localhost').pathname;
 
     const publicPaths = [
         '/',
@@ -63,6 +57,14 @@ export default async function RootLayout({
                          pathname.startsWith('/api');
 
     if (!isPublicPath) {
+        const MaintenancePage = () => (
+            <div className="flex flex-col items-center justify-center h-screen text-center bg-background text-foreground">
+              <HardHat className="w-20 h-20 mb-6 text-primary" />
+              <h1 className="text-4xl font-bold font-headline">Under Maintenance</h1>
+              <p className="mt-2 text-lg text-muted-foreground">eArena is currently down for scheduled maintenance.</p>
+              <p className="text-muted-foreground">Please check back soon.</p>
+            </div>
+        );
         return (
           <html lang="en" className="dark">
             <body className={cn("font-body antialiased", inter.variable, orbitron.variable)}>
