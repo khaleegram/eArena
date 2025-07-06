@@ -57,6 +57,15 @@ export default async function RootLayout({
 
   return (
     <html lang="en" className="dark">
+      <head>
+          <meta name="application-name" content="eArena" />
+          <meta name="apple-mobile-web-app-capable" content="yes" />
+          <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+          <meta name="apple-mobile-web-app-title" content="eArena" />
+          <meta name="format-detection" content="telephone=no" />
+          <meta name="mobile-web-app-capable" content="yes" />
+          <meta name="theme-color" content="#172554" />
+      </head>
       <body className={cn(
           "font-body antialiased bg-background text-foreground",
           inter.variable,

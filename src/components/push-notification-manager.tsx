@@ -36,7 +36,7 @@ export function PushNotificationManager() {
 
     useEffect(() => {
         if ('serviceWorker' in navigator && user) {
-            navigator.serviceWorker.register('/service-worker.js').then(swReg => {
+            navigator.serviceWorker.register('/sw.js').then(swReg => {
                 console.log('Service Worker is registered', swReg);
                 swReg.pushManager.getSubscription().then(sub => {
                     if (sub) {
