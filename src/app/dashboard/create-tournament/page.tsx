@@ -6,10 +6,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
-import { createTournament } from '@/lib/actions';
+import { createTournament, initializeTournamentPayment } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 import { addDays, format, startOfDay } from 'date-fns';
-import { Calendar as CalendarIcon, Loader2, Sparkles, Trophy, StepForward, Info, Gamepad2, Users, CalendarDays, Settings, Award, Send } from 'lucide-react';
+import { Calendar as CalendarIcon, Loader2, Sparkles, Trophy, StepForward, Info, Gamepad2, Users, CalendarDays, Settings, Award, Send, CreditCard } from 'lucide-react';
 import * as React from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -492,7 +492,7 @@ export default function CreateTournamentPage() {
                                         <FormItem className="flex-1">
                                             <FormControl><RadioGroupItem value="money" className="sr-only" /></FormControl>
                                             <FormLabel className={cn("flex flex-col items-center justify-center rounded-md border-2 p-4 hover:bg-accent hover:text-accent-foreground cursor-pointer", field.value === 'money' && "border-primary")}>
-                                                <Trophy className="mb-3 h-6 w-6" /> Real Money
+                                                <CreditCard className="mb-3 h-6 w-6" /> Real Money
                                                 <span className="font-normal text-xs text-muted-foreground mt-1">Organizer-funded prize pool. Free for players.</span>
                                             </FormLabel>
                                         </FormItem>
