@@ -22,6 +22,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { auth, db, googleAuthProvider } from '@/lib/firebase';
+import { resendVerificationEmail } from '@/lib/actions';
 import type { UserProfile } from '@/lib/types';
 
 interface UserAuthFormProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -89,7 +90,9 @@ export function UserAuthForm({ className, mode, ...props }: UserAuthFormProps) {
             message = 'Incorrect email or password. Please try again.';
             break;
           case 'auth/email-already-in-use':
-            message = 'This email is already registered. Please login instead.';
+            message = 'This email is already registered. If you haven\'t verified your email, we\'ve sent you a new verification link.';
+            // Resend verification email as a helpful action.
+            resendVerificationEmail(data.email);
             break;
           case 'auth/user-disabled':
             message = 'This account has been suspended by an administrator.';

@@ -260,6 +260,29 @@ export async function sendPasswordResetEmail(email: string) {
     }
 }
 
+export async function resendVerificationEmail(email: string) {
+    try {
+        const userRecord = await adminAuth.getUserByEmail(email);
+        if (userRecord.emailVerified) {
+            // The user's email is already verified, so no need to send another email.
+            // We could optionally notify them that someone attempted to register with their email.
+            return;
+        }
+
+        const link = await adminAuth.generateEmailVerificationLink(email);
+        await sendEmail({
+            to: email,
+            subject: 'Verify your eArena Email',
+            body: `Hello,\n\nPlease click the following link to verify your email and activate your eArena account:\n${link}\n\nIf you did not request this, please ignore this email.\n\nThanks,\nThe eArena Team`
+        });
+    } catch (error: any) {
+        // This will catch `auth/user-not-found` if called improperly,
+        // but for this flow it just means we don't spam emails for non-existent users.
+        console.error("Resend verification email error:", error);
+        // We don't throw an error back to the client to avoid revealing user existence.
+    }
+}
+
 
 export async function followUser(currentUserId: string, targetUserId: string) {
     if (currentUserId === targetUserId) {
