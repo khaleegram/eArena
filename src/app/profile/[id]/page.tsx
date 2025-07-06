@@ -22,6 +22,8 @@ import { Badge } from '@/components/ui/badge';
 import { AchievementsDisplay } from '@/components/achievements-display';
 import { TrophyCase } from '@/components/trophy-case';
 import { FollowersDialog } from '@/components/followers-dialog';
+import { db } from '@/lib/firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
 
 const toDate = (timestamp: UnifiedTimestamp | undefined): Date | null => {
     if (!timestamp) return null;
@@ -74,36 +76,53 @@ export default function PublicProfilePage() {
   const [isMessaging, setIsMessaging] = React.useState(false);
   
   React.useEffect(() => {
-    const fetchData = async () => {
-        setLoading(true);
-        try {
-            const [profileData, statsData] = await Promise.all([
-                getUserProfileById(params.id),
-                getPlayerStats(params.id)
-            ]);
-            setProfile(profileData);
-            setStats(statsData);
+    if (!params.id) return;
 
-            if (statsData && statsData.totalMatches > 0) {
-                const analysisData = await getPlayerPerformanceAnalysis(statsData);
-                setAnalysis(analysisData);
-            }
-            
-            if (user) {
-                const cUserStats = await getPlayerStats(user.uid);
-                setCurrentUserStats(cUserStats);
-            }
-
-        } catch (error) {
-             toast({ variant: 'destructive', title: 'Error', description: 'Could not load user profile.' });
-        } finally {
-            setLoading(false);
+    setLoading(true);
+    
+    // Real-time listener for the profile document
+    const profileRef = doc(db, 'users', params.id);
+    const unsubscribe = onSnapshot(profileRef, (docSnap) => {
+        if (docSnap.exists()) {
+            setProfile({ uid: docSnap.id, ...docSnap.data() } as UserProfile);
+        } else {
+            setProfile(null);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not load user profile.' });
         }
+    }, (error) => {
+        console.error("Error fetching profile:", error);
+        toast({ variant: 'destructive', title: 'Error', description: 'Could not load user profile.' });
+    });
+
+    // One-time fetch for stats and other data
+    const fetchAncillaryData = async () => {
+      try {
+        const statsData = await getPlayerStats(params.id);
+        setStats(statsData);
+
+        if (statsData && statsData.totalMatches > 0) {
+          const analysisData = await getPlayerPerformanceAnalysis(statsData);
+          setAnalysis(analysisData);
+        }
+
+        if (user) {
+          const cUserStats = await getPlayerStats(user.uid);
+          setCurrentUserStats(cUserStats);
+        }
+      } catch (error) {
+        console.error("Error fetching ancillary data:", error);
+        toast({ variant: 'destructive', title: 'Error', description: 'Could not load some profile data.' });
+      } finally {
+        setLoading(false);
+      }
     };
-    if (params.id) {
-        fetchData();
-    }
+
+    fetchAncillaryData();
+
+    // Cleanup the listener on component unmount
+    return () => unsubscribe();
   }, [params.id, toast, user]);
+
 
   const handleStartMessage = async () => {
     if (!user || !profile) return;
@@ -243,4 +262,5 @@ export default function PublicProfilePage() {
     </div>
   );
 }
+
 
