@@ -258,7 +258,7 @@ export function CommunicationHub({ tournament, isOrganizer, userTeam }: { tourna
             const playerIds = new Set<string>();
             teamsSnapshot.forEach(doc => {
                 const team = doc.data() as Team;
-                team.playerIds.forEach(id => playerIds.add(id));
+                (team.playerIds || []).forEach(id => playerIds.add(id));
             });
 
             if (playerIds.size === 0) {
@@ -267,14 +267,19 @@ export function CommunicationHub({ tournament, isOrganizer, userTeam }: { tourna
             }
 
             const profiles: Record<string, UserProfile> = {};
+            const playerIdsArray = Array.from(playerIds);
             const userProfilesRef = collection(db, 'users');
-            // Firestore 'in' query is limited to 30 items. For larger tournaments, this needs pagination.
-            const playerIdsArray = Array.from(playerIds).slice(0, 30);
-            const usersSnapshot = await getDocs(query(userProfilesRef, where('uid', 'in', playerIdsArray)));
-
-            usersSnapshot.forEach(doc => {
-                profiles[doc.id] = doc.data() as UserProfile;
-            });
+            
+            // Chunk the requests to stay within Firestore's limits
+            for (let i = 0; i < playerIdsArray.length; i += 30) {
+                const chunk = playerIdsArray.slice(i, i + 30);
+                if (chunk.length > 0) {
+                    const usersSnapshot = await getDocs(query(userProfilesRef, where('uid', 'in', chunk)));
+                    usersSnapshot.forEach(doc => {
+                        profiles[doc.id] = { uid: doc.id, ...doc.data() } as UserProfile;
+                    });
+                }
+            }
 
             setParticipantProfiles(profiles);
             setLoading(false);

@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -66,13 +65,16 @@ export function TeamsTab({ tournament, isOrganizer }: { tournament: Tournament; 
       if (profilesToFetch.length > 0) {
         const uniqueIds = [...new Set(profilesToFetch)];
         const profiles: Record<string, UserProfile> = {};
-        // Fetch in chunks of 10 for 'in' query limit
-        for (let i = 0; i < uniqueIds.length; i += 10) {
-            const chunk = uniqueIds.slice(i, i + 10);
-            const userDocs = await getDocs(query(collection(db, 'users'), where('uid', 'in', chunk)));
-            userDocs.forEach(doc => {
-                profiles[doc.id] = doc.data() as UserProfile;
-            });
+        
+        // Fetch in chunks to avoid Firestore 'in' query limit
+        for (let i = 0; i < uniqueIds.length; i += 30) {
+            const chunk = uniqueIds.slice(i, i + 30);
+            if (chunk.length > 0) {
+                const userDocs = await getDocs(query(collection(db, 'users'), where('uid', 'in', chunk)));
+                userDocs.forEach(doc => {
+                    profiles[doc.id] = { uid: doc.id, ...doc.data() } as UserProfile;
+                });
+            }
         }
         setTeamCaptainProfiles(prev => ({...prev, ...profiles}));
       }
@@ -83,7 +85,7 @@ export function TeamsTab({ tournament, isOrganizer }: { tournament: Tournament; 
       setLoading(false);
     });
     return () => unsubscribe();
-  }, [tournament.id, teamCaptainProfiles]);
+  }, [tournament.id]);
   
   return (
     <Card>
