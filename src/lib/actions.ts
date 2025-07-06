@@ -1686,7 +1686,7 @@ export async function getConversationsForUser(userId: string): Promise<Conversat
     return serializeData(conversations);
 }
 
-export async function getConversationById(conversationId: string, currentUserId: string): Promise<Conversation | null> {
+export async function getConversationById(conversationId: string, currentUserId: string): Promise<Omit<Conversation, 'messages'> | null> {
     const conversationRef = adminDb.collection('conversations').doc(conversationId);
     const conversationDoc = await conversationRef.get();
 
@@ -1697,22 +1697,18 @@ export async function getConversationById(conversationId: string, currentUserId:
     if (!conversationData.participantIds.includes(currentUserId)) {
         throw new Error("You are not authorized to view this conversation.");
     }
-
-    const messagesSnapshot = await conversationRef.collection('messages').orderBy('timestamp', 'asc').limit(50).get();
-    const messages = messagesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ChatMessage));
     
     const participantProfiles = await Promise.all(
         conversationData.participantIds.map(id => getUserProfileById(id))
     );
 
-    const fullConversation: Conversation = {
+    const conversationDetails: Omit<Conversation, 'messages'> = {
         id: conversationDoc.id,
         ...conversationData,
         participants: participantProfiles.filter(p => p !== null) as UserProfile[],
-        messages,
     };
 
-    return serializeData(fullConversation);
+    return serializeData(conversationDetails);
 }
 
 export async function postDirectMessage(conversationId: string, messageText: string, senderId: string) {
@@ -2748,4 +2744,3 @@ export async function verifyAndActivateTournament(reference: string) {
 
     return { tournamentId };
 }
-

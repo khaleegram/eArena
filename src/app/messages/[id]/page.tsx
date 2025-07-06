@@ -13,6 +13,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { ReputationAvatar } from '@/components/reputation-avatar';
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 const toDate = (timestamp: UnifiedTimestamp): Date => {
     if (!timestamp) return new Date();
@@ -25,7 +27,7 @@ export default function ConversationPage() {
     const { id: conversationId } = useParams() as { id: string };
     const router = useRouter();
     const { user, userProfile } = useAuth();
-    const [conversation, setConversation] = useState<Conversation | null>(null);
+    const [conversation, setConversation] = useState<(Omit<Conversation, 'messages'> & { messages?: ChatMessage[] }) | null>(null);
     const [loading, setLoading] = useState(true);
     const [message, setMessage] = useState('');
     const [isSending, setIsSending] = useState(false);
@@ -34,24 +36,42 @@ export default function ConversationPage() {
     useEffect(() => {
         if (!user || !conversationId) return;
 
-        const fetchConversation = async () => {
-            setLoading(true);
-            try {
-                const convo = await getConversationById(conversationId, user.uid);
-                if (!convo) {
-                    router.replace('/messages');
-                    return;
-                }
-                setConversation(convo);
-            } catch (error) {
-                console.error("Error fetching conversation", error);
+        let unsubscribe: (() => void) | undefined;
+
+        setLoading(true);
+        getConversationById(conversationId, user.uid).then(convoDetails => {
+            if (!convoDetails) {
                 router.replace('/messages');
-            } finally {
+                return;
+            }
+            setConversation(convoDetails);
+
+            // Once we have details and know we are authorized, set up the listener
+            const messagesQuery = query(
+                collection(db, 'conversations', conversationId, 'messages'),
+                orderBy('timestamp', 'asc')
+            );
+
+            unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
+                const messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ChatMessage));
+                setConversation(prev => prev ? { ...prev, messages } : null);
                 setLoading(false);
+            }, (error) => {
+                console.error("Error listening to messages:", error);
+                setLoading(false);
+            });
+
+        }).catch(error => {
+            console.error("Error fetching conversation details", error);
+            router.replace('/messages');
+            setLoading(false);
+        });
+
+        return () => {
+            if (unsubscribe) {
+                unsubscribe();
             }
         };
-
-        fetchConversation();
     }, [conversationId, user, router]);
 
     useEffect(() => {
