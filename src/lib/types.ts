@@ -124,6 +124,7 @@ export interface Team {
   players: Player[];
   playerIds: string[];
   isApproved?: boolean;
+  performancePoints?: number;
 }
 
 export interface UserMembership {
@@ -314,4 +315,10 @@ export interface PlatformSettings {
   facebookUrl?: string;
   instagramUrl?: string;
   youtubeUrl?: string;
+}
+
+export interface TournamentAward {
+    awardTitle: string;
+    team: Team;
+    reason: string;
 }

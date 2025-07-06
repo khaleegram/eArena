@@ -1,9 +1,10 @@
 
+
 'use server';
 
 import { adminDb, adminAuth } from './firebase-admin';
 import { Timestamp, FieldValue, FieldPath } from 'firebase-admin/firestore';
-import type { Tournament, UserProfile, Team, Match, Standing, TournamentFormat, Player, MatchReport, Notification, RewardDetails, TeamMatchStats, MatchStatus, Badge, UnifiedTimestamp, PlayerStats, TournamentPerformancePoint, Highlight, Article, UserMembership, ReplayRequest, EarnedAchievement, PlayerTitle, PlatformSettings, Conversation, ChatMessage, PlayerRole, PushSubscription } from './types';
+import type { Tournament, UserProfile, Team, Match, Standing, TournamentFormat, Player, MatchReport, Notification, RewardDetails, TeamMatchStats, MatchStatus, Badge, UnifiedTimestamp, PlayerStats, TournamentPerformancePoint, Highlight, Article, UserMembership, ReplayRequest, EarnedAchievement, PlayerTitle, PlatformSettings, Conversation, ChatMessage, PlayerRole, PushSubscription, TournamentAward } from './types';
 import { revalidatePath } from 'next/cache';
 import { generateTournamentFixtures } from '@/ai/flows/generate-tournament-fixtures';
 import { verifyMatchScores, type VerifyMatchScoresInput, type VerifyMatchScoresOutput } from '@/ai/flows/verify-match-scores';
@@ -513,6 +514,7 @@ export async function addTeam(tournamentId: string, teamData: Omit<Team, 'id' | 
         players: [teamData.captain],
         playerIds: [teamData.captainId],
         isApproved: !needsApproval,
+        performancePoints: 0,
     };
     
     const newMembership: UserMembership = {
@@ -967,43 +969,76 @@ export async function submitSecondaryEvidence(tournamentId: string, matchId: str
     revalidatePath(`/tournaments/${tournamentId}`);
 }
 
+function calculatePerformancePointsForTeam(match: Match, teamStats: TeamMatchStats, isHomeTeam: boolean): number {
+    let points = 0;
+    const playerScore = isHomeTeam ? match.homeScore! : match.awayScore!;
+    const opponentScore = isHomeTeam ? match.awayScore! : match.homeScore!;
 
-async function updatePlayerStatsForMatch(tournamentId: string, match: Match, applyStatsPenalty: boolean, forfeitingPlayerId?: string) {
-  const tournamentDoc = await adminDb.collection('tournaments').doc(tournamentId).get();
-  const tournamentName = tournamentDoc.exists ? (tournamentDoc.data() as Tournament).name : 'Unknown Tournament';
+    if (playerScore > opponentScore) points += 10; // Win
+    if (playerScore === opponentScore) points += 5; // Draw
+    if (opponentScore === 0) points += 5; // Clean Sheet
+    points += playerScore; // Each Goal Scored
+    if (teamStats.shotsOnTarget) points += Math.floor(teamStats.shotsOnTarget / 2); // Shots on Target
+    if (teamStats.interceptions) points += Math.floor(teamStats.interceptions / 10); // Interceptions
+    if (teamStats.tackles) points += Math.floor(teamStats.tackles / 5); // Tackles
+    if (teamStats.saves) points += teamStats.saves; // Saves
+    if (teamStats.possession > 50) points += 2; // Possession
+    if (teamStats.passes > 0 && (teamStats.successfulPasses / teamStats.passes) > 0.75) points += 2; // Pass Accuracy
+    if (teamStats.fouls === 0 && teamStats.offsides === 0) points += 2; // Fair Play
 
-  const homeTeamDoc = await adminDb.collection('tournaments').doc(tournamentId).collection('teams').doc(match.homeTeamId).get();
-  const awayTeamDoc = await adminDb.collection('tournaments').doc(tournamentId).collection('teams').doc(match.awayTeamId).get();
-
-  if (!homeTeamDoc.exists || !awayTeamDoc.exists) {
-    console.error("Could not find teams to update stats.");
-    return;
-  }
-  
-  const homeTeam = homeTeamDoc.data() as Team;
-  const awayTeam = awayTeamDoc.data() as Team;
-
-  const homeCaptainId = homeTeam.captainId;
-  const awayCaptainId = awayTeam.captainId;
-  
-  const playersToUpdate = [
-      { captainId: homeCaptainId, isHome: true },
-      { captainId: awayCaptainId, isHome: false }
-  ];
-
-  for (const player of playersToUpdate) {
-    await adminDb.runTransaction(async (transaction) => {
-        const statsRef = adminDb.collection('playerStats').doc(player.captainId);
-        const statsDoc = await transaction.get(statsRef);
-        const stats = statsDoc.exists ? statsDoc.data() as PlayerStats : createDefaultPlayerStats(player.captainId);
-        
-        let localPenalty = applyStatsPenalty || (forfeitingPlayerId === player.captainId);
-        updateSinglePlayerStats(stats, tournamentId, tournamentName, match, player.isHome, localPenalty);
-        
-        transaction.set(statsRef, stats);
-    });
-  }
+    return points;
 }
+
+async function updatePlayerAndTeamStatsForMatch(tournamentId: string, match: Match, applyStatsPenalty: boolean, forfeitingPlayerId?: string) {
+    const tournamentDoc = await adminDb.collection('tournaments').doc(tournamentId).get();
+    if (!tournamentDoc.exists) {
+        console.error("Tournament not found for stat update");
+        return;
+    }
+    const tournamentName = tournamentDoc.data()!.name;
+
+    const homeTeamRef = adminDb.collection('tournaments').doc(tournamentId).collection('teams').doc(match.homeTeamId);
+    const awayTeamRef = adminDb.collection('tournaments').doc(tournamentId).collection('teams').doc(match.awayTeamId);
+
+    const [homeTeamDoc, awayTeamDoc] = await Promise.all([homeTeamRef.get(), awayTeamRef.get()]);
+    if (!homeTeamDoc.exists || !awayTeamDoc.exists) {
+        console.error("Could not find teams to update stats.");
+        return;
+    }
+    
+    const homeTeam = homeTeamDoc.data() as Team;
+    const awayTeam = awayTeamDoc.data() as Team;
+
+    let homePerfPoints = 0;
+    let awayPerfPoints = 0;
+    if (match.homeTeamStats) homePerfPoints = calculatePerformancePointsForTeam(match, match.homeTeamStats, true);
+    if (match.awayTeamStats) awayPerfPoints = calculatePerformancePointsForTeam(match, match.awayTeamStats, false);
+    
+    // Update team performance points
+    await Promise.all([
+        homeTeamRef.update({ performancePoints: FieldValue.increment(homePerfPoints) }),
+        awayTeamRef.update({ performancePoints: FieldValue.increment(awayPerfPoints) }),
+    ]);
+
+    const playersToUpdate = [
+        { captainId: homeTeam.captainId, isHome: true },
+        { captainId: awayTeam.captainId, isHome: false }
+    ];
+
+    for (const player of playersToUpdate) {
+        await adminDb.runTransaction(async (transaction) => {
+            const statsRef = adminDb.collection('playerStats').doc(player.captainId);
+            const statsDoc = await transaction.get(statsRef);
+            const stats = statsDoc.exists ? statsDoc.data() as PlayerStats : createDefaultPlayerStats(player.captainId);
+            
+            let localPenalty = applyStatsPenalty || (forfeitingPlayerId === player.captainId);
+            updateSinglePlayerStats(stats, tournamentId, tournamentName, match, player.isHome, localPenalty);
+            
+            transaction.set(statsRef, stats);
+        });
+    }
+}
+
 
 function createDefaultPlayerStats(uid: string): PlayerStats {
   return {
@@ -1045,7 +1080,7 @@ function updateSinglePlayerStats(stats: PlayerStats, tournamentId: string, tourn
   const playerMatchStats = isHomePlayer ? match.homeTeamStats : match.awayTeamStats;
 
   if (playerMatchStats && !applyStatsPenalty) {
-      if (playerMatchStats.passes && playerMatchStats.passes > 0 && playerMatchStats.successfulPasses !== undefined) {
+      if (playerMatchStats.passes > 0 && playerMatchStats.successfulPasses !== undefined) {
         const passPercentage = (playerMatchStats.successfulPasses / playerMatchStats.passes) * 100;
         stats.totalPassPercentageSum = (stats.totalPassPercentageSum || 0) + passPercentage;
         stats.matchesWithPassStats = (stats.matchesWithPassStats || 0) + 1;
@@ -1058,7 +1093,7 @@ function updateSinglePlayerStats(stats: PlayerStats, tournamentId: string, tourn
       stats.totalSaves += playerMatchStats.saves || 0;
   }
   
-  if (stats.matchesWithPassStats && stats.matchesWithPassStats > 0) {
+  if (stats.matchesWithPassStats > 0) {
     stats.avgPossession = Math.round(stats.totalPassPercentageSum! / stats.matchesWithPassStats);
   } else {
     stats.avgPossession = stats.avgPossession || 0;
@@ -1117,7 +1152,7 @@ export async function approveMatchResult(tournamentId: string, matchId: string, 
 
     const updatedMatchDoc = await matchRef.get();
     const approvedMatch = updatedMatchDoc.data() as Match;
-    await updatePlayerStatsForMatch(tournamentId, approvedMatch, applyStatsPenalty, forfeitingPlayerId);
+    await updatePlayerAndTeamStatsForMatch(tournamentId, approvedMatch, applyStatsPenalty, forfeitingPlayerId);
     
     // Check achievements for both players after stats update
     const homeTeamDoc = await adminDb.collection('tournaments').doc(tournamentId).collection('teams').doc(approvedMatch.homeTeamId).get();
@@ -1263,7 +1298,7 @@ function revertSinglePlayerStats(stats: PlayerStats, tournamentId: string, tourn
     const playerMatchStats = isHomePlayer ? match.homeTeamStats : match.awayTeamStats;
 
     if (playerMatchStats) {
-        if (playerMatchStats.passes && playerMatchStats.passes > 0 && playerMatchStats.successfulPasses !== undefined) {
+        if (playerMatchStats.passes > 0 && playerMatchStats.successfulPasses !== undefined) {
             const passPercentage = (playerMatchStats.successfulPasses / playerMatchStats.passes) * 100;
             if (stats.totalPassPercentageSum) stats.totalPassPercentageSum -= passPercentage;
             if (stats.matchesWithPassStats) stats.matchesWithPassStats -= 1;
@@ -1294,6 +1329,13 @@ function revertSinglePlayerStats(stats: PlayerStats, tournamentId: string, tourn
     }
 }
 
+function revertTeamPerformancePoints(match: Match, isHomeTeam: boolean) {
+    if (!match || match.homeScore === null || match.awayScore === null) return 0;
+    const teamStats = isHomeTeam ? match.homeTeamStats : match.awayTeamStats;
+    if (!teamStats) return 0;
+    return calculatePerformancePointsForTeam(match, teamStats, isHomeTeam);
+}
+
 export async function organizerForceReplay(tournamentId: string, matchId: string, organizerId: string, reason: string) {
     const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
     const matchRef = tournamentRef.collection('matches').doc(matchId);
@@ -1313,16 +1355,19 @@ export async function organizerForceReplay(tournamentId: string, matchId: string
 
         let homeCaptainStats: PlayerStats | undefined;
         let awayCaptainStats: PlayerStats | undefined;
-        let homeTeam: Team | undefined;
-        let awayTeam: Team | undefined;
+        let homeTeamDoc;
+        let awayTeamDoc;
         
         if (match.status === 'approved') {
-            const homeTeamDoc = await transaction.get(tournamentRef.collection('teams').doc(match.homeTeamId));
-            const awayTeamDoc = await transaction.get(tournamentRef.collection('teams').doc(match.awayTeamId));
-            homeTeam = homeTeamDoc.data() as Team;
-            awayTeam = awayTeamDoc.data() as Team;
+            const homeTeamRef = tournamentRef.collection('teams').doc(match.homeTeamId);
+            const awayTeamRef = tournamentRef.collection('teams').doc(match.awayTeamId);
+            homeTeamDoc = await transaction.get(homeTeamRef);
+            awayTeamDoc = await transaction.get(awayTeamRef);
 
-            if (homeTeam && awayTeam) {
+            if (homeTeamDoc.exists && awayTeamDoc.exists) {
+                const homeTeam = homeTeamDoc.data() as Team;
+                const awayTeam = awayTeamDoc.data() as Team;
+
                 const homeCaptainStatsDoc = await transaction.get(adminDb.collection('playerStats').doc(homeTeam.captainId));
                 const awayCaptainStatsDoc = await transaction.get(adminDb.collection('playerStats').doc(awayTeam.captainId));
 
@@ -1332,21 +1377,27 @@ export async function organizerForceReplay(tournamentId: string, matchId: string
         }
 
         // --- COMPUTES (In Memory) ---
-        if (homeCaptainStats && homeTeam) {
+        if (homeCaptainStats && homeTeamDoc?.exists) {
             revertSinglePlayerStats(homeCaptainStats, tournamentId, tournament.name, match, true);
         }
-        if (awayCaptainStats && awayTeam) {
+        if (awayCaptainStats && awayTeamDoc?.exists) {
             revertSinglePlayerStats(awayCaptainStats, tournamentId, tournament.name, match, false);
         }
 
         // --- WRITES ---
-        if (homeCaptainStats && homeTeam) {
-            const homeStatsRef = adminDb.collection('playerStats').doc(homeTeam.captainId);
+        if (homeCaptainStats && homeTeamDoc?.exists) {
+            const homeStatsRef = adminDb.collection('playerStats').doc(homeTeamDoc.id);
             transaction.set(homeStatsRef, homeCaptainStats);
+            const homeTeamRef = tournamentRef.collection('teams').doc(match.homeTeamId);
+            const pointsToRevert = revertTeamPerformancePoints(match, true);
+            transaction.update(homeTeamRef, { performancePoints: FieldValue.increment(-pointsToRevert) });
         }
-        if (awayCaptainStats && awayTeam) {
-            const awayStatsRef = adminDb.collection('playerStats').doc(awayTeam.captainId);
+        if (awayCaptainStats && awayTeamDoc?.exists) {
+            const awayStatsRef = adminDb.collection('playerStats').doc(awayTeamDoc.id);
             transaction.set(awayStatsRef, awayCaptainStats);
+            const awayTeamRef = tournamentRef.collection('teams').doc(match.awayTeamId);
+            const pointsToRevert = revertTeamPerformancePoints(match, false);
+            transaction.update(awayTeamRef, { performancePoints: FieldValue.increment(-pointsToRevert) });
         }
         
         transaction.update(matchRef, {
@@ -1579,17 +1630,17 @@ async function handleAIVerificationResult(tournamentId: string, matchId: string,
 // Communication Actions
 export async function postTournamentMessage(tournamentId: string, userId: string, username: string, photoURL: string, message: string) {
     const chatRef = adminDb.collection('tournaments').doc(tournamentId).collection('messages');
-    await chatRef.add({ tournamentId, userId, username, photoURL, message, timestamp: FieldValue.serverTimestamp() });
+    await chatRef.add({ tournamentId, userId, username, photoURL: photoURL || '', message, timestamp: FieldValue.serverTimestamp() });
 }
 
 export async function postTeamMessage(tournamentId: string, teamId: string, userId: string, username: string, photoURL: string, message: string) {
     const chatRef = adminDb.collection('tournaments').doc(tournamentId).collection('teams').doc(teamId).collection('messages');
-    await chatRef.add({ tournamentId, teamId, userId, username, photoURL, message, timestamp: FieldValue.serverTimestamp() });
+    await chatRef.add({ tournamentId, teamId, userId, username, photoURL: photoURL || '', message, timestamp: FieldValue.serverTimestamp() });
 }
 
 export async function postMatchMessage(tournamentId: string, matchId: string, userId: string, username: string, photoURL: string, message: string) {
     const chatRef = adminDb.collection('tournaments').doc(tournamentId).collection('matches').doc(matchId).collection('messages');
-    await chatRef.add({ tournamentId, matchId, userId, username, photoURL, message, timestamp: FieldValue.serverTimestamp() });
+    await chatRef.add({ tournamentId, matchId, userId, username, photoURL: photoURL || '', message, timestamp: FieldValue.serverTimestamp() });
 }
 
 export async function postAnnouncement(tournamentId: string, organizerId: string, title: string, content: string) {
@@ -1811,6 +1862,69 @@ export async function getPrizeDistribution(tournamentId: string): Promise<any[]>
     }));
 
     return serializeData(results);
+}
+
+export async function getTournamentAwards(tournamentId: string): Promise<Record<string, TournamentAward>> {
+    const teamsSnapshot = await adminDb.collection('tournaments').doc(tournamentId).collection('teams').get();
+    if(teamsSnapshot.empty) return {};
+
+    const teams = teamsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Team));
+    const standingsSnapshot = await adminDb.collection('standings').where('tournamentId', '==', tournamentId).get();
+    const standings = standingsSnapshot.docs.map(doc => doc.data() as Standing);
+
+    const awards: Record<string, TournamentAward> = {};
+    
+    // Best Overall Team
+    const bestOverall = teams.reduce((prev, current) => ((prev.performancePoints || 0) > (current.performancePoints || 0)) ? prev : current, teams[0]);
+    if(bestOverall) {
+        awards.bestOverall = { awardTitle: 'Best Overall Team', team: bestOverall, reason: `${bestOverall.performancePoints || 0} Performance Points`};
+    }
+
+    // Highest Scoring
+    const highestScoringStanding = standings.reduce((prev, current) => (prev.goalsFor > current.goalsFor) ? prev : current, standings[0]);
+    const highestScoringTeam = teams.find(t => t.id === highestScoringStanding.teamId);
+    if(highestScoringTeam) {
+        awards.highestScoring = { awardTitle: 'Highest Scoring Team', team: highestScoringTeam, reason: `${highestScoringStanding.goalsFor} Goals Scored`};
+    }
+    
+    // Best Defense
+    const bestDefensiveStanding = standings.sort((a,b) => a.goalsAgainst - b.goalsAgainst || b.cleanSheets - a.cleanSheets)[0];
+    const bestDefensiveTeam = teams.find(t => t.id === bestDefensiveStanding.teamId);
+    if(bestDefensiveTeam) {
+        awards.bestDefensive = { awardTitle: 'Best Defensive Team', team: bestDefensiveTeam, reason: `${bestDefensiveStanding.goalsAgainst} Goals Conceded, ${bestDefensiveStanding.cleanSheets} Clean Sheets`};
+    }
+
+    // Best Attacking (requires iterating matches)
+    const matchesSnapshot = await adminDb.collection('tournaments').doc(tournamentId).collection('matches').where('status', '==', 'approved').get();
+    const matches = matchesSnapshot.docs.map(d => d.data() as Match);
+
+    let bestAttackingScore = -1;
+    let bestAttackingTeamId = '';
+    
+    for (const team of teams) {
+        let attackingScore = 0;
+        const teamMatches = matches.filter(m => m.homeTeamId === team.id || m.awayTeamId === team.id);
+        for(const match of teamMatches) {
+            const isHome = match.homeTeamId === team.id;
+            const goals = isHome ? match.homeScore : match.awayScore;
+            const stats = isHome ? match.homeTeamStats : match.awayTeamStats;
+            if(goals === null || !stats) continue;
+            
+            const passAccuracyBonus = (stats.passes > 0 && (stats.successfulPasses / stats.passes) > 0.75) ? 1 : 0;
+            attackingScore += (goals * 5) + (stats.shotsOnTarget * 2) + (passAccuracyBonus * 3);
+        }
+        if(attackingScore > bestAttackingScore) {
+            bestAttackingScore = attackingScore;
+            bestAttackingTeamId = team.id;
+        }
+    }
+    
+    const bestAttackingTeam = teams.find(t => t.id === bestAttackingTeamId);
+    if(bestAttackingTeam) {
+        awards.bestAttacking = { awardTitle: 'Best Attacking Team', team: bestAttackingTeam, reason: `${Math.round(bestAttackingScore)} Attack Score`};
+    }
+
+    return serializeData(awards);
 }
 
 
