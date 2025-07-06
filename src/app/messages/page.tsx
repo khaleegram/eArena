@@ -1,20 +1,22 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { getConversationsForUser, getUsersByIds, startConversation } from '@/lib/actions';
+import { findUsersByUsername } from '@/lib/actions/user';
 import type { Conversation, UserProfile, UnifiedTimestamp } from '@/lib/types';
-import { Loader2, User, MessageSquare } from 'lucide-react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Loader2, User, MessageSquare, Search } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ReputationAvatar } from '@/components/reputation-avatar';
+import { Input } from '@/components/ui/input';
+import { Separator } from '@/components/ui/separator';
 
 // toDate helper function
 const toDate = (timestamp: UnifiedTimestamp): Date => {
@@ -26,6 +28,76 @@ const toDate = (timestamp: UnifiedTimestamp): Date => {
         return (timestamp as any).toDate();
     }
     return timestamp as Date;
+};
+
+// UserSearch Component
+const UserSearch = () => {
+    const [query, setQuery] = useState('');
+    const [results, setResults] = useState<UserProfile[]>([]);
+    const [isSearching, startSearchTransition] = useTransition();
+    const { user: currentUser } = useAuth();
+    const router = useRouter();
+    const { toast } = useToast();
+    
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            if (query.trim().length > 2) {
+                startSearchTransition(async () => {
+                    const foundUsers = await findUsersByUsername(query);
+                    setResults(foundUsers.filter(u => u.uid !== currentUser?.uid));
+                });
+            } else {
+                setResults([]);
+            }
+        }, 300); // Debounce search
+
+        return () => {
+            clearTimeout(handler);
+        };
+    }, [query, currentUser]);
+
+    const handleStartChat = async (targetUserId: string) => {
+        if (!currentUser) return;
+        try {
+            const conversationId = await startConversation(currentUser.uid, targetUserId);
+            router.push(`/messages/${conversationId}`);
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Error', description: `Could not start chat. ${error.message}` });
+        }
+    };
+
+    return (
+        <div className="space-y-4">
+            <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                    placeholder="Search for players to message..."
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    className="pl-8"
+                />
+            </div>
+            {isSearching && <div className="flex justify-center p-4"><Loader2 className="h-6 w-6 animate-spin"/></div>}
+            {results.length > 0 && (
+                <div className="space-y-2">
+                    {results.map(profile => (
+                        <div key={profile.uid} className="flex items-center gap-4 p-2 rounded-md hover:bg-accent">
+                            <Link href={`/profile/${profile.uid}`} className="flex items-center gap-4 flex-grow hover:underline">
+                                <ReputationAvatar profile={profile} />
+                                <span className="font-medium">{profile.username}</span>
+                            </Link>
+                            <Button size="sm" variant="outline" onClick={() => handleStartChat(profile.uid)}>
+                                <MessageSquare className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    ))}
+                </div>
+            )}
+            {query.length > 2 && !isSearching && results.length === 0 && (
+                 <p className="text-center text-sm text-muted-foreground py-4">No players found matching "{query}".</p>
+            )}
+        </div>
+    );
 };
 
 
@@ -162,9 +234,11 @@ export default function MessagesPage() {
             <Card>
                 <CardHeader>
                     <CardTitle className="font-headline">Inbox</CardTitle>
-                    <CardDescription>View your conversations and start new chats with your followers.</CardDescription>
+                    <CardDescription>Search for players or view your existing conversations and followers.</CardDescription>
                 </CardHeader>
                 <CardContent>
+                    <UserSearch />
+                    <Separator className="my-6" />
                     <Tabs defaultValue="chats">
                         <TabsList className="grid w-full grid-cols-2">
                             <TabsTrigger value="chats">Chats</TabsTrigger>
@@ -182,4 +256,3 @@ export default function MessagesPage() {
         </div>
     );
 }
-
