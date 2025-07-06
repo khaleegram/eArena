@@ -250,7 +250,11 @@ export interface Conversation {
     id: string;
     participants: UserProfile[];
     participantIds: string[];
-    lastMessage?: Pick<ChatMessage, 'text' | 'timestamp'> & { text: string };
+    createdAt?: UnifiedTimestamp;
+    lastMessage?: {
+        message: string;
+        timestamp: UnifiedTimestamp;
+    };
     messages?: ChatMessage[];
 }
 

@@ -152,7 +152,7 @@ const ConversationList = () => {
                                         </p>
                                     )}
                                 </div>
-                                <p className="text-sm text-muted-foreground truncate">{convo.lastMessage?.text || 'No messages yet'}</p>
+                                <p className="text-sm text-muted-foreground truncate">{convo.lastMessage?.message || 'No messages yet'}</p>
                             </div>
                         </div>
                     </Link>

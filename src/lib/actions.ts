@@ -438,20 +438,20 @@ export async function deleteTournament(tournamentId: string, organizerId: string
 export async function getPublicTournaments(): Promise<Tournament[]> {
     try {
         const snapshot = await adminDb.collection('tournaments')
-            .where('isPublic', '==', true)
             .where('status', 'in', ['open_for_registration', 'generating_fixtures', 'in_progress', 'completed', 'ready_to_start'])
             .get();
         
-        const tournaments = snapshot.docs.map(doc => ({ id: doc.id, ...serializeData(doc.data()) } as Tournament));
+        const allTournaments = snapshot.docs.map(doc => ({ id: doc.id, ...serializeData(doc.data()) } as Tournament));
+        const publicTournaments = allTournaments.filter(t => t.isPublic);
         
         // Sort manually to avoid needing a composite index
-        tournaments.sort((a, b) => {
+        publicTournaments.sort((a, b) => {
             const dateA = toAdminDate(a.tournamentStartDate).getTime();
             const dateB = toAdminDate(b.tournamentStartDate).getTime();
             return dateB - dateA;
         });
 
-        return tournaments;
+        return publicTournaments;
 
     } catch (error: any) {
         console.error("Error fetching public tournaments:", error);
@@ -1744,15 +1744,17 @@ export async function getConversationsForUser(userId: string): Promise<Conversat
     }
 
     const conversations: Conversation[] = await Promise.all(snapshot.docs.map(async (doc) => {
-        const data = doc.data() as Omit<Conversation, 'participants'>;
+        const data = doc.data();
         
         const participantProfiles = await Promise.all(
-            data.participantIds.map(id => getUserProfileById(id))
+            data.participantIds.map((id: string) => getUserProfileById(id))
         );
 
         return {
             id: doc.id,
-            ...data,
+            participantIds: data.participantIds,
+            createdAt: data.createdAt,
+            lastMessage: data.lastMessage,
             participants: participantProfiles.filter(p => p !== null) as UserProfile[],
         };
     }));
@@ -1766,19 +1768,22 @@ export async function getConversationById(conversationId: string, currentUserId:
 
     if (!conversationDoc.exists) return null;
     
-    const conversationData = conversationDoc.data() as Omit<Conversation, 'participants' | 'messages'>;
+    const conversationData = conversationDoc.data();
+    if (!conversationData) return null;
 
     if (!conversationData.participantIds.includes(currentUserId)) {
         throw new Error("You are not authorized to view this conversation.");
     }
     
     const participantProfiles = await Promise.all(
-        conversationData.participantIds.map(id => getUserProfileById(id))
+        conversationData.participantIds.map((id: string) => getUserProfileById(id))
     );
 
     const conversationDetails: Omit<Conversation, 'messages'> = {
         id: conversationDoc.id,
-        ...conversationData,
+        participantIds: conversationData.participantIds,
+        createdAt: conversationData.createdAt,
+        lastMessage: conversationData.lastMessage,
         participants: participantProfiles.filter(p => p !== null) as UserProfile[],
     };
 
@@ -1805,7 +1810,7 @@ export async function postDirectMessage(conversationId: string, messageText: str
     batch.set(messageRef, { ...newMessage, timestamp });
     batch.update(conversationRef, {
         lastMessage: {
-            text: messageText,
+            message: messageText,
             timestamp: timestamp,
         }
     });
@@ -2655,7 +2660,7 @@ export async function getLeaderboardByTournamentsWon() {
         .orderBy('tournamentsWon', 'desc')
         .limit(20)
         .get();
-
+        
     if (usersSnapshot.empty) return [];
 
     return usersSnapshot.docs.map(doc => serializeData(doc.data()) as UserProfile);
