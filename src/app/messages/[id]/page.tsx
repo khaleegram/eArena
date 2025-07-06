@@ -82,7 +82,7 @@ export default function ConversationPage() {
             // Optimistically update UI
             setConversation(prev => prev ? ({ ...prev, messages: [...(prev.messages || []), newMessage] }) : null);
 
-            await postDirectMessage(conversationId, newMessageText);
+            await postDirectMessage(conversationId, newMessageText, user.uid);
 
         } catch (error) {
             console.error(error);

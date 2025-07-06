@@ -3,7 +3,7 @@
 
 import { adminDb, adminAuth } from './firebase-admin';
 import { Timestamp, FieldValue, FieldPath } from 'firebase-admin/firestore';
-import type { Tournament, UserProfile, Team, Match, Standing, TournamentFormat, Player, MatchReport, Notification, RewardDetails, TeamMatchStats, MatchStatus, Badge, UnifiedTimestamp, PlayerStats, TournamentPerformancePoint, Highlight, Article, UserMembership, ReplayRequest, EarnedAchievement, PlayerTitle, PlatformSettings } from './types';
+import type { Tournament, UserProfile, Team, Match, Standing, TournamentFormat, Player, MatchReport, Notification, RewardDetails, TeamMatchStats, MatchStatus, Badge, UnifiedTimestamp, PlayerStats, TournamentPerformancePoint, Highlight, Article, UserMembership, ReplayRequest, EarnedAchievement, PlayerTitle, PlatformSettings, Conversation, ChatMessage, PlayerRole } from './types';
 import { revalidatePath } from 'next/cache';
 import { generateTournamentFixtures } from '@/ai/flows/generate-tournament-fixtures';
 import { verifyMatchScores, type VerifyMatchScoresInput, type VerifyMatchScoresOutput } from '@/ai/flows/verify-match-scores';
@@ -316,7 +316,7 @@ export async function createTournament(data: Omit<Tournament, 'id' | 'organizerU
       ...data,
       organizerUsername: userRecord.displayName || userRecord.email,
       createdAt: FieldValue.serverTimestamp() as UnifiedTimestamp,
-      status: 'open_for_registration' as TournamentStatus,
+      status: data.rewardType === 'money' ? 'pending' : 'open_for_registration',
       teamCount: 0,
       code: tournamentCode,
       rewardDetails,
@@ -332,8 +332,15 @@ export async function createTournament(data: Omit<Tournament, 'id' | 'organizerU
     delete (newTournamentData as any).duration;
 
 
-    await adminDb.collection('tournaments').add(newTournamentData as any);
+    const tournamentRef = await adminDb.collection('tournaments').add(newTournamentData as any);
+    
     revalidatePath('/dashboard');
+
+    return { 
+        tournamentId: tournamentRef.id,
+        paymentUrl: null, // This will be handled by a separate initialization step
+    };
+
   } catch (error: any) {
     console.error("Error creating tournament in server action: ", error);
     throw new Error(`A server error occurred while creating the tournament. Reason: ${error.message}`);
@@ -1584,6 +1591,142 @@ export async function postAnnouncement(tournamentId: string, organizerId: string
             title: `New Announcement: ${title}`,
             body: content.substring(0, 100),
             href: `/tournaments/${tournamentId}?tab=chat`
+        });
+    }
+}
+
+// Direct Messaging Actions
+export async function getUsersByIds(uids: string[]): Promise<UserProfile[]> {
+  if (!uids || uids.length === 0) {
+    return [];
+  }
+  const users: UserProfile[] = [];
+  // Firestore 'in' query limit is 30
+  for (let i = 0; i < uids.length; i += 30) {
+    const chunk = uids.slice(i, i + 30);
+    if(chunk.length > 0) {
+        const snapshot = await adminDb.collection('users').where('uid', 'in', chunk).get();
+        snapshot.forEach(doc => {
+            users.push({ uid: doc.id, ...doc.data() } as UserProfile);
+        });
+    }
+  }
+  return serializeData(users);
+}
+
+export async function startConversation(userId1: string, userId2: string): Promise<string> {
+    if (userId1 === userId2) {
+        throw new Error("Cannot start a conversation with yourself.");
+    }
+    
+    const participants = [userId1, userId2].sort();
+    const conversationId = participants.join('_');
+
+    const conversationRef = adminDb.collection('conversations').doc(conversationId);
+    const doc = await conversationRef.get();
+
+    if (!doc.exists) {
+        await conversationRef.set({
+            participantIds: participants,
+            createdAt: FieldValue.serverTimestamp(),
+            lastMessage: null,
+        });
+    }
+
+    return conversationId;
+}
+
+export async function getConversationsForUser(userId: string): Promise<Conversation[]> {
+    const conversationsRef = adminDb.collection('conversations');
+    const snapshot = await conversationsRef
+        .where('participantIds', 'array-contains', userId)
+        .orderBy('lastMessage.timestamp', 'desc')
+        .get();
+
+    if (snapshot.empty) {
+        return [];
+    }
+
+    const conversations: Conversation[] = await Promise.all(snapshot.docs.map(async (doc) => {
+        const data = doc.data() as Omit<Conversation, 'participants'>;
+        
+        const participantProfiles = await Promise.all(
+            data.participantIds.map(id => getUserProfileById(id))
+        );
+
+        return {
+            id: doc.id,
+            ...data,
+            participants: participantProfiles.filter(p => p !== null) as UserProfile[],
+        };
+    }));
+
+    return serializeData(conversations);
+}
+
+export async function getConversationById(conversationId: string, currentUserId: string): Promise<Conversation | null> {
+    const conversationRef = adminDb.collection('conversations').doc(conversationId);
+    const conversationDoc = await conversationRef.get();
+
+    if (!conversationDoc.exists) return null;
+    
+    const conversationData = conversationDoc.data() as Omit<Conversation, 'participants' | 'messages'>;
+
+    if (!conversationData.participantIds.includes(currentUserId)) {
+        throw new Error("You are not authorized to view this conversation.");
+    }
+
+    const messagesSnapshot = await conversationRef.collection('messages').orderBy('timestamp', 'asc').limit(50).get();
+    const messages = messagesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ChatMessage));
+    
+    const participantProfiles = await Promise.all(
+        conversationData.participantIds.map(id => getUserProfileById(id))
+    );
+
+    const fullConversation: Conversation = {
+        id: conversationDoc.id,
+        ...conversationData,
+        participants: participantProfiles.filter(p => p !== null) as UserProfile[],
+        messages,
+    };
+
+    return serializeData(fullConversation);
+}
+
+export async function postDirectMessage(conversationId: string, messageText: string, senderId: string) {
+    const userProfile = await getUserProfileById(senderId);
+    if (!userProfile) throw new Error("Sender profile not found.");
+
+    const conversationRef = adminDb.collection('conversations').doc(conversationId);
+    const messageRef = conversationRef.collection('messages').doc();
+
+    const timestamp = FieldValue.serverTimestamp();
+
+    const newMessage: Omit<ChatMessage, 'id' | 'timestamp'> = {
+        message: messageText,
+        userId: senderId,
+        username: userProfile.username || 'User',
+        photoURL: userProfile.photoURL,
+    };
+
+    const batch = adminDb.batch();
+    batch.set(messageRef, { ...newMessage, timestamp });
+    batch.update(conversationRef, {
+        lastMessage: {
+            text: messageText,
+            timestamp: timestamp,
+        }
+    });
+    
+    await batch.commit();
+
+    const recipientId = (await conversationRef.get()).data()?.participantIds.find((id: string) => id !== senderId);
+    if (recipientId) {
+        await sendNotification(recipientId, {
+            userId: recipientId,
+            title: `New message from ${userProfile.username}`,
+            body: messageText,
+            href: `/messages/${conversationId}`
         });
     }
 }
