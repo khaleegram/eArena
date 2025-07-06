@@ -2,7 +2,7 @@
 'use server';
 
 import { adminDb } from '../firebase-admin';
-import type { UserProfile } from '../types';
+import type { UserProfile, PushSubscription } from '../types';
 import { Timestamp } from 'firebase-admin/firestore';
 
 // Local helper to avoid modifying the large actions.ts file for now.
@@ -36,10 +36,6 @@ export async function findUsersByUsername(username: string): Promise<UserProfile
     const usersRef = adminDb.collection('users');
     const searchTerm = username.trim().toLowerCase();
     
-    // Firestore does not support case-insensitive prefix searches directly.
-    // The common workaround is to store a lowercase version of the searchable field.
-    // Assuming 'username' is already stored in a consistent case (e.g., lowercase),
-    // or we accept case-sensitive search. For now, we'll proceed as if the client will handle casing.
     const snapshot = await usersRef
         .orderBy('username')
         .startAt(searchTerm)
@@ -52,4 +48,21 @@ export async function findUsersByUsername(username: string): Promise<UserProfile
     }
     
     return snapshot.docs.map(doc => serializeData(doc.data() as UserProfile));
+}
+
+export async function savePushSubscription(userId: string, subscription: PushSubscription) {
+    if (!userId || !subscription) {
+        throw new Error('User ID and subscription are required.');
+    }
+    const subscriptionRef = adminDb.collection('users').doc(userId).collection('pushSubscriptions').doc(subscription.endpoint.substring(subscription.endpoint.lastIndexOf('/') + 1));
+    await subscriptionRef.set(subscription);
+}
+
+export async function deletePushSubscription(userId: string, endpoint: string) {
+    if (!userId || !endpoint) {
+        throw new Error('User ID and endpoint are required.');
+    }
+    const subscriptionId = endpoint.substring(endpoint.lastIndexOf('/') + 1);
+    const subscriptionRef = adminDb.collection('users').doc(userId).collection('pushSubscriptions').doc(subscriptionId);
+    await subscriptionRef.delete();
 }

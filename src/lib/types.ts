@@ -6,6 +6,15 @@ import type { Timestamp as FirebaseClientTimestamp } from 'firebase/firestore';
 // A union type that can represent a timestamp from either the client or admin SDK, or a string.
 export type UnifiedTimestamp = string | FirebaseClientTimestamp | FirebaseAdminTimestamp | Date;
 
+export interface PushSubscription {
+    endpoint: string;
+    expirationTime?: number | null;
+    keys: {
+        p256dh: string;
+        auth: string;
+    };
+}
+
 
 export interface Badge {
   tournamentName: string;

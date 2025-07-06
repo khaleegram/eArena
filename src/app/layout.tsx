@@ -23,6 +23,7 @@ const orbitron = Orbitron({
 export const metadata: Metadata = {
   title: 'eArena: Your eFootball Tournament Platform',
   description: 'Create, manage, and compete in eFootball tournaments.',
+  manifest: '/manifest.json',
 };
 
 const MaintenancePage = () => (

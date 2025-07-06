@@ -7,6 +7,7 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
 import type { UserProfile } from '@/lib/types';
 import Cookies from 'js-cookie';
+import { PushNotificationManager } from './push-notification-manager';
 
 export interface AuthContextType {
   user: User | null;
@@ -77,6 +78,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   return (
     <AuthContext.Provider value={{ user, userProfile, loading, isAdmin }}>
       {children}
+      {user && <PushNotificationManager />}
     </AuthContext.Provider>
   );
 };

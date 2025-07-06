@@ -3,7 +3,7 @@
 
 import { adminDb, adminAuth } from './firebase-admin';
 import { Timestamp, FieldValue, FieldPath } from 'firebase-admin/firestore';
-import type { Tournament, UserProfile, Team, Match, Standing, TournamentFormat, Player, MatchReport, Notification, RewardDetails, TeamMatchStats, MatchStatus, Badge, UnifiedTimestamp, PlayerStats, TournamentPerformancePoint, Highlight, Article, UserMembership, ReplayRequest, EarnedAchievement, PlayerTitle, PlatformSettings, Conversation, ChatMessage, PlayerRole } from './types';
+import type { Tournament, UserProfile, Team, Match, Standing, TournamentFormat, Player, MatchReport, Notification, RewardDetails, TeamMatchStats, MatchStatus, Badge, UnifiedTimestamp, PlayerStats, TournamentPerformancePoint, Highlight, Article, UserMembership, ReplayRequest, EarnedAchievement, PlayerTitle, PlatformSettings, Conversation, ChatMessage, PlayerRole, PushSubscription } from './types';
 import { revalidatePath } from 'next/cache';
 import { generateTournamentFixtures } from '@/ai/flows/generate-tournament-fixtures';
 import { verifyMatchScores, type VerifyMatchScoresInput, type VerifyMatchScoresOutput } from '@/ai/flows/verify-match-scores';
@@ -14,6 +14,47 @@ import { analyzePlayerPerformance, type PlayerPerformanceInput } from '@/ai/flow
 import { predictMatchWinner, type PredictWinnerInput } from '@/ai/flows/predict-match-winner';
 import { allAchievements } from './achievements';
 import { sendEmail } from './email';
+import webpush from 'web-push';
+
+if (process.env.VAPID_PRIVATE_KEY && process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) {
+    webpush.setVapidDetails(
+        `mailto:${process.env.SMTP_USERNAME}`,
+        process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+        process.env.VAPID_PRIVATE_KEY
+    );
+}
+
+async function sendPushNotification(userId: string, payload: { title: string; body: string; url: string }) {
+    if (!process.env.VAPID_PRIVATE_KEY) {
+        console.log("Push notifications not sent. VAPID keys not configured.");
+        return;
+    }
+    try {
+        const subscriptionsSnapshot = await adminDb.collection('users').doc(userId).collection('pushSubscriptions').get();
+        if (subscriptionsSnapshot.empty) {
+            return;
+        }
+
+        const notificationPayload = JSON.stringify(payload);
+
+        const promises = subscriptionsSnapshot.docs.map(doc => {
+            const subscription = doc.data() as PushSubscription;
+            return webpush.sendNotification(subscription, notificationPayload).catch(error => {
+                // Handle common errors, e.g., subscription expired (410) or invalid (404)
+                if (error.statusCode === 410 || error.statusCode === 404) {
+                    console.log(`Subscription for user ${userId} has expired or is invalid. Deleting.`);
+                    return doc.ref.delete();
+                } else {
+                    console.error('Failed to send push notification:', error);
+                }
+            });
+        });
+        await Promise.all(promises);
+    } catch (error) {
+        console.error(`Error sending push notification to user ${userId}:`, error);
+    }
+}
+
 
 // Helper function to convert Firestore Timestamps to ISO strings recursively
 function serializeData(data: any): any {
@@ -201,26 +242,6 @@ export async function findUserByEmail(email: string): Promise<UserProfile | null
         return null;
     }
 }
-
-export async function findUsersByUsername(username: string): Promise<UserProfile[]> {
-    if (!username.trim()) {
-        return [];
-    }
-    const usersRef = adminDb.collection('users');
-    const snapshot = await usersRef
-        .orderBy('username')
-        .startAt(username)
-        .endAt(username + '\uf8ff')
-        .limit(5)
-        .get();
-
-    if (snapshot.empty) {
-        return [];
-    }
-
-    return snapshot.docs.map(doc => serializeData(doc.data()) as UserProfile);
-}
-
 
 export async function sendPasswordResetEmail(email: string) {
     try {
@@ -1727,6 +1748,11 @@ export async function postDirectMessage(conversationId: string, messageText: str
             title: `New message from ${userProfile.username}`,
             body: messageText,
             href: `/messages/${conversationId}`
+        });
+        await sendPushNotification(recipientId, {
+            title: `New message from ${userProfile.username}`,
+            body: messageText,
+            url: `/messages/${conversationId}`,
         });
     }
 }
