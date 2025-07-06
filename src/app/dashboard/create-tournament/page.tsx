@@ -6,10 +6,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
-import { createTournament, initializeTournamentPayment } from '@/lib/actions';
+import { createTournament } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 import { addDays, format, startOfDay } from 'date-fns';
-import { Calendar as CalendarIcon, Loader2, Sparkles, Trophy, StepForward, Info, Gamepad2, Users, CalendarDays, Settings, Award, Send, CreditCard } from 'lucide-react';
+import { Calendar as CalendarIcon, Loader2, Sparkles, Trophy, Info, Users, CalendarDays, Settings, Award, Send, CreditCard } from 'lucide-react';
 import * as React from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -460,14 +460,14 @@ export default function CreateTournamentPage() {
                     <div className="space-y-2">
                         <h3 className="font-medium">Match Settings</h3>
                         <div className="grid md:grid-cols-2 gap-6">
-                            <FormField name="matchLength" render={({ field }) => (<FormItem><FormLabel>Match Length (min)</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                            <FormField name="substitutions" render={({ field }) => (<FormItem><FormLabel>Substitutions</FormLabel><Select onValueChange={(v) => field.onChange(Number(v))} defaultValue={String(field.value)}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="3">3</SelectItem><SelectItem value="5">5</SelectItem><SelectItem value="7">7</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+                            <FormField control={form.control} name="matchLength" render={({ field }) => (<FormItem><FormLabel>Match Length (min)</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                            <FormField control={form.control} name="substitutions" render={({ field }) => (<FormItem><FormLabel>Substitutions</FormLabel><Select onValueChange={(v) => field.onChange(Number(v))} defaultValue={String(field.value)}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="3">3</SelectItem><SelectItem value="5">5</SelectItem><SelectItem value="7">7</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
                         </div>
                         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
-                            <FormField name="extraTime" render={({ field }) => (<FormItem className="flex items-center justify-between rounded-lg border p-3"><FormLabel>Extra Time</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
-                            <FormField name="penalties" render={({ field }) => (<FormItem className="flex items-center justify-between rounded-lg border p-3"><FormLabel>Penalties</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
-                            <FormField name="injuries" render={({ field }) => (<FormItem className="flex items-center justify-between rounded-lg border p-3"><FormLabel>Injuries</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
-                            <FormField name="homeAndAway" render={({ field }) => (<FormItem className="flex items-center justify-between rounded-lg border p-3"><FormLabel>Home/Away</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+                            <FormField control={form.control} name="extraTime" render={({ field }) => (<FormItem className="flex items-center justify-between rounded-lg border p-3"><FormLabel>Extra Time</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+                            <FormField control={form.control} name="penalties" render={({ field }) => (<FormItem className="flex items-center justify-between rounded-lg border p-3"><FormLabel>Penalties</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+                            <FormField control={form.control} name="injuries" render={({ field }) => (<FormItem className="flex items-center justify-between rounded-lg border p-3"><FormLabel>Injuries</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+                            <FormField control={form.control} name="homeAndAway" render={({ field }) => (<FormItem className="flex items-center justify-between rounded-lg border p-3"><FormLabel>Home/Away</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
                         </div>
                     </div>
                     <FormField name="squadRestrictions" render={({ field }) => (<FormItem><FormLabel>Squad Restrictions</FormLabel><FormControl><Textarea placeholder="e.g., Max 3 legendary players, only silver ball players allowed." {...field} /></FormControl><FormMessage /></FormItem>)} />

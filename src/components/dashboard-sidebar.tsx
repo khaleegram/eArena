@@ -3,7 +3,7 @@
 
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { Trophy, PlusCircle, UserCircle, LogOut, Settings } from "lucide-react"
+import { Trophy, PlusCircle, UserCircle, LogOut, MessageSquare } from "lucide-react"
 import { signOut } from "firebase/auth"
 
 import { useAuth } from "@/hooks/use-auth"
@@ -23,6 +23,7 @@ const menuItems = [
   { href: "/dashboard", label: "My Tournaments", icon: Trophy },
   { href: "/dashboard/create-tournament", label: "Create Tournament", icon: PlusCircle },
   { href: "/profile", label: "Profile", icon: UserCircle },
+  { href: "/messages", label: "Messages", icon: MessageSquare },
 ]
 
 export function DashboardSidebar() {
@@ -56,7 +57,7 @@ export function DashboardSidebar() {
             <SidebarMenu>
             {menuItems.map((item) => (
                 <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton asChild isActive={pathname === item.href} className="font-medium">
+                    <SidebarMenuButton asChild isActive={pathname.startsWith(item.href) && item.href !== '/dashboard' || pathname === item.href} className="font-medium">
                       <Link href={item.href}>
                           <item.icon />
                           <span>{item.label}</span>

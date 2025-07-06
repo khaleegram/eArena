@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Trophy, FileText, Camera, Users, BrainCircuit, Medal } from 'lucide-react';
+import { Loader2, Trophy, FileText, Camera, BrainCircuit, Medal } from 'lucide-react';
 import type { UnifiedTimestamp, PlayerStats as PlayerStatsType } from '@/lib/types';
 import { PlayerStats } from '@/components/player-stats';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -29,10 +29,6 @@ import { FollowersDialog } from '@/components/followers-dialog';
 
 const profileSchema = z.object({
   username: z.string().min(3, { message: "Username must be at least 3 characters." }).max(20),
-  psnId: z.string().optional(),
-  xboxGamertag: z.string().optional(),
-  konamiId: z.string().optional(),
-  pcId: z.string().optional(),
 });
 
 type ProfileFormValues = z.infer<typeof profileSchema>;
@@ -87,10 +83,6 @@ export default function ProfilePage() {
     resolver: zodResolver(profileSchema),
     defaultValues: {
       username: '',
-      psnId: '',
-      xboxGamertag: '',
-      konamiId: '',
-      pcId: '',
     },
   });
 
@@ -98,10 +90,6 @@ export default function ProfilePage() {
     if (userProfile) {
       form.reset({
         username: userProfile.username || '',
-        psnId: userProfile.psnId || '',
-        xboxGamertag: userProfile.xboxGamertag || '',
-        konamiId: userProfile.konamiId || '',
-        pcId: userProfile.pcId || '',
       });
       setPreview(userProfile.photoURL || null);
     }
@@ -113,7 +101,7 @@ export default function ProfilePage() {
         getPlayerStats(user.uid)
             .then(async (statsData) => {
                 setStats(statsData);
-                if (statsData) {
+                if (statsData && statsData.totalMatches > 0) {
                     const analysisData = await getPlayerPerformanceAnalysis(statsData);
                     setAnalysis(analysisData);
                 }
@@ -160,7 +148,6 @@ export default function ProfilePage() {
       await updateUserProfilePhoto(user.uid, formData);
       toast({ title: "Success!", description: "Your avatar has been updated." });
       setNewAvatarFile(null);
-      // Let AuthProvider handle updating the userProfile state
       setIsAvatarDialogOpen(false);
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Upload Failed', description: error.message });
@@ -242,7 +229,7 @@ export default function ProfilePage() {
                 <Card>
                      <CardHeader>
                         <CardTitle className="font-headline text-xl">Profile Settings</CardTitle>
-                        <CardDescription>Manage your public profile and game IDs.</CardDescription>
+                        <CardDescription>Manage your public display name.</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <Form {...form}>
@@ -261,61 +248,6 @@ export default function ProfilePage() {
                                 </FormItem>
                             )}
                             />
-                            
-                            <div className="space-y-4 rounded-lg border p-4">
-                                <h3 className="font-semibold">Game IDs</h3>
-                                <p className="text-sm text-destructive font-medium">Important: These IDs are self-reported and NOT verified by eArena. Ensure they are correct for others to find you.</p>
-                                <div className="grid md:grid-cols-2 gap-4">
-                                    <FormField
-                                        control={form.control}
-                                        name="psnId"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                            <FormLabel>PSN ID</FormLabel>
-                                            <FormControl>
-                                                <Input placeholder="Your PlayStation ID" {...field} />
-                                            </FormControl>
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="xboxGamertag"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                            <FormLabel>Xbox Gamertag</FormLabel>
-                                            <FormControl>
-                                                <Input placeholder="Your Xbox Gamertag" {...field} />
-                                            </FormControl>
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="konamiId"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                            <FormLabel>Konami ID (Mobile)</FormLabel>
-                                            <FormControl>
-                                                <Input placeholder="Your Konami ID" {...field} />
-                                            </FormControl>
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="pcId"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                            <FormLabel>PC ID (e.g., Steam)</FormLabel>
-                                            <FormControl>
-                                                <Input placeholder="Your PC gaming ID" {...field} />
-                                            </FormControl>
-                                            </FormItem>
-                                        )}
-                                    />
-                                </div>
-                            </div>
 
                             <Button type="submit" disabled={isLoading}>
                             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

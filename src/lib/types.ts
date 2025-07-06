@@ -32,10 +32,6 @@ export interface UserProfile {
   email: string | null;
   username?: string;
   photoURL?: string;
-  psnId?: string;
-  xboxGamertag?: string;
-  konamiId?: string;
-  pcId?: string;
   badges?: Badge[];
   warnings?: number;
   incidentLog?: {
@@ -229,7 +225,7 @@ export interface Standing {
 
 export interface ChatMessage {
   id: string;
-  tournamentId: string;
+  tournamentId?: string;
   teamId?: string;
   matchId?: string;
   userId: string;
@@ -239,6 +235,15 @@ export interface ChatMessage {
   timestamp: UnifiedTimestamp;
   userProfile?: Partial<UserProfile>;
 }
+
+export interface Conversation {
+    id: string;
+    participants: UserProfile[];
+    participantIds: string[];
+    lastMessage?: Pick<ChatMessage, 'text' | 'timestamp'> & { text: string };
+    messages?: ChatMessage[];
+}
+
 
 export interface Notification {
     id: string;

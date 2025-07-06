@@ -5,7 +5,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
-import { Trophy, LogOut, UserCircle, LayoutDashboard, BarChart, Shield } from 'lucide-react';
+import { Trophy, LogOut, UserCircle, LayoutDashboard, BarChart, Shield, MessageSquare } from 'lucide-react';
 
 import { Button } from './ui/button';
 import { Skeleton } from './ui/skeleton';
@@ -57,6 +57,9 @@ export function Header() {
            <Link href="/community" className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary">
             Community
           </Link>
+          <Link href="/messages" className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary">
+            Messages
+          </Link>
         </nav>
         <div className="flex items-center justify-end space-x-2">
           {loading ? (
@@ -90,6 +93,9 @@ export function Header() {
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                       <Link href="/profile"><UserCircle className="mr-2 h-4 w-4" />Profile</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                      <Link href="/messages"><MessageSquare className="mr-2 h-4 w-4" />Messages</Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={onSignOut}>
