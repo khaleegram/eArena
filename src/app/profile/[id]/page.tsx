@@ -3,7 +3,7 @@
 "use client";
 
 import { useAuth } from '@/hooks/use-auth';
-import { getPlayerStats, getUserProfileById, startConversation } from '@/lib/actions';
+import { getPlayerStats, getUserProfileById, startConversation, getPlayerPerformanceAnalysis } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 import * as React from 'react';
 import Link from 'next/link';
@@ -262,5 +262,3 @@ export default function PublicProfilePage() {
     </div>
   );
 }
-
-
