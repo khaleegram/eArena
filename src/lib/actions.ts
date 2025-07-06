@@ -415,6 +415,7 @@ export async function getPublicTournaments(): Promise<Tournament[]> {
     try {
         const snapshot = await adminDb.collection('tournaments')
             .where('isPublic', '==', true)
+            .where('status', '!=', 'pending')
             .get();
         
         const tournaments = snapshot.docs.map(doc => ({ id: doc.id, ...serializeData(doc.data()) } as Tournament));
@@ -1727,7 +1728,7 @@ export async function postDirectMessage(conversationId: string, messageText: str
         message: messageText,
         userId: senderId,
         username: userProfile.username || 'User',
-        photoURL: userProfile.photoURL,
+        photoURL: userProfile.photoURL || '',
     };
 
     const batch = adminDb.batch();
@@ -2667,3 +2668,84 @@ export async function updatePlatformSettings(data: PlatformSettings) {
     await settingsRef.set(data, { merge: true });
     revalidatePath('/admin/settings');
 }
+
+
+export async function initializeTournamentPayment(tournamentId: string, amount: number, email: string, userId: string) {
+    const paystackSecret = process.env.PAYSTACK_SECRET_KEY;
+    if (!paystackSecret) {
+        throw new Error("Paystack secret key is not configured.");
+    }
+    
+    // Amount is expected in kobo (NGN)
+    const amountInKobo = amount * 100;
+    
+    const response = await fetch('https://api.paystack.co/transaction/initialize', {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${paystackSecret}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            email,
+            amount: amountInKobo,
+            metadata: {
+                tournamentId,
+                userId,
+                description: `Payment for tournament ${tournamentId}`
+            },
+            callback_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/paystack/verify`
+        }),
+    });
+
+    const data = await response.json();
+
+    if (!data.status) {
+        throw new Error(data.message || 'Failed to initialize payment.');
+    }
+    
+    // Save the reference to the tournament document
+    await adminDb.collection('tournaments').doc(tournamentId).update({
+        'rewardDetails.paymentReference': data.data.reference
+    });
+
+    return {
+        paymentUrl: data.data.authorization_url,
+        reference: data.data.reference,
+    };
+}
+
+export async function verifyAndActivateTournament(reference: string) {
+     const paystackSecret = process.env.PAYSTACK_SECRET_KEY;
+    if (!paystackSecret) {
+        throw new Error("Paystack secret key is not configured.");
+    }
+    
+    const response = await fetch(`https://api.paystack.co/transaction/verify/${reference}`, {
+        headers: {
+            Authorization: `Bearer ${paystackSecret}`,
+        },
+    });
+
+    const verificationData = await response.json();
+
+    if (verificationData.data.status !== 'success') {
+        throw new Error('Payment was not successful.');
+    }
+
+    const { tournamentId } = verificationData.data.metadata;
+    if (!tournamentId) {
+        throw new Error('Tournament ID not found in payment metadata.');
+    }
+
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    await tournamentRef.update({
+        status: 'open_for_registration',
+        'rewardDetails.paymentStatus': 'paid',
+        'rewardDetails.paidAt': FieldValue.serverTimestamp(),
+    });
+    
+    revalidatePath(`/tournaments/${tournamentId}`);
+
+    return { tournamentId };
+}
+
