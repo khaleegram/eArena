@@ -7,7 +7,7 @@ import { Footer } from '@/components/footer';
 import { Toaster } from '@/components/ui/toaster';
 import { cn } from '@/lib/utils';
 import { getPlatformSettings } from '@/lib/actions';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { HardHat } from 'lucide-react';
 
 const inter = Inter({
@@ -40,18 +40,37 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Check for maintenance mode
   const settings = await getPlatformSettings();
   const isAdminCookie = cookies().get('isAdmin')?.value === 'true';
 
+  // Check for maintenance mode
   if (settings.isMaintenanceMode && !isAdminCookie) {
-    return (
-      <html lang="en" className="dark">
-        <body className={cn("font-body antialiased", inter.variable, orbitron.variable)}>
-          <MaintenancePage />
-        </body>
-      </html>
-    );
+    const headersList = headers();
+    const pathname = headersList.get('x-invoke-path') || '/';
+
+    const publicPaths = [
+        '/',
+        '/login',
+        '/signup',
+        '/forgot-password',
+        '/verify-email',
+        '/terms',
+        '/privacy'
+    ];
+    
+    const isPublicPath = publicPaths.includes(pathname) || 
+                         pathname.startsWith('/community') || 
+                         pathname.startsWith('/api');
+
+    if (!isPublicPath) {
+        return (
+          <html lang="en" className="dark">
+            <body className={cn("font-body antialiased", inter.variable, orbitron.variable)}>
+              <MaintenancePage />
+            </body>
+          </html>
+        );
+    }
   }
 
 
