@@ -416,7 +416,7 @@ export async function getPublicTournaments(): Promise<Tournament[]> {
     try {
         const snapshot = await adminDb.collection('tournaments')
             .where('isPublic', '==', true)
-            .where('status', '!=', 'pending')
+            .where('status', 'in', ['open_for_registration', 'generating_fixtures', 'in_progress', 'completed', 'ready_to_start'])
             .get();
         
         const tournaments = snapshot.docs.map(doc => ({ id: doc.id, ...serializeData(doc.data()) } as Tournament));
