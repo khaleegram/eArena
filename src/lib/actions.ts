@@ -5,7 +5,7 @@
 
 import { adminDb, adminAuth } from './firebase-admin';
 import { Timestamp, FieldValue, FieldPath } from 'firebase-admin/firestore';
-import type { Tournament, UserProfile, Team, Match, Standing, TournamentFormat, Player, MatchReport, Notification, RewardDetails, TeamMatchStats, MatchStatus, Badge, UnifiedTimestamp, PlayerStats, TournamentPerformancePoint, Highlight, Article, UserMembership, ReplayRequest, EarnedAchievement, PlayerTitle, PlatformSettings, Conversation, ChatMessage, PlayerRole, PushSubscription, TournamentAward, BankDetails } from './types';
+import type { Tournament, UserProfile, Team, Match, Standing, TournamentFormat, Player, MatchReport, Notification, RewardDetails, TeamMatchStats, MatchStatus, Badge, UnifiedTimestamp, PlayerStats, TournamentPerformancePoint, Highlight, Article, UserMembership, ReplayRequest, EarnedAchievement, PlayerTitle, PlatformSettings, Conversation, ChatMessage, PlayerRole, PushSubscription, TournamentAward, BankDetails, PrizeAllocation } from './types';
 import { revalidatePath } from 'next/cache';
 import { generateTournamentFixtures } from '@/ai/flows/generate-tournament-fixtures';
 import { verifyMatchScores, type VerifyMatchScoresInput, type VerifyMatchScoresOutput } from '@/ai/flows/verify-match-scores';
@@ -17,7 +17,6 @@ import { predictMatchWinner, type PredictWinnerInput } from '@/ai/flows/predict-
 import { allAchievements } from './achievements';
 import { sendEmail } from './email';
 import webpush from 'web-push';
-import Paystack from 'paystack-node';
 
 if (process.env.VAPID_PRIVATE_KEY && process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) {
     webpush.setVapidDetails(
@@ -2894,12 +2893,23 @@ export async function getNigerianBanks(): Promise<{ name: string; code: string }
     }
 
     try {
-        const paystack = new Paystack(paystackSecret);
-        const response = await paystack.misc.list_banks({ country: 'nigeria', perPage: 100 });
-        if (!response.status || !response.data) {
-            throw new Error(response.message || 'Failed to fetch bank list from Paystack.');
+        const response = await fetch('https://api.paystack.co/bank?country=nigeria&perPage=100', {
+            headers: {
+                Authorization: `Bearer ${paystackSecret}`,
+            },
+        });
+        
+        if (!response.ok) {
+             const errorData = await response.json();
+             throw new Error(errorData.message || 'Failed to fetch bank list from Paystack.');
         }
-        return response.data.map((bank: any) => ({ name: bank.name, code: bank.code }));
+
+        const data = await response.json();
+
+        if (!data.status || !data.data) {
+            throw new Error(data.message || 'Invalid response from Paystack.');
+        }
+        return data.data.map((bank: any) => ({ name: bank.name, code: bank.code }));
     } catch (error: any) {
         console.error("Paystack API error (getNigerianBanks):", error.message);
         throw new Error("Could not fetch the list of banks at this time. Please try again later.");
@@ -2913,17 +2923,19 @@ export async function verifyBankAccount(accountNumber: string, bankCode: string)
     }
 
     try {
-        const paystack = new Paystack(paystackSecret);
-        const response = await paystack.verification.resolveAccount({
-            account_number: accountNumber,
-            bank_code: bankCode,
+        const response = await fetch(`https://api.paystack.co/bank/resolve?account_number=${accountNumber}&bank_code=${bankCode}`, {
+            headers: {
+                Authorization: `Bearer ${paystackSecret}`,
+            },
         });
-
-        if (!response.status || !response.data) {
-            throw new Error(response.message || 'Could not verify account details.');
+        
+        const data = await response.json();
+        
+        if (!data.status || !data.data) {
+            throw new Error(data.message || 'Could not verify account details.');
         }
 
-        return response.data;
+        return data.data;
     } catch (error: any) {
         console.error("Paystack API error (verifyBankAccount):", error.message);
         throw new Error(error.message || "Could not verify account details. Please check the information and try again.");
@@ -2931,23 +2943,14 @@ export async function verifyBankAccount(accountNumber: string, bankCode: string)
 }
 
 export async function saveUserBankDetails(userId: string, details: { bankCode: string, accountNumber: string }): Promise<{ accountName: string }> {
-     const paystackSecret = process.env.PAYSTACK_SECRET_KEY;
+    const paystackSecret = process.env.PAYSTACK_SECRET_KEY;
     if (!paystackSecret) {
         throw new Error("Paystack secret key is not configured.");
     }
     
     // Server-side re-verification before saving
-    const paystack = new Paystack(paystackSecret);
-    const verificationResponse = await paystack.verification.resolveAccount({
-        account_number: details.accountNumber,
-        bank_code: details.bankCode,
-    });
-
-    if (!verificationResponse.status || !verificationResponse.data) {
-        throw new Error(verificationResponse.message || 'Account verification failed before saving.');
-    }
-
-    const { account_name } = verificationResponse.data;
+    const verificationData = await verifyBankAccount(details.accountNumber, details.bankCode);
+    const account_name = verificationData.account_name;
 
     const banks = await getNigerianBanks();
     const bank = banks.find(b => b.code === details.bankCode);
@@ -2979,10 +2982,6 @@ export async function savePrizeAllocation(tournamentId: string, allocation: Priz
 }
 
 export async function initiatePayouts(tournamentId: string) {
-    const paystackSecret = process.env.PAYSTACK_SECRET_KEY;
-    if (!paystackSecret) throw new Error("Paystack secret key not configured.");
-    const paystack = new Paystack(paystackSecret);
-
     const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
     const tournamentDoc = await tournamentRef.get();
     if (!tournamentDoc.exists) throw new Error("Tournament not found.");
@@ -3006,7 +3005,7 @@ export async function initiatePayouts(tournamentId: string) {
 
     for (const [category, percentage] of Object.entries(allocation)) {
         const amount = Math.floor(distributablePool * (percentage / 100));
-        // You would need logic here to find the user ID for each category winner.
+        // You would need to logic here to find the user ID for each category winner.
         // e.g., const winnerUid = getWinnerUid(category, awards);
         // Payout logic would go here
     }
