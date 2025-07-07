@@ -249,6 +249,7 @@ export interface Standing {
 
 export interface ChatMessage {
   id: string;
+  conversationId?: string;
   tournamentId?: string;
   teamId?: string;
   matchId?: string;
@@ -257,7 +258,6 @@ export interface ChatMessage {
   photoURL?: string;
   message: string;
   timestamp: UnifiedTimestamp;
-  userProfile?: Partial<UserProfile>;
 }
 
 export interface Conversation {
@@ -379,4 +379,17 @@ export interface DisputedMatchInfo extends Match {
     tournamentName: string;
     homeTeam: Team;
     awayTeam: Team;
+}
+
+export interface EarnedAchievement {
+    achievementId: string;
+    tier: number; // Index of the tier in the achievement's tiers array
+    unlockedAt: UnifiedTimestamp;
+    progress: number;
+}
+
+export interface PlayerTitle {
+    title: string;
+    unlockedAt: UnifiedTimestamp;
+    sourceAchievementId: string; // The achievement that granted this title
 }

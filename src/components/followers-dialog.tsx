@@ -94,4 +94,3 @@ export function FollowersDialog({ userProfile, type, children }: FollowersDialog
         </Dialog>
     );
 }
-

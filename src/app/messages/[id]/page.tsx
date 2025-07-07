@@ -92,6 +92,7 @@ export default function ConversationPage() {
         try {
             const newMessage: ChatMessage = {
                 id: tempId,
+                conversationId: conversationId,
                 message: newMessageText,
                 userId: user.uid,
                 username: userProfile.username || 'User',

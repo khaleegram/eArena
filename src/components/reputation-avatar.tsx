@@ -2,7 +2,7 @@
 "use client";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import type { UserProfile } from "@/lib/types";
+import type { UserProfile, Player } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const getReputationClasses = (warnings: number = 0): string => {
@@ -14,7 +14,7 @@ const getReputationClasses = (warnings: number = 0): string => {
     return "ring-green-500";                         // Full green
 };
 
-export function ReputationAvatar({ profile, className }: { profile: Partial<UserProfile> | null, className?: string }) {
+export function ReputationAvatar({ profile, className }: { profile: Partial<UserProfile & Player> | null, className?: string }) {
     if (!profile) {
         return (
             <Avatar className={cn("ring-2 ring-offset-1 ring-offset-background ring-muted", className)}>

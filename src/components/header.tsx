@@ -57,9 +57,6 @@ export function Header() {
            <Link href="/community" className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary">
             Community
           </Link>
-          <Link href="/messages" className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary">
-            Messages
-          </Link>
         </nav>
         <div className="flex items-center justify-end space-x-2">
           {loading ? (
@@ -67,6 +64,11 @@ export function Header() {
           ) : user ? (
             <>
               <NotificationBell />
+              <Link href="/messages">
+                  <Button variant="ghost" size="icon" className="relative h-8 w-8 rounded-full">
+                    <MessageSquare className="h-5 w-5" />
+                  </Button>
+              </Link>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-9 w-9 rounded-full">

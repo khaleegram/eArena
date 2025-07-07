@@ -47,7 +47,7 @@ export async function findUsersByUsername(username: string): Promise<UserProfile
         return [];
     }
     
-    return snapshot.docs.map(doc => serializeData(doc.data() as UserProfile));
+    return snapshot.docs.map(doc => serializeData({uid: doc.id, ...doc.data()} as UserProfile));
 }
 
 export async function savePushSubscription(userId: string, subscription: PushSubscription) {
