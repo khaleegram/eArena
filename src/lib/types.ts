@@ -84,6 +84,7 @@ export interface Tournament {
   registrationEndDate: UnifiedTimestamp;
   tournamentStartDate: UnifiedTimestamp;
   tournamentEndDate: UnifiedTimestamp;
+  endedAt?: UnifiedTimestamp;
   maxTeams: number;
   rules?: string;
   organizerId: string;
@@ -112,7 +113,8 @@ export interface Tournament {
       amount: number;
       category: string;
       status: string;
-      transactionId?: string;
+      transactionId: string;
+      paystackTransferCode?: string;
       errorMessage?: string;
   }[];
 }
@@ -333,6 +335,12 @@ export interface PlatformSettings {
   youtubeUrl?: string;
 }
 
+export interface PlatformSummary {
+    totalPlatformFees: number;
+    totalPayouts: number;
+    lastUpdated: UnifiedTimestamp;
+}
+
 export interface TournamentAward {
     awardTitle: string;
     team: Team;
@@ -345,10 +353,14 @@ export interface Transaction {
     tournamentId: string;
     category: string;
     amount: number;
-    status: 'success' | 'failed' | 'pending';
+    status: 'success' | 'failed' | 'pending' | 'reversed';
     paystackTransferCode?: string;
     errorMessage?: string;
     createdAt: UnifiedTimestamp;
+    updatedAt: UnifiedTimestamp;
+    recipientName: string;
+    recipientBank: string;
+    recipientAccountNumber: string;
 }
 
 export interface PrizeDistributionItem {

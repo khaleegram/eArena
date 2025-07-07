@@ -3,7 +3,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Users, Shield, Trophy, Newspaper, Settings } from "lucide-react"
+import { LayoutDashboard, Users, Shield, Trophy, Newspaper, Settings, Banknote } from "lucide-react"
 
 import {
   Sidebar,
@@ -18,6 +18,7 @@ const menuItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/user-management", label: "User Management", icon: Users },
   { href: "/admin/tournaments", label: "Tournaments", icon: Trophy },
+  { href: "/admin/payouts", label: "Payouts", icon: Banknote },
   { href: "/admin/community", label: "Community", icon: Newspaper },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ]
