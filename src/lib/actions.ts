@@ -2947,7 +2947,7 @@ export async function getNigerianBanks(): Promise<{ name: string; code: string }
     const paystackSecret = process.env.PAYSTACK_SECRET_KEY;
     if (!paystackSecret) {
         console.error("Paystack secret key is missing. Cannot fetch bank list.");
-        throw new Error("Paystack secret key is not configured in environment variables. Cannot fetch bank list.");
+        throw new Error("Could not fetch list of banks at this time. Please try again later.");
     }
 
     try {
@@ -3199,7 +3199,7 @@ export async function getAdminDashboardAnalytics() {
     const [usersResult, activeTournamentsResult, platformSummaryDoc, userGrowthSnapshot, tournamentActivitySnapshot] = await Promise.all([
         usersPromise,
         activeTournamentsPromise,
-        platformSummaryDoc,
+        platformSummaryPromise,
         userGrowthQuery.get(),
         tournamentActivityQuery.get()
     ]);
