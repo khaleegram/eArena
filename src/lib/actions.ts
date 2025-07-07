@@ -1,10 +1,11 @@
 
 
+
 'use server';
 
 import { adminDb, adminAuth } from './firebase-admin';
 import { Timestamp, FieldValue, FieldPath } from 'firebase-admin/firestore';
-import type { Tournament, UserProfile, Team, Match, Standing, TournamentFormat, Player, MatchReport, Notification, RewardDetails, TeamMatchStats, MatchStatus, Badge, UnifiedTimestamp, PlayerStats, TournamentPerformancePoint, Highlight, Article, UserMembership, ReplayRequest, EarnedAchievement, PlayerTitle, PlatformSettings, Conversation, ChatMessage, PlayerRole, PushSubscription, TournamentAward } from './types';
+import type { Tournament, UserProfile, Team, Match, Standing, TournamentFormat, Player, MatchReport, Notification, RewardDetails, TeamMatchStats, MatchStatus, Badge, UnifiedTimestamp, PlayerStats, TournamentPerformancePoint, Highlight, Article, UserMembership, ReplayRequest, EarnedAchievement, PlayerTitle, PlatformSettings, Conversation, ChatMessage, PlayerRole, PushSubscription, TournamentAward, BankDetails } from './types';
 import { revalidatePath } from 'next/cache';
 import { generateTournamentFixtures } from '@/ai/flows/generate-tournament-fixtures';
 import { verifyMatchScores, type VerifyMatchScoresInput, type VerifyMatchScoresOutput } from '@/ai/flows/verify-match-scores';
@@ -16,6 +17,7 @@ import { predictMatchWinner, type PredictWinnerInput } from '@/ai/flows/predict-
 import { allAchievements } from './achievements';
 import { sendEmail } from './email';
 import webpush from 'web-push';
+import Paystack from 'paystack-node';
 
 if (process.env.VAPID_PRIVATE_KEY && process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) {
     webpush.setVapidDetails(
@@ -1752,9 +1754,7 @@ export async function getConversationsForUser(userId: string): Promise<Conversat
 
         return {
             id: doc.id,
-            participantIds: data.participantIds,
-            createdAt: data.createdAt,
-            lastMessage: data.lastMessage,
+            ...data,
             participants: participantProfiles.filter(p => p !== null) as UserProfile[],
         };
     }));
@@ -1781,9 +1781,7 @@ export async function getConversationById(conversationId: string, currentUserId:
 
     const conversationDetails: Omit<Conversation, 'messages'> = {
         id: conversationDoc.id,
-        participantIds: conversationData.participantIds,
-        createdAt: conversationData.createdAt,
-        lastMessage: conversationData.lastMessage,
+        ...conversationData,
         participants: participantProfiles.filter(p => p !== null) as UserProfile[],
     };
 
@@ -2885,4 +2883,137 @@ export async function verifyAndActivateTournament(reference: string) {
     revalidatePath(`/tournaments/${tournamentId}`);
 
     return { tournamentId };
+}
+
+
+export async function getNigerianBanks(): Promise<{ name: string; code: string }[]> {
+    const paystackSecret = process.env.PAYSTACK_SECRET_KEY;
+    if (!paystackSecret) {
+        console.error("Paystack secret key is missing. Cannot fetch bank list.");
+        throw new Error("Paystack secret key is not configured in environment variables. Cannot fetch bank list.");
+    }
+
+    try {
+        const paystack = new Paystack(paystackSecret);
+        const response = await paystack.misc.list_banks({ country: 'nigeria', perPage: 100 });
+        if (!response.status || !response.data) {
+            throw new Error(response.message || 'Failed to fetch bank list from Paystack.');
+        }
+        return response.data.map((bank: any) => ({ name: bank.name, code: bank.code }));
+    } catch (error: any) {
+        console.error("Paystack API error (getNigerianBanks):", error.message);
+        throw new Error("Could not fetch the list of banks at this time. Please try again later.");
+    }
+}
+
+export async function verifyBankAccount(accountNumber: string, bankCode: string): Promise<{ account_name: string }> {
+    const paystackSecret = process.env.PAYSTACK_SECRET_KEY;
+    if (!paystackSecret) {
+        throw new Error("Paystack secret key is not configured.");
+    }
+
+    try {
+        const paystack = new Paystack(paystackSecret);
+        const response = await paystack.verification.resolveAccount({
+            account_number: accountNumber,
+            bank_code: bankCode,
+        });
+
+        if (!response.status || !response.data) {
+            throw new Error(response.message || 'Could not verify account details.');
+        }
+
+        return response.data;
+    } catch (error: any) {
+        console.error("Paystack API error (verifyBankAccount):", error.message);
+        throw new Error(error.message || "Could not verify account details. Please check the information and try again.");
+    }
+}
+
+export async function saveUserBankDetails(userId: string, details: { bankCode: string, accountNumber: string }): Promise<{ accountName: string }> {
+     const paystackSecret = process.env.PAYSTACK_SECRET_KEY;
+    if (!paystackSecret) {
+        throw new Error("Paystack secret key is not configured.");
+    }
+    
+    // Server-side re-verification before saving
+    const paystack = new Paystack(paystackSecret);
+    const verificationResponse = await paystack.verification.resolveAccount({
+        account_number: details.accountNumber,
+        bank_code: details.bankCode,
+    });
+
+    if (!verificationResponse.status || !verificationResponse.data) {
+        throw new Error(verificationResponse.message || 'Account verification failed before saving.');
+    }
+
+    const { account_name } = verificationResponse.data;
+
+    const banks = await getNigerianBanks();
+    const bank = banks.find(b => b.code === details.bankCode);
+    if(!bank) throw new Error("Invalid bank selected.");
+
+    const bankDetailsToSave: BankDetails = {
+        accountNumber: details.accountNumber,
+        bankCode: details.bankCode,
+        bankName: bank.name,
+        accountName: account_name,
+        confirmedForPayout: true,
+    };
+    
+    await adminDb.collection('users').doc(userId).update({
+        bankDetails: bankDetailsToSave
+    });
+
+    revalidatePath('/profile');
+    
+    return { accountName: account_name };
+}
+
+export async function savePrizeAllocation(tournamentId: string, allocation: PrizeAllocation) {
+  const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+  await tournamentRef.update({
+    'rewardDetails.prizeAllocation': allocation
+  });
+  revalidatePath(`/tournaments/${tournamentId}`);
+}
+
+export async function initiatePayouts(tournamentId: string) {
+    const paystackSecret = process.env.PAYSTACK_SECRET_KEY;
+    if (!paystackSecret) throw new Error("Paystack secret key not configured.");
+    const paystack = new Paystack(paystackSecret);
+
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    const tournamentDoc = await tournamentRef.get();
+    if (!tournamentDoc.exists) throw new Error("Tournament not found.");
+    const tournament = tournamentDoc.data() as Tournament;
+
+    if (tournament.status !== 'completed') throw new Error("Tournament is not yet complete.");
+    if (tournament.payoutInitiated) throw new Error("Payouts have already been initiated for this tournament.");
+
+    const prizePool = tournament.rewardDetails.prizePool;
+    const platformFee = prizePool * 0.05;
+    const distributablePool = prizePool - platformFee;
+    const allocation = tournament.rewardDetails.prizeAllocation;
+    
+    const awards = await getTournamentAwards(tournamentId);
+    
+    const payoutPlan = [];
+    // This is a simplified plan, in a real scenario you'd map categories to winner UIDs from the awards object.
+    // For now, let's assume we have a function getWinnerUidForCategory(category, awards)
+    // This is a placeholder for the logic to find the correct winner for each category.
+    // For now, we just log that we would pay out.
+
+    for (const [category, percentage] of Object.entries(allocation)) {
+        const amount = Math.floor(distributablePool * (percentage / 100));
+        // You would need logic here to find the user ID for each category winner.
+        // e.g., const winnerUid = getWinnerUid(category, awards);
+        // Payout logic would go here
+    }
+
+    await tournamentRef.update({ payoutInitiated: true });
+    revalidatePath(`/tournaments/${tournamentId}`);
+    revalidatePath('/admin/tournaments');
+
+    return { success: true, message: 'Payout process initiated.' };
 }

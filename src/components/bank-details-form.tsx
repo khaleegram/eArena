@@ -7,10 +7,11 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
-import type { UserProfile, BankDetails } from '@/lib/types';
-import { getNigerianBanks, saveUserBankDetails } from '@/lib/actions';
+import type { UserProfile } from '@/lib/types';
+import { getNigerianBanks, verifyBankAccount, saveUserBankDetails } from '@/lib/actions';
+
 import { Button } from '@/components/ui/button';
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2 } from 'lucide-react';
@@ -31,7 +32,7 @@ interface Bank {
 export function BankDetailsForm({ userProfile }: { userProfile: UserProfile }) {
     const { user } = useAuth();
     const { toast } = useToast();
-    const [isLoading, setIsLoading] = React.useState(false);
+    const [isSaving, setIsSaving] = React.useState(false);
     const [isVerifying, setIsVerifying] = React.useState(false);
     const [banks, setBanks] = React.useState<Bank[]>([]);
     const [verifiedAccountName, setVerifiedAccountName] = React.useState<string | null>(userProfile.bankDetails?.accountName || null);
@@ -41,7 +42,8 @@ export function BankDetailsForm({ userProfile }: { userProfile: UserProfile }) {
         defaultValues: {
             bankCode: userProfile.bankDetails?.bankCode || '',
             accountNumber: userProfile.bankDetails?.accountNumber || '',
-        }
+        },
+        mode: 'onChange'
     });
 
     React.useEffect(() => {
@@ -49,52 +51,71 @@ export function BankDetailsForm({ userProfile }: { userProfile: UserProfile }) {
             try {
                 const bankList = await getNigerianBanks();
                 setBanks(bankList);
-            } catch (error) {
-                toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch bank list.' });
+            } catch (error: any) {
+                toast({ variant: 'destructive', title: 'Error', description: error.message || 'Could not fetch bank list.' });
             }
         };
         fetchBanks();
     }, [toast]);
-    
-    const onSubmit = async (data: BankDetailsFormValues) => {
-        if (!user) return;
-        setIsLoading(true);
-        try {
-            const selectedBank = banks.find(b => b.code === data.bankCode);
-            if (!selectedBank) throw new Error("Invalid bank selected.");
-
-            const result = await saveUserBankDetails(user.uid, {
-                bankCode: data.bankCode,
-                bankName: selectedBank.name,
-                accountNumber: data.accountNumber,
-            });
-            
-            setVerifiedAccountName(result.accountName);
-            toast({ title: 'Bank Details Saved!', description: `Account verified for: ${result.accountName}` });
-        } catch (error: any) {
-            toast({ variant: 'destructive', title: 'Error', description: error.message });
-        } finally {
-            setIsLoading(false);
-        }
-    };
     
     // Watch form fields to trigger re-verification if they change
     const watchedAccountNumber = form.watch('accountNumber');
     const watchedBankCode = form.watch('bankCode');
 
     React.useEffect(() => {
-        // If the user changes their details, clear the verified name to prompt re-verification
-        if(watchedAccountNumber !== userProfile.bankDetails?.accountNumber || watchedBankCode !== userProfile.bankDetails?.bankCode) {
+        const hasFormChanged = watchedAccountNumber !== userProfile.bankDetails?.accountNumber || watchedBankCode !== userProfile.bankDetails?.bankCode;
+        if(hasFormChanged) {
             setVerifiedAccountName(null);
         } else {
-            setVerifiedAccountName(userProfile.bankDetails?.accountName || null);
+             setVerifiedAccountName(userProfile.bankDetails?.accountName || null);
         }
     }, [watchedAccountNumber, watchedBankCode, userProfile.bankDetails]);
 
+    const handleVerify = async () => {
+        const { accountNumber, bankCode } = form.getValues();
+        if (!accountNumber || !bankCode) {
+            toast({ variant: 'destructive', title: 'Missing Information', description: 'Please select a bank and enter an account number.'});
+            return;
+        }
+        if (accountNumber.length !== 10) {
+            form.setError("accountNumber", { type: "manual", message: "Account number must be 10 digits." });
+            return;
+        }
+
+        setIsVerifying(true);
+        setVerifiedAccountName(null);
+        try {
+            const result = await verifyBankAccount(accountNumber, bankCode);
+            setVerifiedAccountName(result.account_name);
+            toast({ title: 'Account Verified!', description: `Name: ${result.account_name}` });
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Verification Failed', description: error.message });
+        } finally {
+            setIsVerifying(false);
+        }
+    };
+    
+    const onSave = async () => {
+        if (!user || !verifiedAccountName) return;
+        const { accountNumber, bankCode } = form.getValues();
+
+        setIsSaving(true);
+        try {
+            await saveUserBankDetails(user.uid, { bankCode, accountNumber });
+            toast({ title: 'Success!', description: 'Your bank details have been saved.' });
+            form.reset({ accountNumber, bankCode }); // Resets the dirty state
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Error', description: error.message });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const hasChanged = form.formState.isDirty && (watchedAccountNumber !== userProfile.bankDetails?.accountNumber || watchedBankCode !== userProfile.bankDetails?.bankCode);
 
     return (
-        <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <div className="space-y-6">
+            <Form {...form}>
                 <div className="grid md:grid-cols-2 gap-6">
                     <FormField
                         control={form.control}
@@ -102,7 +123,7 @@ export function BankDetailsForm({ userProfile }: { userProfile: UserProfile }) {
                         render={({ field }) => (
                             <FormItem>
                                 <FormLabel>Bank Name</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isVerifying || isSaving}>
                                     <FormControl>
                                         <SelectTrigger>
                                             <SelectValue placeholder="Select your bank..." />
@@ -124,24 +145,33 @@ export function BankDetailsForm({ userProfile }: { userProfile: UserProfile }) {
                         render={({ field }) => (
                             <FormItem>
                                 <FormLabel>Account Number</FormLabel>
-                                <FormControl><Input placeholder="0123456789" {...field} /></FormControl>
+                                <FormControl><Input placeholder="0123456789" {...field} disabled={isVerifying || isSaving} /></FormControl>
                                 <FormMessage />
                             </FormItem>
                         )}
                     />
                 </div>
-                {verifiedAccountName && (
-                    <Card className="bg-green-950/50 border-green-500/30">
-                        <CardContent className="pt-6">
-                            <p className="text-sm font-semibold text-green-400">Verified Account Name: <span className="text-white">{verifiedAccountName}</span></p>
-                        </CardContent>
-                    </Card>
-                )}
-                <Button type="submit" disabled={isLoading}>
-                    {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {verifiedAccountName ? 'Update Details' : 'Verify & Save Account'}
+            </Form>
+
+            {hasChanged && (
+                <Button onClick={handleVerify} disabled={isVerifying || form.formState.isSubmitting || !!form.formState.errors.accountNumber} className="w-full">
+                    {isVerifying && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Verify Account
                 </Button>
-            </form>
-        </Form>
+            )}
+
+            {verifiedAccountName && (
+                 <Card className="bg-green-950/50 border-green-500/30 mt-4">
+                    <CardContent className="pt-6">
+                        <p className="text-sm font-semibold text-green-400">Verified Account Name: <span className="text-white">{verifiedAccountName}</span></p>
+                    </CardContent>
+                </Card>
+            )}
+
+            <Button onClick={onSave} disabled={isSaving || !verifiedAccountName || hasChanged} className="w-full mt-4">
+                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Save Details
+            </Button>
+        </div>
     );
 }

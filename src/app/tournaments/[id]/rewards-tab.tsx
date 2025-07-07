@@ -163,4 +163,3 @@ export function RewardsTab({ tournament }: { tournament: Tournament }) {
         </div>
     );
 }
-

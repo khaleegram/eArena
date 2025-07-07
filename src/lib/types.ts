@@ -48,16 +48,6 @@ export interface UserProfile {
 
 export type RewardType = 'virtual' | 'money';
 
-export interface RewardDetails {
-  type: RewardType;
-  prizePool: number;
-  currency: 'NGN';
-  isPaidOut: boolean;
-  paymentStatus: 'pending' | 'paid' | 'not-applicable' | 'failed';
-  paymentReference?: string;
-  paidAt?: UnifiedTimestamp;
-}
-
 export interface PrizeAllocation {
     first_place: number;
     second_place: number;
@@ -66,6 +56,18 @@ export interface PrizeAllocation {
     highest_scoring: number;
     best_defensive: number;
     best_attacking: number;
+}
+
+
+export interface RewardDetails {
+  type: RewardType;
+  prizePool: number;
+  currency: 'NGN';
+  isPaidOut: boolean;
+  paymentStatus: 'pending' | 'paid' | 'not-applicable' | 'failed';
+  paymentReference?: string;
+  paidAt?: UnifiedTimestamp;
+  prizeAllocation?: PrizeAllocation;
 }
 
 
@@ -335,7 +337,6 @@ export interface TournamentAward {
     awardTitle: string;
     team: Team;
     reason: string;
-    captainId: string;
 }
 
 export interface Transaction {
