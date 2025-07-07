@@ -10,11 +10,12 @@ export default function AuthLayout({
         <div className="relative hidden h-full flex-col p-10 text-white lg:flex">
             <div className="absolute inset-0 z-[-1]">
               <Image 
-                src="/images/MainBackground.png"
+                src="https://placehold.co/1280x720.png"
                 alt="Authentication background"
                 fill
                 sizes="50vw"
                 style={{objectFit: 'cover'}}
+                data-ai-hint="esports gaming"
               />
               <div className="absolute inset-0 bg-zinc-950/80" />
             </div>

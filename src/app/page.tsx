@@ -12,12 +12,13 @@ export default function Home() {
         <section className="relative w-full py-12 md:py-24 lg:py-32 xl:py-48 overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-background via-background/80 to-blue-950/50 z-0"></div>
           <Image
-            src="/images/MainBackground.png"
+            src="https://placehold.co/1920x1080.png"
             alt="background"
             fill
             sizes="100vw"
             style={{objectFit: 'cover'}}
             className="absolute inset-0 z-[-1] opacity-20"
+            data-ai-hint="esports gaming"
             priority
           />
           <div className="container px-4 md:px-6 z-10 relative">
@@ -44,11 +45,12 @@ export default function Home() {
               </div>
               <div className="relative">
                 <Image
-                  src="/images/MainBackground.png"
+                  src="https://placehold.co/600x600.png"
                   width="600"
                   height="600"
                   alt="Hero"
                   className="mx-auto aspect-square overflow-hidden rounded-xl object-cover sm:w-full lg:order-last border-4 border-primary/20 shadow-2xl shadow-primary/30"
+                  data-ai-hint="gaming controller"
                 />
                  <div className="absolute -inset-2 bg-primary/20 blur-2xl rounded-full z-[-1]"></div>
               </div>

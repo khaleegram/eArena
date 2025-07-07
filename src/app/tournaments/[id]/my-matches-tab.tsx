@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { approveMatchResult, submitMatchResult, transferHost, setMatchRoomCode, postMatchMessage, deleteMatchReport, submitSecondaryEvidence, getMatchPrediction, scheduleRematch, submitPlayerStreamUrl, requestPlayerReplay, respondToPlayerReplay, organizerForceReplayProblematicMatches, deleteMatchMessage } from "@/lib/actions";
-import { Loader2, CheckCircle, Clock, AlertTriangle, User, MessageSquareQuote, FileText, BarChartHorizontal, Video, Tv, Sparkles, History, Send, Handshake, Trash2 } from "lucide-react";
+import { Loader2, CheckCircle, Clock, AlertTriangle, User, MessageSquareQuote, FileText, BarChartHorizontal, Video, Tv, Sparkles, History, Send, Handshake, Trash2, Upload, Copy, Check, ArrowRightLeft, Swords, Info, Timer, Hourglass, Bot, MessageCircle } from "lucide-react";
 import { format, formatDistanceToNow, isToday, isFuture, endOfDay, isPast } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import Link from 'next/link';
@@ -26,6 +26,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../components/ui/select";
+import { Separator } from "@/components/ui/separator";
 
 const toDate = (timestamp: UnifiedTimestamp): Date => {
     if (typeof timestamp === 'string') {
