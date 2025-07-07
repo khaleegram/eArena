@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import * as React from 'react';
@@ -62,42 +61,46 @@ export function BankDetailsForm({ userProfile }: { userProfile: UserProfile }) {
         fetchBanks();
     }, [toast]);
     
-    // Watch form fields to trigger re-verification if they change
     const watchedAccountNumber = form.watch('accountNumber');
     const watchedBankCode = form.watch('bankCode');
 
     React.useEffect(() => {
-        const hasFormChanged = watchedAccountNumber !== userProfile.bankDetails?.accountNumber || watchedBankCode !== userProfile.bankDetails?.bankCode;
-        if(hasFormChanged) {
+        const accountNumber = form.getValues('accountNumber');
+        const bankCode = form.getValues('bankCode');
+
+        if (accountNumber.length !== 10 || !bankCode) {
             setVerifiedAccountName(null);
-        } else {
-             setVerifiedAccountName(userProfile.bankDetails?.accountName || null);
-        }
-    }, [watchedAccountNumber, watchedBankCode, userProfile.bankDetails]);
-
-    const handleVerify = async () => {
-        const { accountNumber, bankCode } = form.getValues();
-        if (!accountNumber || !bankCode) {
-            toast({ variant: 'destructive', title: 'Missing Information', description: 'Please select a bank and enter an account number.'});
             return;
         }
-        if (accountNumber.length !== 10) {
-            form.setError("accountNumber", { type: "manual", message: "Account number must be 10 digits." });
+        
+        // If current form values match what's already saved and verified, just show the name.
+        if (
+            accountNumber === userProfile.bankDetails?.accountNumber &&
+            bankCode === userProfile.bankDetails?.bankCode &&
+            userProfile.bankDetails?.accountName
+        ) {
+            setVerifiedAccountName(userProfile.bankDetails.accountName);
             return;
         }
 
-        setIsVerifying(true);
-        setVerifiedAccountName(null);
-        try {
-            const result = await verifyBankAccount(accountNumber, bankCode);
-            setVerifiedAccountName(result.account_name);
-            toast({ title: 'Account Verified!', description: `Name: ${result.account_name}` });
-        } catch (error: any) {
-            toast({ variant: 'destructive', title: 'Verification Failed', description: error.message });
-        } finally {
-            setIsVerifying(false);
-        }
-    };
+        const handler = setTimeout(async () => {
+            setIsVerifying(true);
+            setVerifiedAccountName(null);
+            try {
+                const result = await verifyBankAccount(accountNumber, bankCode);
+                setVerifiedAccountName(result.account_name);
+                toast({ title: 'Account Verified!', description: `Name: ${result.account_name}` });
+            } catch (error: any) {
+                form.setError("accountNumber", { type: 'custom', message: 'Could not verify this account with the selected bank.' });
+            } finally {
+                setIsVerifying(false);
+            }
+        }, 800); // 800ms debounce
+
+        return () => {
+            clearTimeout(handler);
+        };
+    }, [watchedAccountNumber, watchedBankCode, form, toast, userProfile.bankDetails]);
     
     const onSave = async () => {
         if (!user || !verifiedAccountName) return;
@@ -127,8 +130,6 @@ export function BankDetailsForm({ userProfile }: { userProfile: UserProfile }) {
             setIsConfirming(false);
         }
     };
-
-    const hasChanged = form.formState.isDirty && (watchedAccountNumber !== userProfile.bankDetails?.accountNumber || watchedBankCode !== userProfile.bankDetails?.bankCode);
 
     return (
         <div className="space-y-6">
@@ -160,22 +161,25 @@ export function BankDetailsForm({ userProfile }: { userProfile: UserProfile }) {
                         control={form.control}
                         name="accountNumber"
                         render={({ field }) => (
-                            <FormItem>
+                           <FormItem>
                                 <FormLabel>Account Number</FormLabel>
-                                <FormControl><Input placeholder="0123456789" {...field} disabled={isVerifying || isSaving || isConfirmed} /></FormControl>
+                                <div className="relative">
+                                    <FormControl>
+                                        <Input 
+                                            placeholder="0123456789" 
+                                            {...field} 
+                                            disabled={isVerifying || isSaving || isConfirmed} 
+                                            maxLength={10}
+                                        />
+                                    </FormControl>
+                                    {isVerifying && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin" />}
+                                </div>
                                 <FormMessage />
                             </FormItem>
                         )}
                     />
                 </div>
             </Form>
-
-            {hasChanged && (
-                <Button onClick={handleVerify} disabled={isVerifying || form.formState.isSubmitting || !!form.formState.errors.accountNumber} className="w-full">
-                    {isVerifying && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Verify Account
-                </Button>
-            )}
 
             {verifiedAccountName && (
                  <Card className="bg-green-950/50 border-green-500/30 mt-4">
@@ -185,7 +189,7 @@ export function BankDetailsForm({ userProfile }: { userProfile: UserProfile }) {
                 </Card>
             )}
 
-            <Button onClick={onSave} disabled={isSaving || !verifiedAccountName || hasChanged || isConfirmed} className="w-full mt-4">
+            <Button onClick={onSave} disabled={isSaving || !verifiedAccountName || !form.formState.isDirty || isConfirmed} className="w-full mt-4">
                 {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Save Details
             </Button>
@@ -195,7 +199,7 @@ export function BankDetailsForm({ userProfile }: { userProfile: UserProfile }) {
                     <CardContent className="pt-6 flex flex-col items-center gap-4 text-center">
                         <ShieldCheck className="h-8 w-8 text-primary"/>
                         <p className="text-sm text-muted-foreground">Your saved details are ready. Confirm them to enable automated prize payouts for future wins.</p>
-                        <Button onClick={onConfirmForPayout} disabled={isConfirming || hasChanged} className="w-full">
+                        <Button onClick={onConfirmForPayout} disabled={isConfirming || form.formState.isDirty} className="w-full">
                             {isConfirming && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Confirm for Payouts
                         </Button>
