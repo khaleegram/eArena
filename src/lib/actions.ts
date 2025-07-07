@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { adminDb, adminAuth } from './firebase-admin';
@@ -2204,6 +2205,41 @@ export async function getArticleBySlug(slug: string): Promise<Article | null> {
     return null;
 }
 
+export async function adminCreateArticle(data: Omit<Article, 'id' | 'createdAt'>) {
+    const slug = data.slug;
+    const docRef = adminDb.collection('articles').doc(slug);
+    const doc = await docRef.get();
+    if (doc.exists) {
+        throw new Error(`An article with the slug "${slug}" already exists.`);
+    }
+    
+    const articleData: Omit<Article, 'id'> = {
+        ...data,
+        createdAt: FieldValue.serverTimestamp() as UnifiedTimestamp,
+    };
+    
+    await docRef.set(articleData);
+    revalidatePath('/community');
+    revalidatePath(`/community/articles/${slug}`);
+    revalidatePath('/admin/community');
+}
+
+export async function adminUpdateArticle(slug: string, data: Partial<Omit<Article, 'id' | 'slug' | 'createdAt'>>) {
+    const docRef = adminDb.collection('articles').doc(slug);
+    await docRef.update(data);
+
+    revalidatePath('/community');
+    revalidatePath(`/community/articles/${slug}`);
+    revalidatePath(`/admin/community/edit/${slug}`);
+}
+
+export async function adminDeleteArticle(slug: string) {
+    const docRef = adminDb.collection('articles').doc(slug);
+    await docRef.delete();
+    revalidatePath('/community');
+    revalidatePath('/admin/community');
+}
+
 export async function getPlayerPerformanceAnalysis(stats: PlayerStats): Promise<{ archetype: string; analysis: string }> {
     if (!stats || stats.totalMatches === 0) {
         return {
@@ -2804,41 +2840,6 @@ async function fullTournamentDelete(tournamentId: string) {
 export async function adminDeleteTournament(tournamentId: string) {
     await fullTournamentDelete(tournamentId);
     revalidatePath('/admin/tournaments');
-}
-
-export async function adminCreateArticle(data: Omit<Article, 'id' | 'createdAt'>) {
-    const slug = data.slug;
-    const docRef = adminDb.collection('articles').doc(slug);
-    const doc = await docRef.get();
-    if (doc.exists) {
-        throw new Error(`An article with the slug "${slug}" already exists.`);
-    }
-    
-    const articleData: Omit<Article, 'id'> = {
-        ...data,
-        createdAt: FieldValue.serverTimestamp() as UnifiedTimestamp,
-    };
-    
-    await docRef.set(articleData);
-    revalidatePath('/community');
-    revalidatePath(`/community/articles/${slug}`);
-    revalidatePath('/admin/community');
-}
-
-export async function adminUpdateArticle(slug: string, data: Partial<Omit<Article, 'id' | 'slug' | 'createdAt'>>) {
-    const docRef = adminDb.collection('articles').doc(slug);
-    await docRef.update(data);
-
-    revalidatePath('/community');
-    revalidatePath(`/community/articles/${slug}`);
-    revalidatePath(`/admin/community/edit/${slug}`);
-}
-
-export async function adminDeleteArticle(slug: string) {
-    const docRef = adminDb.collection('articles').doc(slug);
-    await docRef.delete();
-    revalidatePath('/community');
-    revalidatePath('/admin/community');
 }
 
 export async function getPlatformSettings(): Promise<PlatformSettings> {

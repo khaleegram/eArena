@@ -1,3 +1,4 @@
+
 import type { Metadata } from 'next';
 import { Inter, Orbitron } from 'next/font/google';
 import './globals.css';
