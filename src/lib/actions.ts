@@ -4,7 +4,7 @@
 import { adminDb, adminAuth } from './firebase-admin';
 import type { Timestamp as FirebaseAdminTimestamp } from 'firebase-admin/firestore';
 import { Timestamp, FieldValue, FieldPath } from 'firebase-admin/firestore';
-import type { Tournament, UserProfile, Team, Match, Standing, TournamentFormat, Player, MatchReport, Notification, RewardDetails, TeamMatchStats, MatchStatus, Badge, UnifiedTimestamp, PlayerStats, TournamentPerformancePoint, Highlight, Article, UserMembership, ReplayRequest, EarnedAchievement, PlayerTitle, PlatformSettings, Conversation, ChatMessage, PlayerRole, PushSubscription, TournamentAward, BankDetails, PrizeAllocation, Transaction } from './types';
+import type { Tournament, UserProfile, Team, Match, Standing, TournamentFormat, Player, MatchReport, Notification, RewardDetails, TeamMatchStats, MatchStatus, Badge, UnifiedTimestamp, PlayerStats, TournamentPerformancePoint, Highlight, Article, UserMembership, ReplayRequest, EarnedAchievement, PlayerTitle, PlatformSettings, Conversation, ChatMessage, PlayerRole, PushSubscription, TournamentAward, BankDetails, PrizeAllocation, Transaction, DisputedMatchInfo } from './types';
 import { revalidatePath } from 'next/cache';
 import { generateTournamentFixtures } from '@/ai/flows/generate-tournament-fixtures';
 import { verifyMatchScores, type VerifyMatchScoresInput, type VerifyMatchScoresOutput } from '@/ai/flows/verify-match-scores';
@@ -611,8 +611,18 @@ export async function removeTeamAsOrganizer(tournamentId: string, teamId: string
     await leaveTournament(tournamentId, teamId, teamCaptainId);
 }
 
-export async function updateTeamRoster(tournamentId: string, teamId: string, players: Player[]) {
+export async function updateTeamRoster(tournamentId: string, teamId: string, players: Player[], currentUserId: string) {
     const teamRef = adminDb.collection('tournaments').doc(tournamentId).collection('teams').doc(teamId);
+    const teamDoc = await teamRef.get();
+    if (!teamDoc.exists) throw new Error("Team not found.");
+
+    const teamData = teamDoc.data() as Team;
+    const currentUserRole = teamData.players.find(p => p.uid === currentUserId)?.role;
+
+    if (currentUserRole !== 'captain' && currentUserRole !== 'co-captain') {
+        throw new Error("You do not have permission to manage this roster.");
+    }
+    
     const playerIds = players.map(p => p.uid);
     await teamRef.update({ players, playerIds });
     revalidatePath(`/tournaments/${tournamentId}`);
@@ -1418,14 +1428,14 @@ export async function organizerForceReplay(tournamentId: string, matchId: string
 
         // --- WRITES ---
         if (homeCaptainStats && homeTeamDoc?.exists) {
-            const homeStatsRef = adminDb.collection('playerStats').doc(homeTeamDoc.id);
+            const homeStatsRef = adminDb.collection('playerStats').doc((homeTeamDoc.data() as Team).captainId);
             transaction.set(homeStatsRef, homeCaptainStats);
             const homeTeamRef = tournamentRef.collection('teams').doc(match.homeTeamId);
             const pointsToRevert = revertTeamPerformancePoints(match, true);
             transaction.update(homeTeamRef, { performancePoints: FieldValue.increment(-pointsToRevert) });
         }
         if (awayCaptainStats && awayTeamDoc?.exists) {
-            const awayStatsRef = adminDb.collection('playerStats').doc(awayTeamDoc.id);
+            const awayStatsRef = adminDb.collection('playerStats').doc((awayTeamDoc.data() as Team).captainId);
             transaction.set(awayStatsRef, awayCaptainStats);
             const awayTeamRef = tournamentRef.collection('teams').doc(match.awayTeamId);
             const pointsToRevert = revertTeamPerformancePoints(match, false);
@@ -3051,7 +3061,6 @@ export async function initiatePayouts(tournamentId: string) {
     const prizePool = tournament.rewardDetails.prizePool;
     const platformFee = prizePool * 0.05;
     const distributablePool = prizePool - platformFee;
-    const allocation = tournament.rewardDetails.prizeAllocation;
     
     await adminDb.collection('platformSummary').doc('summary').set({
         totalPlatformFees: FieldValue.increment(platformFee),
@@ -3059,19 +3068,19 @@ export async function initiatePayouts(tournamentId: string) {
         lastUpdated: FieldValue.serverTimestamp(),
     }, { merge: true });
 
-    const awards = await getTournamentAwards(tournamentId);
     const distribution = await getPrizeDistribution(tournamentId);
 
-    const payoutLog = [];
+    const payoutLog: any[] = [];
+    const userRef = adminDb.collection('users');
 
     for (const item of distribution) {
         if (!item.winner || !item.winner.captainId) continue;
 
         const winnerId = item.winner.captainId;
-        const userDoc = await adminDb.collection('users').doc(winnerId).get();
-        if (!userDoc.exists) continue;
+        const winnerDoc = await userRef.doc(winnerId).get();
+        if (!winnerDoc.exists) continue;
 
-        const userProfile = userDoc.data() as UserProfile;
+        const userProfile = winnerDoc.data() as UserProfile;
         if (!userProfile.bankDetails?.confirmedForPayout) {
             await sendNotification(winnerId, {
                 userId: winnerId,
@@ -3106,7 +3115,7 @@ export async function initiatePayouts(tournamentId: string) {
                 continue;
             }
             recipientCode = recipientData.data.recipient_code;
-            await userRef.update({ 'bankDetails.recipientCode': recipientCode });
+            await userRef.doc(winnerId).update({ 'bankDetails.recipientCode': recipientCode });
         }
         
         const transactionRef = adminDb.collection('transactions').doc();
@@ -3263,4 +3272,83 @@ export async function retryPayout(transactionId: string): Promise<{ success: boo
 
     // The webhook will handle the status update, so we don't need to do anything here.
     return { success: true, message: 'Payout retry initiated.' };
+}
+
+export async function adminGetAllDisputedMatches(): Promise<DisputedMatchInfo[]> {
+    const disputedMatchesSnapshot = await adminDb.collectionGroup('matches')
+        .where('status', 'in', ['disputed', 'needs_secondary_evidence'])
+        .get();
+    
+    const replayRequestSnapshot = await adminDb.collectionGroup('matches')
+        .where('replayRequest.status', 'in', ['pending', 'accepted'])
+        .get();
+
+    const allProblemMatches: Match[] = [];
+    const seenMatchIds = new Set<string>();
+
+    const processSnapshot = (snapshot: FirebaseFirestore.QuerySnapshot) => {
+        snapshot.docs.forEach(doc => {
+            if (!seenMatchIds.has(doc.id)) {
+                allProblemMatches.push({ id: doc.id, ...doc.data() } as Match);
+                seenMatchIds.add(doc.id);
+            }
+        });
+    }
+
+    processSnapshot(disputedMatchesSnapshot);
+    processSnapshot(replayRequestSnapshot);
+
+    if (allProblemMatches.length === 0) return [];
+    
+    // Enrich with tournament and team data
+    const tournamentIds = new Set(allProblemMatches.map(m => m.tournamentId));
+    const teamIds = new Set(allProblemMatches.flatMap(m => [m.homeTeamId, m.awayTeamId]));
+
+    const tournamentsSnapshot = await adminDb.collection('tournaments').where(FieldPath.documentId(), 'in', Array.from(tournamentIds)).get();
+    const tournamentsMap = new Map<string, Tournament>();
+    tournamentsSnapshot.forEach(doc => tournamentsMap.set(doc.id, { id: doc.id, ...doc.data() } as Tournament));
+
+    const teamsMap = new Map<string, Team>();
+    for (const tournamentId of tournamentIds) {
+        const teamsSnapshot = await adminDb.collection('tournaments').doc(tournamentId).collection('teams').get();
+        teamsSnapshot.forEach(doc => teamsMap.set(doc.id, { id: doc.id, ...doc.data() } as Team));
+    }
+    
+    const enrichedMatches: DisputedMatchInfo[] = allProblemMatches.map(match => {
+        const tournament = tournamentsMap.get(match.tournamentId);
+        const homeTeam = teamsMap.get(match.homeTeamId);
+        const awayTeam = teamsMap.get(match.awayTeamId);
+
+        return {
+            ...match,
+            tournamentName: tournament?.name || 'Unknown',
+            homeTeam: homeTeam || {} as Team,
+            awayTeam: awayTeam || {} as Team
+        };
+    }).filter(m => m.tournamentName !== 'Unknown' && m.homeTeam.id && m.awayTeam.id);
+    
+    // Sort by match day descending
+    enrichedMatches.sort((a, b) => toAdminDate(b.matchDay).getTime() - toAdminDate(a.matchDay).getTime());
+
+    return serializeData(enrichedMatches);
+}
+
+export async function deleteMatchMessage(tournamentId: string, matchId: string, messageId: string, currentUserId: string) {
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    const tournamentDoc = await tournamentRef.get();
+    if(tournamentDoc.data()?.organizerId !== currentUserId) {
+        throw new Error("You are not authorized to delete messages in this tournament.");
+    }
+    const messageRef = tournamentRef.collection('matches').doc(matchId).collection('messages').doc(messageId);
+    await messageRef.delete();
+}
+
+export async function deleteTournamentMessage(tournamentId: string, messageId: string, currentUserId: string) {
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    const tournamentDoc = await tournamentRef.get();
+    if(tournamentDoc.data()?.organizerId !== currentUserId) {
+        throw new Error("You are not authorized to delete messages in this tournament.");
+    }
+    const messageRef = tournamentRef.collection('messages').doc(messageId);
+    await messageRef.delete();
 }

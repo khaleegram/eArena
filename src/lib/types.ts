@@ -374,3 +374,9 @@ export interface PrizeDistributionItem {
         logoUrl?: string;
     } | null;
 }
+
+export interface DisputedMatchInfo extends Match {
+    tournamentName: string;
+    homeTeam: Team;
+    awayTeam: Team;
+}
