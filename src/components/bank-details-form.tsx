@@ -48,7 +48,6 @@ export function BankDetailsForm({ userProfile }: { userProfile: UserProfile }) {
         },
     });
 
-    // Effect to keep form default values in sync with the user profile from AuthContext
     React.useEffect(() => {
         if (userProfile.bankDetails) {
             form.reset({
@@ -57,7 +56,7 @@ export function BankDetailsForm({ userProfile }: { userProfile: UserProfile }) {
             });
             setVerifiedAccountName(userProfile.bankDetails.accountName || null);
         }
-    }, [userProfile.bankDetails, form.reset]);
+    }, [userProfile.bankDetails, form]);
 
 
     React.useEffect(() => {
@@ -76,20 +75,17 @@ export function BankDetailsForm({ userProfile }: { userProfile: UserProfile }) {
     const watchedBankCode = form.watch('bankCode');
 
     React.useEffect(() => {
-        const accountNumber = form.getValues('accountNumber');
-        const bankCode = form.getValues('bankCode');
-        
         form.clearErrors("accountNumber");
         setVerifiedAccountName(null);
 
-        if (accountNumber.length !== 10 || !bankCode) {
+        if (watchedAccountNumber.length !== 10 || !watchedBankCode) {
             return;
         }
 
         const handler = setTimeout(async () => {
             setIsVerifying(true);
             try {
-                const result = await verifyBankAccount(accountNumber, bankCode);
+                const result = await verifyBankAccount(watchedAccountNumber, watchedBankCode);
                 setVerifiedAccountName(result.account_name);
                 toast({ title: 'Account Verified!', description: `Name: ${result.account_name}` });
             } catch (error: any) {
@@ -132,6 +128,10 @@ export function BankDetailsForm({ userProfile }: { userProfile: UserProfile }) {
             setIsConfirming(false);
         }
     };
+
+    const currentValues = form.watch();
+    const savedDetails = userProfile.bankDetails || {};
+    const hasChanged = currentValues.accountNumber !== savedDetails.accountNumber || currentValues.bankCode !== savedDetails.bankCode;
 
     return (
         <div className="space-y-6">
@@ -191,7 +191,7 @@ export function BankDetailsForm({ userProfile }: { userProfile: UserProfile }) {
                 </Card>
             )}
 
-            <Button onClick={onSave} disabled={isSaving || isVerifying || !verifiedAccountName || !form.formState.isDirty || isConfirmed} className="w-full mt-4">
+            <Button onClick={onSave} disabled={isSaving || isVerifying || !verifiedAccountName || !hasChanged || isConfirmed} className="w-full mt-4">
                 {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Save Details
             </Button>
@@ -201,7 +201,7 @@ export function BankDetailsForm({ userProfile }: { userProfile: UserProfile }) {
                     <CardContent className="pt-6 flex flex-col items-center gap-4 text-center">
                         <ShieldCheck className="h-8 w-8 text-primary"/>
                         <p className="text-sm text-muted-foreground">Your saved details are ready. Confirm them to enable automated prize payouts for future wins.</p>
-                        <Button onClick={onConfirmForPayout} disabled={isConfirming || form.formState.isDirty}>
+                        <Button onClick={onConfirmForPayout} disabled={isConfirming || hasChanged}>
                             {isConfirming && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Confirm for Payouts
                         </Button>
