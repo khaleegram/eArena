@@ -15,25 +15,13 @@ export interface PushSubscription {
     };
 }
 
-
-export interface Badge {
-  tournamentName: string;
-  tournamentId: string;
-  rank: number;
-  date: UnifiedTimestamp;
-}
-
-export interface EarnedAchievement {
-  achievementId: string;
-  tier: number; // index of the unlocked tier in the achievement's tiers array
-  unlockedAt: UnifiedTimestamp;
-  progress?: number;
-}
-
-export interface PlayerTitle {
-  title: string;
-  unlockedAt: UnifiedTimestamp;
-  sourceAchievementId: string; // The achievement that unlocked this title
+export interface BankDetails {
+    accountNumber: string;
+    accountName: string;
+    bankCode: string;
+    bankName: string;
+    recipientCode?: string; // Stored after Paystack recipient creation
+    confirmedForPayout?: boolean;
 }
 
 export interface UserProfile {
@@ -55,6 +43,7 @@ export interface UserProfile {
   activeTitle?: string;
   tournamentsWon?: number;
   isBanned?: boolean;
+  bankDetails?: BankDetails;
 }
 
 export type RewardType = 'virtual' | 'money';
@@ -68,6 +57,17 @@ export interface RewardDetails {
   paymentReference?: string;
   paidAt?: UnifiedTimestamp;
 }
+
+export interface PrizeAllocation {
+    first_place: number;
+    second_place: number;
+    third_place: number;
+    best_overall: number;
+    highest_scoring: number;
+    best_defensive: number;
+    best_attacking: number;
+}
+
 
 export type TournamentFormat = 'league' | 'cup' | 'champions-league';
 export type TournamentStatus = 'pending' | 'open_for_registration' | 'generating_fixtures' | 'in_progress' | 'completed' | 'ready_to_start';
@@ -103,6 +103,16 @@ export interface Tournament {
   prizePool?: number;
   rewardDetails: RewardDetails;
   lastAutoResolvedAt?: UnifiedTimestamp;
+  payoutInitiated?: boolean;
+  payoutCompletedAt?: UnifiedTimestamp;
+  payoutLog?: {
+      uid: string;
+      amount: number;
+      category: string;
+      status: string;
+      transactionId?: string;
+      errorMessage?: string;
+  }[];
 }
 
 export type PlayerRole = 'captain' | 'co-captain' | 'player';
@@ -325,4 +335,17 @@ export interface TournamentAward {
     awardTitle: string;
     team: Team;
     reason: string;
+    captainId: string;
+}
+
+export interface Transaction {
+    id: string;
+    uid: string;
+    tournamentId: string;
+    category: string;
+    amount: number;
+    status: 'success' | 'failed' | 'pending';
+    paystackTransferCode?: string;
+    errorMessage?: string;
+    createdAt: UnifiedTimestamp;
 }

@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import { ColumnDef } from "@tanstack/react-table"
@@ -13,12 +14,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { ArrowUpDown, MoreHorizontal, ShieldCheck, Trash2 } from "lucide-react"
+import { ArrowUpDown, MoreHorizontal, ShieldCheck, Trash2, Coins } from "lucide-react"
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { useTransition } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { adminDeleteTournament } from "@/lib/actions";
+import { adminDeleteTournament, initiatePayouts } from "@/lib/actions";
 
 const toDate = (timestamp: any): Date => {
     if (timestamp && typeof timestamp.toDate === 'function') {
@@ -46,6 +47,23 @@ const ActionsCell = ({ row }: { row: { original: Tournament }}) => {
             }
         });
     }
+    
+    const handlePayout = () => {
+        if (!confirm(`This will initiate payouts for "${tournament.name}". This action cannot be undone. Continue?`)) {
+            return;
+        }
+
+        startTransition(async () => {
+            try {
+                await initiatePayouts(tournament.id);
+                toast({ title: "Payouts Initiated", description: "The payout process has started." });
+            } catch (error: any) {
+                toast({ variant: 'destructive', title: "Error", description: error.message });
+            }
+        });
+    }
+
+    const canInitiatePayout = tournament.status === 'completed' && tournament.rewardDetails.type === 'money' && !tournament.payoutInitiated;
 
     return (
         <DropdownMenu>
@@ -60,6 +78,11 @@ const ActionsCell = ({ row }: { row: { original: Tournament }}) => {
                 <DropdownMenuItem asChild>
                     <Link href={`/tournaments/${tournament.id}`}>View Tournament</Link>
                 </DropdownMenuItem>
+                {canInitiatePayout && (
+                     <DropdownMenuItem onClick={handlePayout} disabled={isPending}>
+                        <Coins className="mr-2 h-4 w-4" /> Initiate Payouts
+                    </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleDelete} className="text-destructive" disabled={isPending}>
                     <Trash2 className="mr-2 h-4 w-4" /> Delete Tournament

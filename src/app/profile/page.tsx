@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Trophy, FileText, Camera, BrainCircuit, Medal } from 'lucide-react';
+import { Loader2, Trophy, FileText, Camera, BrainCircuit, Medal, Banknote } from 'lucide-react';
 import type { UnifiedTimestamp, PlayerStats as PlayerStatsType } from '@/lib/types';
 import { PlayerStats } from '@/components/player-stats';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -26,6 +26,7 @@ import { AchievementsDisplay } from '@/components/achievements-display';
 import { TitleSelector } from '@/components/title-selector';
 import { TrophyCase } from '@/components/trophy-case';
 import { FollowersDialog } from '@/components/followers-dialog';
+import { BankDetailsForm } from '@/components/bank-details-form';
 
 const profileSchema = z.object({
   username: z.string().min(3, { message: "Username must be at least 3 characters." }).max(20),
@@ -226,6 +227,15 @@ export default function ProfilePage() {
         
         <div className="grid lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 space-y-8">
+                 <Card>
+                    <CardHeader>
+                        <CardTitle className="font-headline text-xl">Payout Settings</CardTitle>
+                        <CardDescription>Manage your bank account for receiving prize money.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                       <BankDetailsForm userProfile={userProfile} />
+                    </CardContent>
+                </Card>
                 <Card>
                      <CardHeader>
                         <CardTitle className="font-headline text-xl">Profile Settings</CardTitle>
@@ -305,4 +315,3 @@ export default function ProfilePage() {
     </div>
   );
 }
-

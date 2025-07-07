@@ -5,13 +5,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getTournamentById, getUserTeamForTournament, leaveTournament, addTeam, organizerResolveOverdueMatches, extendRegistration, progressTournamentStage, rescheduleTournamentAndStart, findUserByEmail, regenerateTournamentFixtures, initializeTournamentPayment } from '@/lib/actions';
+import { getTournamentById, getUserTeamForTournament, leaveTournament, addTeam, organizerResolveOverdueMatches, extendRegistration, progressTournamentStage, rescheduleTournamentAndStart, findUserByEmail, regenerateTournamentFixtures, initializeTournamentPayment, savePrizeAllocation } from '@/lib/actions';
 import { useAuth } from "@/hooks/use-auth";
-import type { Tournament, TournamentStatus, Team, Player, UserProfile, UnifiedTimestamp, Match, Standing } from "@/lib/types";
+import type { Tournament, TournamentStatus, Team, Player, UserProfile, UnifiedTimestamp, Match, Standing, PrizeAllocation } from "@/lib/types";
 import { format, isBefore, isAfter, isToday, isFuture, addDays, differenceInDays, endOfDay, isPast } from "date-fns";
 import { collection, onSnapshot, query, where, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Calendar, Gamepad2, Info, List, Trophy, Users, Loader2, Lock, Globe, Crown, PlusCircle, BookOpenCheck, Rss, Award, Swords, Timer, Hourglass, Bot, Sparkles, ShieldCheck, History, RefreshCw, AlertCircle, CreditCard } from "lucide-react";
+import { Calendar, Gamepad2, Info, List, Trophy, Users, Loader2, Lock, Globe, Crown, PlusCircle, BookOpenCheck, Rss, Award, Swords, Timer, Hourglass, Bot, Sparkles, ShieldCheck, History, RefreshCw, AlertCircle, CreditCard, Settings, Coins } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OverviewTab } from "./overview-tab";
@@ -39,6 +39,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Textarea } from '@/components/ui/textarea';
 import { TournamentPodium } from '@/components/tournament-podium';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { PrizeAllocationEditor } from '@/app/admin/tournaments/[id]/prize-allocation';
 
 const toDate = (timestamp: UnifiedTimestamp): Date => {
     if (typeof timestamp === 'string') {
@@ -302,7 +303,7 @@ function JoinTournamentDialog({ tournament, user, userProfile, onTeamJoined }: {
                 uid: user.uid,
                 role: 'captain',
                 username: userProfile.username || 'Captain',
-                photoURL: userProfile.photoURL,
+                photoURL: userProfile.photoURL || '',
             };
 
             const newTeam = await addTeam(tournament.id, { name: teamName, logoUrl, captainId: user.uid, captain });
@@ -718,6 +719,7 @@ export default function TournamentPage() {
                                     <TabsTrigger value="schedule"><BookOpenCheck className="w-4 h-4 mr-2 sm:hidden md:inline-block"/>Schedule</TabsTrigger>
                                     <TabsTrigger value="standings"><Trophy className="w-4 h-4 mr-2 sm:hidden md:inline-block"/>Standings</TabsTrigger>
                                     <TabsTrigger value="rewards"><Award className="w-4 h-4 mr-2 sm:hidden md:inline-block"/>Rewards</TabsTrigger>
+                                     {isOrganizer && tournament.rewardDetails.type === 'money' && <TabsTrigger value="prizesettings"><Coins className="w-4 h-4 mr-2 sm:hidden md:inline-block"/>Prize Settings</TabsTrigger>}
                                     <TabsTrigger value="chat"><Rss className="w-4 h-4 mr-2 sm:hidden md:inline-block"/>Chat</TabsTrigger>
                                 </TabsList>
                                 <ScrollBar orientation="horizontal" />
@@ -743,6 +745,11 @@ export default function TournamentPage() {
                         <TabsContent value="rewards" className="mt-4">
                         <RewardsTab tournament={tournament} />
                         </TabsContent>
+                        {isOrganizer && (
+                             <TabsContent value="prizesettings" className="mt-4">
+                                <PrizeAllocationEditor tournament={tournament} />
+                            </TabsContent>
+                        )}
                         <TabsContent value="chat" className="mt-4">
                         <CommunicationHub tournament={tournament} isOrganizer={isOrganizer} userTeam={userTeam}/>
                         </TabsContent>
