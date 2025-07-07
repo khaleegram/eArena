@@ -1,6 +1,7 @@
 
 
 
+
 'use server';
 
 import { adminDb, adminAuth } from './firebase-admin';
@@ -119,6 +120,14 @@ async function sendNotification(userId: string, notification: Omit<Notification,
         isRead: false,
         createdAt: FieldValue.serverTimestamp(),
     });
+
+    if (notification.title.includes("payout")) {
+        await sendPushNotification(userId, {
+            title: notification.title,
+            body: notification.body,
+            url: notification.href,
+        });
+    }
 }
 
 // Helper to award badges to winning teams
@@ -438,8 +447,9 @@ export async function deleteTournament(tournamentId: string, organizerId: string
 
 export async function getPublicTournaments(): Promise<Tournament[]> {
     try {
+        const validStatuses: TournamentStatus[] = ['open_for_registration', 'generating_fixtures', 'in_progress', 'completed', 'ready_to_start'];
         const snapshot = await adminDb.collection('tournaments')
-            .where('status', 'in', ['open_for_registration', 'generating_fixtures', 'in_progress', 'completed', 'ready_to_start'])
+            .where('status', 'in', validStatuses)
             .get();
         
         const allTournaments = snapshot.docs.map(doc => ({ id: doc.id, ...serializeData(doc.data()) } as Tournament));
@@ -1851,42 +1861,79 @@ export async function getPrizeDistribution(tournamentId: string): Promise<any[]>
         return [];
     }
     const prizePool = tournamentDoc.rewardDetails.prizePool;
-    const distribution = [
-        { category: '1st Place', percentage: 50 },
-        { category: '2nd Place', percentage: 30 },
-        { category: '3rd Place', percentage: 20 },
+    const allocation = tournamentDoc.rewardDetails.prizeAllocation || {
+        first_place: 35,
+        second_place: 20,
+        third_place: 15,
+        best_overall: 10,
+        highest_scoring: 5,
+        best_defensive: 5,
+        best_attacking: 5,
+    };
+    
+    const distributablePool = prizePool * 0.95; // After 5% platform fee
+    
+    const awards = await getTournamentAwards(tournamentId);
+    
+    const distribution: PrizeDistributionItem[] = [];
+
+    const rankCategories = [
+        { key: 'first_place', rank: 1, label: '1st Place' },
+        { key: 'second_place', rank: 2, label: '2nd Place' },
+        { key: 'third_place', rank: 3, label: '3rd Place' }
+    ];
+
+    const standingsSnapshot = await adminDb.collection('standings')
+        .where('tournamentId', '==', tournamentId)
+        .where('ranking', 'in', [1, 2, 3])
+        .get();
+        
+    const standingsByRank = new Map<number, Standing>();
+    standingsSnapshot.forEach(doc => {
+        const s = doc.data() as Standing;
+        standingsByRank.set(s.ranking, s);
+    });
+
+    for (const cat of rankCategories) {
+        const standing = standingsByRank.get(cat.rank);
+        const teamDoc = standing ? await adminDb.collection('tournaments').doc(tournamentId).collection('teams').doc(standing.teamId).get() : null;
+
+        distribution.push({
+            category: cat.label,
+            percentage: (allocation as any)[cat.key],
+            amount: distributablePool * ((allocation as any)[cat.key] / 100),
+            winner: teamDoc?.exists ? {
+                teamId: teamDoc.id,
+                teamName: teamDoc.data()!.name,
+                logoUrl: teamDoc.data()!.logoUrl,
+                captainId: teamDoc.data()!.captainId,
+            } : null,
+        });
+    }
+    
+    const specialAwardCategories = [
+        { key: 'best_overall', label: 'Best Overall Team', awardKey: 'bestOverall' },
+        { key: 'highest_scoring', label: 'Highest Scoring Team', awardKey: 'highestScoring' },
+        { key: 'best_defensive', label: 'Best Defensive Team', awardKey: 'bestDefensive' },
+        { key: 'best_attacking', label: 'Best Attacking Team', awardKey: 'bestAttacking' },
     ];
     
-    const results = await Promise.all(distribution.map(async (item, index) => {
-        let winnerData = null;
-        if (tournamentDoc.status === 'completed') {
-            const rank = index + 1;
-            const standingSnapshot = await adminDb.collection('standings')
-                .where('tournamentId', '==', tournamentId)
-                .where('ranking', '==', rank)
-                .limit(1)
-                .get();
+    for (const cat of specialAwardCategories) {
+        const award = (awards as any)[cat.awardKey];
+        distribution.push({
+            category: cat.label,
+            percentage: (allocation as any)[cat.key],
+            amount: distributablePool * ((allocation as any)[cat.key] / 100),
+            winner: award ? {
+                teamId: award.team.id,
+                teamName: award.team.name,
+                logoUrl: award.team.logoUrl,
+                captainId: award.team.captainId,
+            } : null,
+        });
+    }
 
-            if (!standingSnapshot.empty) {
-                const teamId = standingSnapshot.docs[0].data().teamId;
-                const teamDoc = await adminDb.collection('tournaments').doc(tournamentId).collection('teams').doc(teamId).get();
-                if (teamDoc.exists) {
-                    winnerData = {
-                        teamId: teamDoc.id,
-                        teamName: teamDoc.data()!.name,
-                        logoUrl: teamDoc.data()!.logoUrl,
-                    };
-                }
-            }
-        }
-        return {
-            ...item,
-            amount: (prizePool * item.percentage) / 100,
-            winner: winnerData
-        };
-    }));
-
-    return serializeData(results);
+    return serializeData(distribution);
 }
 
 export async function getTournamentAwards(tournamentId: string): Promise<Record<string, TournamentAward>> {
@@ -1899,54 +1946,56 @@ export async function getTournamentAwards(tournamentId: string): Promise<Record<
 
     const awards: Record<string, TournamentAward> = {};
     
-    // Best Overall Team
-    const bestOverall = teams.reduce((prev, current) => ((prev.performancePoints || 0) > (current.performancePoints || 0)) ? prev : current, teams[0]);
-    if(bestOverall) {
-        awards.bestOverall = { awardTitle: 'Best Overall Team', team: bestOverall, reason: `${bestOverall.performancePoints || 0} Performance Points`};
-    }
-
-    // Highest Scoring
-    const highestScoringStanding = standings.reduce((prev, current) => (prev.goalsFor > current.goalsFor) ? prev : current, standings[0]);
-    const highestScoringTeam = teams.find(t => t.id === highestScoringStanding.teamId);
-    if(highestScoringTeam) {
-        awards.highestScoring = { awardTitle: 'Highest Scoring Team', team: highestScoringTeam, reason: `${highestScoringStanding.goalsFor} Goals Scored`};
-    }
-    
-    // Best Defense
-    const bestDefensiveStanding = standings.sort((a,b) => a.goalsAgainst - b.goalsAgainst || b.cleanSheets - a.cleanSheets)[0];
-    const bestDefensiveTeam = teams.find(t => t.id === bestDefensiveStanding.teamId);
-    if(bestDefensiveTeam) {
-        awards.bestDefensive = { awardTitle: 'Best Defensive Team', team: bestDefensiveTeam, reason: `${bestDefensiveStanding.goalsAgainst} Goals Conceded, ${bestDefensiveStanding.cleanSheets} Clean Sheets`};
-    }
-
-    // Best Attacking (requires iterating matches)
-    const matchesSnapshot = await adminDb.collection('tournaments').doc(tournamentId).collection('matches').where('status', '==', 'approved').get();
-    const matches = matchesSnapshot.docs.map(d => d.data() as Match);
-
-    let bestAttackingScore = -1;
-    let bestAttackingTeamId = '';
-    
-    for (const team of teams) {
-        let attackingScore = 0;
-        const teamMatches = matches.filter(m => m.homeTeamId === team.id || m.awayTeamId === team.id);
-        for(const match of teamMatches) {
-            const isHome = match.homeTeamId === team.id;
-            const goals = isHome ? match.homeScore : match.awayScore;
-            const stats = isHome ? match.homeTeamStats : match.awayTeamStats;
-            if(goals === null || !stats) continue;
-            
-            const passAccuracyBonus = (stats.passes > 0 && (stats.successfulPasses / stats.passes) > 0.75) ? 1 : 0;
-            attackingScore += (goals * 5) + (stats.shotsOnTarget * 2) + (passAccuracyBonus * 3);
+    if (standings.length > 0) {
+        // Best Overall Team
+        const bestOverall = teams.reduce((prev, current) => ((prev.performancePoints || 0) > (current.performancePoints || 0)) ? prev : current, teams[0]);
+        if(bestOverall) {
+            awards.bestOverall = { awardTitle: 'Best Overall Team', team: bestOverall, reason: `${bestOverall.performancePoints || 0} Performance Points`};
         }
-        if(attackingScore > bestAttackingScore) {
-            bestAttackingScore = attackingScore;
-            bestAttackingTeamId = team.id;
+
+        // Highest Scoring
+        const highestScoringStanding = standings.reduce((prev, current) => (prev.goalsFor > current.goalsFor) ? prev : current, standings[0] || {});
+        const highestScoringTeam = teams.find(t => t.id === highestScoringStanding.teamId);
+        if(highestScoringTeam) {
+            awards.highestScoring = { awardTitle: 'Highest Scoring Team', team: highestScoringTeam, reason: `${highestScoringStanding.goalsFor} Goals Scored`};
         }
-    }
-    
-    const bestAttackingTeam = teams.find(t => t.id === bestAttackingTeamId);
-    if(bestAttackingTeam) {
-        awards.bestAttacking = { awardTitle: 'Best Attacking Team', team: bestAttackingTeam, reason: `${Math.round(bestAttackingScore)} Attack Score`};
+        
+        // Best Defense
+        const bestDefensiveStanding = standings.sort((a,b) => a.goalsAgainst - b.goalsAgainst || b.cleanSheets - a.cleanSheets)[0];
+        const bestDefensiveTeam = teams.find(t => t.id === bestDefensiveStanding.teamId);
+        if(bestDefensiveTeam) {
+            awards.bestDefensive = { awardTitle: 'Best Defensive Team', team: bestDefensiveTeam, reason: `${bestDefensiveStanding.goalsAgainst} Goals Conceded, ${bestDefensiveStanding.cleanSheets} Clean Sheets`};
+        }
+
+        // Best Attacking (requires iterating matches)
+        const matchesSnapshot = await adminDb.collection('tournaments').doc(tournamentId).collection('matches').where('status', '==', 'approved').get();
+        const matches = matchesSnapshot.docs.map(d => d.data() as Match);
+
+        let bestAttackingScore = -1;
+        let bestAttackingTeamId = '';
+        
+        for (const team of teams) {
+            let attackingScore = 0;
+            const teamMatches = matches.filter(m => m.homeTeamId === team.id || m.awayTeamId === team.id);
+            for(const match of teamMatches) {
+                const isHome = match.homeTeamId === team.id;
+                const goals = isHome ? match.homeScore : match.awayScore;
+                const stats = isHome ? match.homeTeamStats : match.awayTeamStats;
+                if(goals === null || !stats) continue;
+                
+                const passAccuracyBonus = (stats.passes > 0 && (stats.successfulPasses / stats.passes) > 0.75) ? 1 : 0;
+                attackingScore += (goals * 5) + (stats.shotsOnTarget * 2) + (passAccuracyBonus * 3);
+            }
+            if(attackingScore > bestAttackingScore) {
+                bestAttackingScore = attackingScore;
+                bestAttackingTeamId = team.id;
+            }
+        }
+        
+        const bestAttackingTeam = teams.find(t => t.id === bestAttackingTeamId);
+        if(bestAttackingTeam) {
+            awards.bestAttacking = { awardTitle: 'Best Attacking Team', team: bestAttackingTeam, reason: `${Math.round(bestAttackingScore)} Attack Score`};
+        }
     }
 
     return serializeData(awards);
@@ -2909,7 +2958,18 @@ export async function getNigerianBanks(): Promise<{ name: string; code: string }
         if (!data.status || !data.data) {
             throw new Error(data.message || 'Invalid response from Paystack.');
         }
-        return data.data.map((bank: any) => ({ name: bank.name, code: bank.code }));
+        
+        // De-duplicate based on bank code before mapping
+        const uniqueBanksMap = new Map();
+        data.data.forEach((bank: any) => {
+            if (!uniqueBanksMap.has(bank.code)) {
+                uniqueBanksMap.set(bank.code, bank);
+            }
+        });
+
+        const uniqueBanks = Array.from(uniqueBanksMap.values());
+
+        return uniqueBanks.map((bank: any) => ({ name: bank.name, code: bank.code }));
     } catch (error: any) {
         console.error("Paystack API error (getNigerianBanks):", error.message);
         throw new Error("Could not fetch the list of banks at this time. Please try again later.");
@@ -3015,4 +3075,20 @@ export async function initiatePayouts(tournamentId: string) {
     revalidatePath('/admin/tournaments');
 
     return { success: true, message: 'Payout process initiated.' };
+}
+
+export async function confirmUserDetailsForPayout(userId: string) {
+    const userRef = adminDb.collection('users').doc(userId);
+    const userDoc = await userRef.get();
+    if(!userDoc.exists) throw new Error("User not found.");
+
+    if(!userDoc.data()?.bankDetails?.accountNumber) {
+        throw new Error("No bank details saved to confirm.");
+    }
+    
+    await userRef.update({
+        'bankDetails.confirmedForPayout': true
+    });
+
+    revalidatePath(`/profile`);
 }
