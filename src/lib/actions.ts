@@ -2,9 +2,11 @@
 
 
 
+
 'use server';
 
 import { adminDb, adminAuth } from './firebase-admin';
+import type { Timestamp as FirebaseAdminTimestamp } from 'firebase-admin/firestore';
 import { Timestamp, FieldValue, FieldPath } from 'firebase-admin/firestore';
 import type { Tournament, UserProfile, Team, Match, Standing, TournamentFormat, Player, MatchReport, Notification, RewardDetails, TeamMatchStats, MatchStatus, Badge, UnifiedTimestamp, PlayerStats, TournamentPerformancePoint, Highlight, Article, UserMembership, ReplayRequest, EarnedAchievement, PlayerTitle, PlatformSettings, Conversation, ChatMessage, PlayerRole, PushSubscription, TournamentAward, BankDetails, PrizeAllocation } from './types';
 import { revalidatePath } from 'next/cache';
@@ -3021,7 +3023,7 @@ export async function saveUserBankDetails(userId: string, details: { bankCode: s
         bankCode: details.bankCode,
         bankName: bank.name,
         accountName: account_name,
-        confirmedForPayout: true,
+        confirmedForPayout: false,
     };
     
     await adminDb.collection('users').doc(userId).update({
