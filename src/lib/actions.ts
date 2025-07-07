@@ -3276,39 +3276,52 @@ export async function retryPayout(transactionId: string): Promise<{ success: boo
 }
 
 export async function adminGetAllDisputedMatches(): Promise<DisputedMatchInfo[]> {
-    const disputedMatchesSnapshot = await adminDb.collectionGroup('matches')
-        .where('status', 'in', ['disputed', 'needs_secondary_evidence'])
-        .get();
-    
-    const replayRequestSnapshot = await adminDb.collectionGroup('matches')
-        .where('replayRequest.status', 'in', ['pending', 'accepted'])
+    // This function is rewritten to avoid collection group queries which require manual index creation.
+    // Instead, we iterate through active tournaments and query their subcollections.
+    const activeTournamentsSnapshot = await adminDb.collection('tournaments')
+        .where('status', 'in', ['in_progress', 'completed']) // Only check tournaments that could have disputes
         .get();
 
     const allProblemMatches: Match[] = [];
     const seenMatchIds = new Set<string>();
 
-    const processSnapshot = (snapshot: FirebaseFirestore.QuerySnapshot) => {
-        snapshot.docs.forEach(doc => {
-            if (!seenMatchIds.has(doc.id)) {
-                allProblemMatches.push({ id: doc.id, ...doc.data() } as Match);
-                seenMatchIds.add(doc.id);
-            }
-        });
+    for (const tournamentDoc of activeTournamentsSnapshot.docs) {
+        const matchesRef = tournamentDoc.ref.collection('matches');
+
+        const disputedMatchesSnapshot = await matchesRef
+            .where('status', 'in', ['disputed', 'needs_secondary_evidence'])
+            .get();
+
+        const replayRequestSnapshot = await matchesRef
+            .where('replayRequest.status', 'in', ['pending', 'accepted'])
+            .get();
+
+        const processSnapshot = (snapshot: FirebaseFirestore.QuerySnapshot) => {
+            snapshot.docs.forEach(doc => {
+                if (!seenMatchIds.has(doc.id)) {
+                    allProblemMatches.push({ id: doc.id, ...doc.data() } as Match);
+                    seenMatchIds.add(doc.id);
+                }
+            });
+        }
+        
+        processSnapshot(disputedMatchesSnapshot);
+        processSnapshot(replayRequestSnapshot);
     }
-
-    processSnapshot(disputedMatchesSnapshot);
-    processSnapshot(replayRequestSnapshot);
-
+    
     if (allProblemMatches.length === 0) return [];
     
     // Enrich with tournament and team data
     const tournamentIds = new Set(allProblemMatches.map(m => m.tournamentId));
-    const teamIds = new Set(allProblemMatches.flatMap(m => [m.homeTeamId, m.awayTeamId]));
-
-    const tournamentsSnapshot = await adminDb.collection('tournaments').where(FieldPath.documentId(), 'in', Array.from(tournamentIds)).get();
+    
     const tournamentsMap = new Map<string, Tournament>();
-    tournamentsSnapshot.forEach(doc => tournamentsMap.set(doc.id, { id: doc.id, ...doc.data() } as Tournament));
-
+    for (const id of Array.from(tournamentIds)) {
+        const doc = await adminDb.collection('tournaments').doc(id).get();
+        if (doc.exists) {
+            tournamentsMap.set(id, { id: doc.id, ...doc.data() } as Tournament);
+        }
+    }
+    
     const teamsMap = new Map<string, Team>();
     for (const tournamentId of tournamentIds) {
         const teamsSnapshot = await adminDb.collection('tournaments').doc(tournamentId).collection('teams').get();
