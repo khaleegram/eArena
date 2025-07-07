@@ -5,7 +5,7 @@
 import { adminDb, adminAuth } from './firebase-admin';
 import type { Timestamp as FirebaseAdminTimestamp } from 'firebase-admin/firestore';
 import { Timestamp, FieldValue, FieldPath } from 'firebase-admin/firestore';
-import type { Tournament, UserProfile, Team, Match, Standing, TournamentFormat, Player, MatchReport, Notification, RewardDetails, TeamMatchStats, MatchStatus, Badge, UnifiedTimestamp, PlayerStats, TournamentPerformancePoint, Highlight, Article, UserMembership, ReplayRequest, EarnedAchievement, PlayerTitle, PlatformSettings, Conversation, ChatMessage, PlayerRole, PushSubscription, TournamentAward, BankDetails, PrizeAllocation, Transaction, DisputedMatchInfo } from './types';
+import type { Tournament, UserProfile, Team, Match, Standing, TournamentFormat, Player, MatchReport, Notification, RewardDetails, TeamMatchStats, MatchStatus, UnifiedTimestamp, PlayerStats, TournamentPerformancePoint, Highlight, Article, UserMembership, ReplayRequest, EarnedAchievement, PlayerTitle, PlatformSettings, Conversation, ChatMessage, PlayerRole, PushSubscription, TournamentAward, BankDetails, PrizeAllocation, Transaction, DisputedMatchInfo, PrizeDistributionItem } from './types';
 import { revalidatePath } from 'next/cache';
 import { generateTournamentFixtures } from '@/ai/flows/generate-tournament-fixtures';
 import { verifyMatchScores, type VerifyMatchScoresInput, type VerifyMatchScoresOutput } from '@/ai/flows/verify-match-scores';
@@ -151,7 +151,7 @@ async function awardBadges(tournamentId: string) {
         if (!teamDoc.exists) continue;
 
         const team = teamDoc.data() as Team;
-        const newBadge: Badge = {
+        const newBadge: Omit<Badge, 'id'> = {
             tournamentName: tournament.name,
             tournamentId: tournament.id,
             rank: standing.ranking,
@@ -1772,7 +1772,9 @@ export async function getConversationsForUser(userId: string): Promise<Conversat
 
         return {
             id: doc.id,
-            ...data,
+            participantIds: data.participantIds,
+            createdAt: data.createdAt,
+            lastMessage: data.lastMessage,
             participants: participantProfiles.filter(p => p !== null) as UserProfile[],
         };
     }));
@@ -1799,7 +1801,9 @@ export async function getConversationById(conversationId: string, currentUserId:
 
     const conversationDetails: Omit<Conversation, 'messages'> = {
         id: conversationDoc.id,
-        ...conversationData,
+        participantIds: conversationData.participantIds,
+        createdAt: conversationData.createdAt,
+        lastMessage: conversationData.lastMessage,
         participants: participantProfiles.filter(p => p !== null) as UserProfile[],
     };
 
@@ -1864,7 +1868,7 @@ export async function markNotificationsAsRead(userId: string) {
 
 
 // Rewards
-export async function getPrizeDistribution(tournamentId: string): Promise<any[]> {
+export async function getPrizeDistribution(tournamentId: string): Promise<PrizeDistributionItem[]> {
     const tournamentDoc = await getTournamentById(tournamentId);
     if (!tournamentDoc || !tournamentDoc.rewardDetails || tournamentDoc.rewardDetails.type === 'virtual') {
         return [];
