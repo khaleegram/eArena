@@ -350,3 +350,15 @@ export interface Transaction {
     errorMessage?: string;
     createdAt: UnifiedTimestamp;
 }
+
+export interface PrizeDistributionItem {
+    category: string;
+    percentage: number;
+    amount: number;
+    winner?: {
+        teamId: string;
+        teamName: string;
+        captainId: string;
+        logoUrl?: string;
+    } | null;
+}

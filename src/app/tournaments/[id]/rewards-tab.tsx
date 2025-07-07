@@ -4,22 +4,15 @@
 
 import { useState, useEffect } from "react";
 import { getPrizeDistribution, getTournamentAwards } from "@/lib/actions";
-import type { Tournament, TournamentAward } from "@/lib/types";
+import type { Tournament, TournamentAward, PrizeDistributionItem } from "@/lib/types";
+import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, Award, Trophy, User, Target, Shield, Star } from "lucide-react";
+import { Loader2, Award, Trophy, User, Target, Shield, Star, AlertCircle } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-
-interface PrizeDistribution {
-    category: string;
-    percentage: number;
-    amount: number;
-    winner?: {
-        teamId: string;
-        teamName: string;
-        logoUrl?: string;
-    } | null;
-}
+import Link from 'next/link';
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 
 const AwardCard = ({ title, icon: Icon, award }: { title: string; icon: React.ElementType; award: TournamentAward | undefined }) => {
     if (!award) return null;
@@ -45,10 +38,31 @@ const AwardCard = ({ title, icon: Icon, award }: { title: string; icon: React.El
     );
 };
 
+const PayoutConfirmationPrompt = ({ isWinner, bankDetailsConfirmed }: { isWinner: boolean; bankDetailsConfirmed: boolean; }) => {
+    if (!isWinner || bankDetailsConfirmed) return null;
+
+    return (
+        <Alert className="mb-6 border-amber-500/50 text-amber-500 [&>svg]:text-amber-500">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Action Required: Confirm Payout Details</AlertTitle>
+            <AlertDescription>
+                Congratulations! You've won a cash prize. Please go to your profile to confirm your bank details to ensure you receive your payout.
+                <Button asChild size="sm" variant="link" className="p-0 h-auto ml-2 text-amber-400">
+                    <Link href="/profile">Go to Profile</Link>
+                </Button>
+            </AlertDescription>
+        </Alert>
+    );
+};
+
 export function RewardsTab({ tournament }: { tournament: Tournament }) {
-    const [distribution, setDistribution] = useState<PrizeDistribution[]>([]);
+    const { user, userProfile } = useAuth();
+    const [distribution, setDistribution] = useState<PrizeDistributionItem[]>([]);
     const [awards, setAwards] = useState<Record<string, TournamentAward>>({});
     const [loading, setLoading] = useState(true);
+
+    const isWinner = distribution.some(d => d.winner?.captainId === user?.uid);
+    const bankDetailsConfirmed = !!userProfile?.bankDetails?.confirmedForPayout;
 
     useEffect(() => {
         const fetchData = async () => {
@@ -81,6 +95,7 @@ export function RewardsTab({ tournament }: { tournament: Tournament }) {
 
     return (
          <div className="space-y-8">
+            <PayoutConfirmationPrompt isWinner={isWinner} bankDetailsConfirmed={bankDetailsConfirmed} />
             {tournament.rewardDetails.type === 'virtual' ? (
                 <Card>
                     <CardHeader>

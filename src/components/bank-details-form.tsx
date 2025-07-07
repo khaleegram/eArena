@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import * as React from 'react';
@@ -8,13 +9,13 @@ import * as z from 'zod';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import type { UserProfile } from '@/lib/types';
-import { getNigerianBanks, verifyBankAccount, saveUserBankDetails } from '@/lib/actions';
+import { getNigerianBanks, verifyBankAccount, saveUserBankDetails, confirmUserDetailsForPayout } from '@/lib/actions';
 
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ShieldCheck } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 
 const bankDetailsSchema = z.object({
@@ -34,8 +35,11 @@ export function BankDetailsForm({ userProfile }: { userProfile: UserProfile }) {
     const { toast } = useToast();
     const [isSaving, setIsSaving] = React.useState(false);
     const [isVerifying, setIsVerifying] = React.useState(false);
+    const [isConfirming, setIsConfirming] = React.useState(false);
     const [banks, setBanks] = React.useState<Bank[]>([]);
     const [verifiedAccountName, setVerifiedAccountName] = React.useState<string | null>(userProfile.bankDetails?.accountName || null);
+
+    const isConfirmed = userProfile.bankDetails?.confirmedForPayout;
 
     const form = useForm<BankDetailsFormValues>({
         resolver: zodResolver(bankDetailsSchema),
@@ -110,6 +114,19 @@ export function BankDetailsForm({ userProfile }: { userProfile: UserProfile }) {
             setIsSaving(false);
         }
     };
+    
+    const onConfirmForPayout = async () => {
+        if (!user) return;
+        setIsConfirming(true);
+        try {
+            await confirmUserDetailsForPayout(user.uid);
+            toast({ title: 'Details Confirmed!', description: 'Your account is ready for payouts.'});
+        } catch (error: any) {
+             toast({ variant: 'destructive', title: 'Error', description: error.message });
+        } finally {
+            setIsConfirming(false);
+        }
+    };
 
     const hasChanged = form.formState.isDirty && (watchedAccountNumber !== userProfile.bankDetails?.accountNumber || watchedBankCode !== userProfile.bankDetails?.bankCode);
 
@@ -123,7 +140,7 @@ export function BankDetailsForm({ userProfile }: { userProfile: UserProfile }) {
                         render={({ field }) => (
                             <FormItem>
                                 <FormLabel>Bank Name</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isVerifying || isSaving}>
+                                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isVerifying || isSaving || isConfirmed}>
                                     <FormControl>
                                         <SelectTrigger>
                                             <SelectValue placeholder="Select your bank..." />
@@ -145,7 +162,7 @@ export function BankDetailsForm({ userProfile }: { userProfile: UserProfile }) {
                         render={({ field }) => (
                             <FormItem>
                                 <FormLabel>Account Number</FormLabel>
-                                <FormControl><Input placeholder="0123456789" {...field} disabled={isVerifying || isSaving} /></FormControl>
+                                <FormControl><Input placeholder="0123456789" {...field} disabled={isVerifying || isSaving || isConfirmed} /></FormControl>
                                 <FormMessage />
                             </FormItem>
                         )}
@@ -168,10 +185,23 @@ export function BankDetailsForm({ userProfile }: { userProfile: UserProfile }) {
                 </Card>
             )}
 
-            <Button onClick={onSave} disabled={isSaving || !verifiedAccountName || hasChanged} className="w-full mt-4">
+            <Button onClick={onSave} disabled={isSaving || !verifiedAccountName || hasChanged || isConfirmed} className="w-full mt-4">
                 {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Save Details
             </Button>
+            
+            {userProfile.bankDetails && !isConfirmed && (
+                <Card className="border-primary/50">
+                    <CardContent className="pt-6 flex flex-col items-center gap-4 text-center">
+                        <ShieldCheck className="h-8 w-8 text-primary"/>
+                        <p className="text-sm text-muted-foreground">Your saved details are ready. Confirm them to enable automated prize payouts for future wins.</p>
+                        <Button onClick={onConfirmForPayout} disabled={isConfirming || hasChanged} className="w-full">
+                            {isConfirming && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Confirm for Payouts
+                        </Button>
+                    </CardContent>
+                </Card>
+            )}
         </div>
     );
 }
