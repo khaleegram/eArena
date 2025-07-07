@@ -44,11 +44,10 @@ const DEFAULT_ALLOCATION: PrizeAllocation = {
 export function PrizeAllocationEditor({ tournament }: { tournament: Tournament }) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = React.useState(false);
-  const [currentAllocation, setCurrentAllocation] = React.useState<PrizeAllocation>(DEFAULT_ALLOCATION);
   
   const form = useForm<z.infer<typeof prizeAllocationSchema>>({
     resolver: zodResolver(prizeAllocationSchema),
-    defaultValues: currentAllocation,
+    defaultValues: tournament.rewardDetails.prizeAllocation || DEFAULT_ALLOCATION,
     mode: 'onChange',
   });
 
