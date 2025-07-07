@@ -11,8 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { postTournamentMessage, postTeamMessage, postAnnouncement } from "@/lib/actions";
-import { Loader2, Send, Megaphone, MessageSquare, Users, Rss } from "lucide-react";
+import { postTournamentMessage, postTeamMessage, postAnnouncement, deleteTournamentMessage } from "@/lib/actions";
+import { Loader2, Send, Megaphone, MessageSquare, Users, Rss, Trash2 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -21,18 +21,33 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { ReputationAvatar } from "@/components/reputation-avatar";
 import Link from 'next/link';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 // ChatMessageDisplay Component
-const ChatMessageDisplay = ({ messages, participantProfiles }: { messages: ChatMessage[]; participantProfiles: Record<string, UserProfile> }) => {
+const ChatMessageDisplay = ({ messages, participantProfiles, isOrganizer, tournamentId }: { messages: ChatMessage[]; participantProfiles: Record<string, UserProfile>, isOrganizer: boolean, tournamentId: string }) => {
     const scrollAreaRef = useRef<HTMLDivElement>(null);
+    const { user } = useAuth();
+    const { toast } = useToast();
+    const [isDeleting, setIsDeleting] = useState<string | null>(null);
   
     useEffect(() => {
         if (scrollAreaRef.current) {
             scrollAreaRef.current.scrollTo({ top: scrollAreaRef.current.scrollHeight });
         }
     }, [messages]);
-
-    const { user } = useAuth();
+    
+    const handleDelete = async (messageId: string) => {
+        if (!user) return;
+        setIsDeleting(messageId);
+        try {
+            await deleteTournamentMessage(tournamentId, messageId, user.uid);
+            toast({ title: "Message Deleted" });
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: "Error", description: error.message });
+        } finally {
+            setIsDeleting(null);
+        }
+    };
 
     if (!messages.length) {
         return <p className="text-center text-muted-foreground py-8">No messages yet. Start the conversation!</p>;
@@ -45,7 +60,7 @@ const ChatMessageDisplay = ({ messages, participantProfiles }: { messages: ChatM
                     const isCurrentUser = msg.userId === user?.uid;
                     const profile = participantProfiles[msg.userId];
                     return (
-                        <div key={msg.id} className={cn("flex items-start gap-3", isCurrentUser ? "flex-row-reverse" : "")}>
+                        <div key={msg.id} className={cn("flex items-start gap-3 group", isCurrentUser ? "flex-row-reverse" : "")}>
                              <Link href={`/profile/${msg.userId}`}>
                                 <ReputationAvatar profile={profile} className="h-8 w-8" />
                              </Link>
@@ -56,6 +71,19 @@ const ChatMessageDisplay = ({ messages, participantProfiles }: { messages: ChatM
                                     {msg.timestamp ? formatDistanceToNow(new Date((msg.timestamp as any).seconds * 1000), { addSuffix: true }) : 'sending...'}
                                 </p>
                             </div>
+                             {isOrganizer && !isCurrentUser && (
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" disabled={isDeleting === msg.id}>
+                                            {isDeleting === msg.id ? <Loader2 className="h-4 w-4 animate-spin"/> : <Trash2 className="h-4 w-4 text-destructive"/>}
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader><AlertDialogTitle>Delete Message?</AlertDialogTitle><AlertDialogDescription>This will permanently delete the message from the chat. This cannot be undone.</AlertDialogDescription></AlertDialogHeader>
+                                        <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDelete(msg.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction></AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            )}
                         </div>
                     );
                 })}
@@ -99,7 +127,7 @@ const ChatInput = ({ onSendMessage }: { onSendMessage: (message: string) => Prom
 
 
 // General Chat Component
-const GeneralChat = ({ tournamentId, participantProfiles }: { tournamentId: string; participantProfiles: Record<string, UserProfile> }) => {
+const GeneralChat = ({ tournamentId, participantProfiles, isOrganizer }: { tournamentId: string; participantProfiles: Record<string, UserProfile>, isOrganizer: boolean }) => {
     const { user, userProfile } = useAuth();
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const { toast } = useToast();
@@ -123,14 +151,14 @@ const GeneralChat = ({ tournamentId, participantProfiles }: { tournamentId: stri
 
     return (
         <div className="flex flex-col h-full">
-            <ChatMessageDisplay messages={messages} participantProfiles={participantProfiles} />
+            <ChatMessageDisplay messages={messages} participantProfiles={participantProfiles} isOrganizer={isOrganizer} tournamentId={tournamentId} />
             <ChatInput onSendMessage={handleSendMessage} />
         </div>
     );
 };
 
 // Team Chat Component
-const TeamChat = ({ tournamentId, team, participantProfiles }: { tournamentId: string; team: Team | null; participantProfiles: Record<string, UserProfile> }) => {
+const TeamChat = ({ tournamentId, team, participantProfiles, isOrganizer }: { tournamentId: string; team: Team | null; participantProfiles: Record<string, UserProfile>, isOrganizer: boolean }) => {
     const { user, userProfile } = useAuth();
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const { toast } = useToast();
@@ -159,7 +187,7 @@ const TeamChat = ({ tournamentId, team, participantProfiles }: { tournamentId: s
 
     return (
         <div className="flex flex-col h-full">
-            <ChatMessageDisplay messages={messages} participantProfiles={participantProfiles} />
+            <ChatMessageDisplay messages={messages} participantProfiles={participantProfiles} isOrganizer={isOrganizer} tournamentId={tournamentId} />
             <ChatInput onSendMessage={handleSendMessage} />
         </div>
     );
@@ -313,8 +341,8 @@ export function CommunicationHub({ tournament, isOrganizer, userTeam }: { tourna
                         <TabsTrigger value="team" disabled={!userTeam}><Users className="mr-2 h-4 w-4"/>Team</TabsTrigger>
                         <TabsTrigger value="announcements"><Megaphone className="mr-2 h-4 w-4"/>Announcements</TabsTrigger>
                     </TabsList>
-                    <TabsContent value="general" className="mt-4"><GeneralChat tournamentId={tournament.id} participantProfiles={participantProfiles} /></TabsContent>
-                    <TabsContent value="team" className="mt-4"><TeamChat tournamentId={tournament.id} team={userTeam} participantProfiles={participantProfiles} /></TabsContent>
+                    <TabsContent value="general" className="mt-4"><GeneralChat tournamentId={tournament.id} participantProfiles={participantProfiles} isOrganizer={isOrganizer} /></TabsContent>
+                    <TabsContent value="team" className="mt-4"><TeamChat tournamentId={tournament.id} team={userTeam} participantProfiles={participantProfiles} isOrganizer={isOrganizer} /></TabsContent>
                     <TabsContent value="announcements" className="mt-4"><Announcements tournamentId={tournament.id} isOrganizer={isOrganizer}/></TabsContent>
                 </Tabs>
             </CardContent>

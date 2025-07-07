@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -85,7 +86,7 @@ export function TeamsTab({ tournament, isOrganizer }: { tournament: Tournament; 
       setLoading(false);
     });
     return () => unsubscribe();
-  }, [tournament.id]);
+  }, [tournament.id, teamCaptainProfiles]);
   
   return (
     <Card>
@@ -123,7 +124,8 @@ export function TeamsTab({ tournament, isOrganizer }: { tournament: Tournament; 
             <TableBody>
               {teams.map(team => {
                   const captainProfile = teamCaptainProfiles[team.captainId];
-                  const isTeamCaptainByCurrentUser = user?.uid === team.captainId;
+                  const currentUserPlayerInfo = team.players.find(p => p.uid === user?.uid);
+                  const canManageRoster = currentUserPlayerInfo && (currentUserPlayerInfo.role === 'captain' || currentUserPlayerInfo.role === 'co-captain');
                   const needsApproval = team.isApproved === false;
 
                   return (
@@ -141,7 +143,7 @@ export function TeamsTab({ tournament, isOrganizer }: { tournament: Tournament; 
                                 {isOrganizer && needsApproval && (
                                     <ApproveTeamButton tournamentId={tournament.id} teamId={team.id} organizerId={user!.uid} />
                                 )}
-                                {isTeamCaptainByCurrentUser && tournament.status === 'open_for_registration' && (
+                                {canManageRoster && tournament.status === 'open_for_registration' && (
                                     <ManageRosterDialog team={team} tournamentId={tournament.id} />
                                 )}
                                 {isOrganizer && tournament.status === 'open_for_registration' && (
@@ -208,6 +210,7 @@ function RemoveTeamDialog({ team, tournamentId }: { team: Team, tournamentId: st
 
 function ManageRosterDialog({ team, tournamentId }: { team: Team, tournamentId: string}) {
     const [open, setOpen] = useState(false);
+    const { user } = useAuth();
     const [players, setPlayers] = useState<Player[]>(team.players);
     const [newPlayerEmail, setNewPlayerEmail] = useState("");
     const [isSearching, setIsSearching] = useState(false);
@@ -255,13 +258,14 @@ function ManageRosterDialog({ team, tournamentId }: { team: Team, tournamentId: 
     };
 
     const handleSaveChanges = async () => {
+        if (!user) return;
         setIsSaving(true);
         try {
-            await updateTeamRoster(tournamentId, team.id, players);
+            await updateTeamRoster(tournamentId, team.id, players, user.uid);
             toast({ title: "Success!", description: "Roster updated." });
             setOpen(false);
-        } catch (error) {
-            toast({ variant: "destructive", title: "Error", description: "Failed to save changes." });
+        } catch (error: any) {
+            toast({ variant: "destructive", title: "Error", description: error.message || "Failed to save changes." });
         } finally {
             setIsSaving(false);
         }

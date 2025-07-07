@@ -14,8 +14,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { approveMatchResult, submitMatchResult, transferHost, setMatchRoomCode, postMatchMessage, deleteMatchReport, submitSecondaryEvidence, getMatchPrediction, scheduleRematch, submitPlayerStreamUrl, requestPlayerReplay, respondToPlayerReplay, organizerForceReplayProblematicMatches } from "@/lib/actions";
-import { Loader2, CheckCircle, Clock, Shield, Upload, Info, AlertTriangle, MessageSquareQuote, ArrowRightLeft, FileText, Swords, MessageCircle, Copy, Check, Trash2, BarChartHorizontal, Timer, Video, Tv, Sparkles, History, Send, Handshake } from "lucide-react";
+import { approveMatchResult, submitMatchResult, transferHost, setMatchRoomCode, postMatchMessage, deleteMatchReport, submitSecondaryEvidence, getMatchPrediction, scheduleRematch, submitPlayerStreamUrl, requestPlayerReplay, respondToPlayerReplay, organizerForceReplayProblematicMatches, deleteMatchMessage } from "@/lib/actions";
+import { Loader2, CheckCircle, Clock, AlertTriangle, User, MessageSquareQuote, FileText, BarChartHorizontal, Video, Tv, Sparkles, History, Send, Handshake, Trash2 } from "lucide-react";
 import { format, formatDistanceToNow, isToday, isFuture, endOfDay, isPast } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import Link from 'next/link';
@@ -37,14 +37,30 @@ const toDate = (timestamp: UnifiedTimestamp): Date => {
     return timestamp as Date;
 };
 
-const ChatMessageDisplay = ({ messages, currentUser }: { messages: ChatMessage[]; currentUser: UserProfile | null }) => {
+const ChatMessageDisplay = ({ messages, currentUser, isOrganizer, tournamentId, matchId }: { messages: ChatMessage[]; currentUser: UserProfile | null, isOrganizer: boolean, tournamentId: string, matchId: string }) => {
     const scrollAreaRef = useRef<HTMLDivElement>(null);
+    const { toast } = useToast();
+    const { user } = useAuth();
+    const [isDeleting, setIsDeleting] = useState<string | null>(null);
   
     useEffect(() => {
         if (scrollAreaRef.current) {
             scrollAreaRef.current.scrollTo({ top: scrollAreaRef.current.scrollHeight });
         }
     }, [messages]);
+    
+    const handleDelete = async (messageId: string) => {
+        if (!user) return;
+        setIsDeleting(messageId);
+        try {
+            await deleteMatchMessage(tournamentId, matchId, messageId, user.uid);
+            toast({ title: "Message Deleted" });
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: "Error", description: error.message });
+        } finally {
+            setIsDeleting(null);
+        }
+    };
 
     if (!messages.length) {
         return <p className="text-center text-muted-foreground py-8">No messages yet. Start the conversation!</p>;
@@ -56,7 +72,7 @@ const ChatMessageDisplay = ({ messages, currentUser }: { messages: ChatMessage[]
                 {messages.map(msg => {
                     const isCurrentUser = msg.userId === currentUser?.uid;
                     return (
-                        <div key={msg.id} className={cn("flex items-start gap-3", isCurrentUser ? "flex-row-reverse" : "")}>
+                        <div key={msg.id} className={cn("flex items-start gap-3 group", isCurrentUser ? "flex-row-reverse" : "")}>
                              <Avatar className="h-8 w-8">
                                 <AvatarImage src={msg.photoURL} alt={msg.username}/>
                                 <AvatarFallback>{msg.username.charAt(0)}</AvatarFallback>
@@ -68,6 +84,19 @@ const ChatMessageDisplay = ({ messages, currentUser }: { messages: ChatMessage[]
                                     {msg.timestamp ? formatDistanceToNow(toDate(msg.timestamp), { addSuffix: true }) : 'sending...'}
                                 </p>
                             </div>
+                            {isOrganizer && !isCurrentUser && (
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" disabled={isDeleting === msg.id}>
+                                            {isDeleting === msg.id ? <Loader2 className="h-4 w-4 animate-spin"/> : <Trash2 className="h-4 w-4 text-destructive"/>}
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader><AlertDialogTitle>Delete Message?</AlertDialogTitle><AlertDialogDescription>This will permanently delete the message from the chat. This cannot be undone.</AlertDialogDescription></AlertDialogHeader>
+                                        <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDelete(msg.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction></AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            )}
                         </div>
                     );
                 })}
@@ -109,7 +138,7 @@ const ChatInput = ({ onSendMessage }: { onSendMessage: (message: string) => Prom
     );
 };
 
-const MatchChatDialog = ({ match, homeTeamName, awayTeamName, isMatchDay }: { match: Match; homeTeamName: string, awayTeamName: string, isMatchDay: boolean }) => {
+const MatchChatDialog = ({ match, homeTeamName, awayTeamName, isMatchDay, isOrganizer }: { match: Match; homeTeamName: string, awayTeamName: string, isMatchDay: boolean, isOrganizer: boolean }) => {
     const { user, userProfile } = useAuth();
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const { toast } = useToast();
@@ -142,7 +171,7 @@ const MatchChatDialog = ({ match, homeTeamName, awayTeamName, isMatchDay }: { ma
                     <DialogDescription>Coordinate with your opponent for this match.</DialogDescription>
                 </DialogHeader>
                 <div className="flex flex-col h-full">
-                    <ChatMessageDisplay messages={messages} currentUser={userProfile} />
+                    <ChatMessageDisplay messages={messages} currentUser={userProfile} isOrganizer={isOrganizer} tournamentId={match.tournamentId} matchId={match.id} />
                     <ChatInput onSendMessage={handleSendMessage} />
                 </div>
             </DialogContent>
@@ -257,7 +286,7 @@ export function MyMatchesTab({ tournament, isOrganizer, userTeam }: { tournament
 
         const unsubTeams = onSnapshot(teamQuery, snapshot => {
             if (!active) return;
-            const teamsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Team));
+            const teamsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Team);
             setTeams(teamsData);
             teamsLoaded = true;
             checkDone();
@@ -286,7 +315,7 @@ export function MyMatchesTab({ tournament, isOrganizer, userTeam }: { tournament
                 ) : (
                     <div className="space-y-4">
                         {matches.map(match => (
-                            <MatchCard key={match.id} match={match} teams={teams} getTeam={getTeam} userTeam={userTeam} />
+                            <MatchCard key={match.id} match={match} teams={teams} getTeam={getTeam} userTeam={userTeam} isOrganizer={isOrganizer} />
                         ))}
                     </div>
                 )}
@@ -326,7 +355,7 @@ const MatchDayCountdown = ({ matchDay }: { matchDay: UnifiedTimestamp }) => {
     );
 };
 
-function MatchCard({ match, teams, getTeam, userTeam }: { match: Match; teams: Team[]; getTeam: (id: string) => Team | undefined; userTeam: Team | null; }) {
+function MatchCard({ match, teams, getTeam, userTeam, isOrganizer }: { match: Match; teams: Team[]; getTeam: (id: string) => Team | undefined; userTeam: Team | null; isOrganizer: boolean }) {
     const { user } = useAuth();
     const homeTeam = getTeam(match.homeTeamId);
     const awayTeam = getTeam(match.awayTeamId);
@@ -442,7 +471,7 @@ function MatchCard({ match, teams, getTeam, userTeam }: { match: Match; teams: T
                         </a>
                     )}
                     {match.status === 'approved' && <MatchStatsDialog match={match} homeTeam={homeTeam} awayTeam={awayTeam} />}
-                    <MatchChatDialog match={match} homeTeamName={homeTeam.name} awayTeamName={awayTeam.name} isMatchDay={isMatchDay} />
+                    <MatchChatDialog match={match} homeTeamName={homeTeam.name} awayTeamName={awayTeam.name} isMatchDay={isMatchDay} isOrganizer={isOrganizer} />
                 </div>
             </div>
             
