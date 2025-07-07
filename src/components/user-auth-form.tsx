@@ -90,7 +90,7 @@ export function UserAuthForm({ className, mode, ...props }: UserAuthFormProps) {
             message = 'Incorrect email or password. Please try again.';
             break;
           case 'auth/email-already-in-use':
-            message = 'This email is already registered. If you haven\'t verified your email, we\'ve sent you a new verification link.';
+            message = 'This email is already registered. If you haven\'t verified your email, a new confirmation link has been sent to your inbox.';
             // Resend verification email as a helpful action.
             resendVerificationEmail(data.email);
             break;
