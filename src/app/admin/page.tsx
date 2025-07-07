@@ -1,16 +1,38 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Shield, Trophy, Newspaper, Settings } from "lucide-react";
+import { Users, Shield, Trophy, Newspaper, Settings, BarChart3, Banknote } from "lucide-react";
 import Link from 'next/link';
+import { getAdminDashboardAnalytics } from "@/lib/actions";
+import { StatCard } from "@/components/admin/analytics/stat-card";
 
-export default function AdminDashboardPage() {
+export default async function AdminDashboardPage() {
+    const analytics = await getAdminDashboardAnalytics();
+
     return (
         <div className="space-y-8">
             <div>
                 <h1 className="text-3xl font-bold font-headline">Admin Dashboard</h1>
                 <p className="text-muted-foreground">Welcome to the eArena control center.</p>
             </div>
+
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <StatCard title="Total Users" value={analytics.totalUsers.toString()} icon={<Users />} />
+                <StatCard title="Active Tournaments" value={analytics.activeTournaments.toString()} icon={<Trophy />} />
+                <StatCard title="Platform Fees (NGN)" value={`₦${analytics.totalPlatformFees.toLocaleString()}`} icon={<Banknote />} />
+            </div>
+
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                <Link href="/admin/analytics">
+                    <Card className="hover:border-primary/50 transition-colors">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2"><BarChart3 /> Analytics</CardTitle>
+                            <CardDescription>View user growth and platform statistics.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-sm text-muted-foreground">Monitor the health and growth of your platform.</p>
+                        </CardContent>
+                    </Card>
+                </Link>
                 <Link href="/admin/user-management">
                     <Card className="hover:border-primary/50 transition-colors">
                         <CardHeader>

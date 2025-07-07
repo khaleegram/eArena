@@ -1,20 +1,16 @@
 
-
-
-
-
 'use server';
 
 import { adminDb, adminAuth } from './firebase-admin';
 import type { Timestamp as FirebaseAdminTimestamp } from 'firebase-admin/firestore';
 import { Timestamp, FieldValue, FieldPath } from 'firebase-admin/firestore';
-import type { Tournament, UserProfile, Team, Match, Standing, TournamentFormat, Player, MatchReport, Notification, RewardDetails, TeamMatchStats, MatchStatus, Badge, UnifiedTimestamp, PlayerStats, TournamentPerformancePoint, Highlight, Article, UserMembership, ReplayRequest, EarnedAchievement, PlayerTitle, PlatformSettings, Conversation, ChatMessage, PlayerRole, PushSubscription, TournamentAward, BankDetails, PrizeAllocation } from './types';
+import type { Tournament, UserProfile, Team, Match, Standing, TournamentFormat, Player, MatchReport, Notification, RewardDetails, TeamMatchStats, MatchStatus, Badge, UnifiedTimestamp, PlayerStats, TournamentPerformancePoint, Highlight, Article, UserMembership, ReplayRequest, EarnedAchievement, PlayerTitle, PlatformSettings, Conversation, ChatMessage, PlayerRole, PushSubscription, TournamentAward, BankDetails, PrizeAllocation, Transaction } from './types';
 import { revalidatePath } from 'next/cache';
 import { generateTournamentFixtures } from '@/ai/flows/generate-tournament-fixtures';
 import { verifyMatchScores, type VerifyMatchScoresInput, type VerifyMatchScoresOutput } from '@/ai/flows/verify-match-scores';
 import { calculateTournamentStandings, type CalculateTournamentStandingsInput } from '@/ai/flows/calculate-tournament-standings';
 import { getStorage } from 'firebase-admin/storage';
-import { addHours, differenceInDays, isBefore, format, addDays, startOfDay, endOfDay, isPast, isToday, isAfter } from 'date-fns';
+import { addHours, differenceInDays, isBefore, format, addDays, startOfDay, endOfDay, isPast, isToday, isAfter, subDays, startOfMonth, endOfMonth, eachMonthOfInterval, formatISO } from 'date-fns';
 import { analyzePlayerPerformance, type PlayerPerformanceInput } from '@/ai/flows/analyze-player-performance';
 import { predictMatchWinner, type PredictWinnerInput } from '@/ai/flows/predict-match-winner';
 import { allAchievements } from './achievements';
@@ -3057,22 +3053,106 @@ export async function initiatePayouts(tournamentId: string) {
     const distributablePool = prizePool - platformFee;
     const allocation = tournament.rewardDetails.prizeAllocation;
     
-    const awards = await getTournamentAwards(tournamentId);
-    
-    const payoutPlan = [];
-    // This is a simplified plan, in a real scenario you'd map categories to winner UIDs from the awards object.
-    // For now, let's assume we have a function getWinnerUidForCategory(category, awards)
-    // This is a placeholder for the logic to find the correct winner for each category.
-    // For now, we just log that we would pay out.
+    await adminDb.collection('platformSummary').doc('summary').set({
+        totalPlatformFees: FieldValue.increment(platformFee),
+        totalPayouts: FieldValue.increment(distributablePool),
+        lastUpdated: FieldValue.serverTimestamp(),
+    }, { merge: true });
 
-    for (const [category, percentage] of Object.entries(allocation)) {
-        const amount = Math.floor(distributablePool * (percentage / 100));
-        // You would need to logic here to find the user ID for each category winner.
-        // e.g., const winnerUid = getWinnerUid(category, awards);
-        // Payout logic would go here
+    const awards = await getTournamentAwards(tournamentId);
+    const distribution = await getPrizeDistribution(tournamentId);
+
+    const payoutLog = [];
+
+    for (const item of distribution) {
+        if (!item.winner || !item.winner.captainId) continue;
+
+        const winnerId = item.winner.captainId;
+        const userDoc = await adminDb.collection('users').doc(winnerId).get();
+        if (!userDoc.exists) continue;
+
+        const userProfile = userDoc.data() as UserProfile;
+        if (!userProfile.bankDetails?.confirmedForPayout) {
+            await sendNotification(winnerId, {
+                userId: winnerId,
+                title: "Action Required for Payout",
+                body: `Please confirm your bank details in your profile to receive your ₦${item.amount.toLocaleString()} prize from ${tournament.name}.`,
+                href: "/profile",
+            });
+            continue;
+        }
+
+        const bankDetails = userProfile.bankDetails;
+        let recipientCode = bankDetails.recipientCode;
+
+        if (!recipientCode) {
+            const recipientResponse = await fetch('https://api.paystack.co/transferrecipient', {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    type: "nuban",
+                    name: bankDetails.accountName,
+                    account_number: bankDetails.accountNumber,
+                    bank_code: bankDetails.bankCode,
+                    currency: "NGN",
+                }),
+            });
+            const recipientData = await recipientResponse.json();
+            if (!recipientData.status) {
+                console.error(`Failed to create recipient for ${winnerId}`);
+                continue;
+            }
+            recipientCode = recipientData.data.recipient_code;
+            await userRef.update({ 'bankDetails.recipientCode': recipientCode });
+        }
+        
+        const transactionRef = adminDb.collection('transactions').doc();
+
+        const transferResponse = await fetch('https://api.paystack.co/transfer', {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                source: "balance",
+                reason: `${tournament.name} - ${item.category}`,
+                amount: Math.floor(item.amount * 100), // in kobo
+                recipient: recipientCode,
+                reference: transactionRef.id,
+            }),
+        });
+
+        const transferData = await transferResponse.json();
+        
+        const txLog = {
+            id: transactionRef.id,
+            uid: winnerId,
+            tournamentId,
+            category: item.category,
+            amount: item.amount,
+            status: transferData.data.status,
+            paystackTransferCode: transferData.data.transfer_code,
+            createdAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+            recipientName: bankDetails.accountName,
+            recipientBank: bankDetails.bankName,
+            recipientAccountNumber: bankDetails.accountNumber
+        };
+        
+        await transactionRef.set(txLog);
+        payoutLog.push({ ...txLog, status: txLog.status as any });
     }
 
-    await tournamentRef.update({ payoutInitiated: true });
+    await tournamentRef.update({
+      payoutInitiated: true,
+      payoutCompletedAt: FieldValue.serverTimestamp(),
+      payoutLog,
+    });
+    
     revalidatePath(`/tournaments/${tournamentId}`);
     revalidatePath('/admin/tournaments');
 
@@ -3093,4 +3173,94 @@ export async function confirmUserDetailsForPayout(userId: string) {
     });
 
     revalidatePath(`/profile`);
+}
+
+export async function getAdminDashboardAnalytics() {
+    const usersPromise = adminDb.collection('users').count().get();
+    const activeTournamentsPromise = adminDb.collection('tournaments').where('status', '==', 'in_progress').count().get();
+    const platformSummaryPromise = adminDb.collection('platformSummary').doc('summary').get();
+
+    const thirtyDaysAgo = subDays(new Date(), 30);
+    const userGrowthQuery = adminDb.collection('users').where('createdAt', '>=', thirtyDaysAgo);
+
+    const sixMonthsAgo = startOfMonth(subDays(new Date(), 150)); // Approx 5 months back to get 6 full months
+    const tournamentActivityQuery = adminDb.collection('tournaments').where('createdAt', '>=', sixMonthsAgo);
+
+    const [usersResult, activeTournamentsResult, platformSummaryDoc, userGrowthSnapshot, tournamentActivitySnapshot] = await Promise.all([
+        usersPromise,
+        activeTournamentsPromise,
+        platformSummaryDoc,
+        userGrowthQuery.get(),
+        tournamentActivityQuery.get()
+    ]);
+
+    const userGrowthData: { [date: string]: number } = {};
+    for (let i = 0; i < 30; i++) {
+        const date = format(subDays(new Date(), i), 'MMM d');
+        userGrowthData[date] = 0;
+    }
+    userGrowthSnapshot.forEach(doc => {
+        const date = format(toAdminDate(doc.data().createdAt), 'MMM d');
+        if (userGrowthData[date] !== undefined) {
+            userGrowthData[date]++;
+        }
+    });
+
+    const tournamentActivityData: { [month: string]: number } = {};
+    const months = eachMonthOfInterval({ start: sixMonthsAgo, end: new Date() });
+    months.forEach(month => {
+        const monthKey = format(month, 'MMM yyyy');
+        tournamentActivityData[monthKey] = 0;
+    });
+    tournamentActivitySnapshot.forEach(doc => {
+        const monthKey = format(toAdminDate(doc.data().createdAt), 'MMM yyyy');
+        if (tournamentActivityData[monthKey] !== undefined) {
+            tournamentActivityData[monthKey]++;
+        }
+    });
+
+    return {
+        totalUsers: usersResult.data().count,
+        activeTournaments: activeTournamentsResult.data().count,
+        totalPlatformFees: platformSummaryDoc.exists ? platformSummaryDoc.data()?.totalPlatformFees || 0 : 0,
+        userGrowth: Object.entries(userGrowthData).map(([date, count]) => ({ date, count })).reverse(),
+        tournamentActivity: Object.entries(tournamentActivityData).map(([month, count]) => ({ month, count }))
+    };
+}
+
+export async function adminGetAllTransactions(): Promise<Transaction[]> {
+    const transactionsSnapshot = await adminDb.collection('transactions').orderBy('createdAt', 'desc').limit(100).get();
+    return transactionsSnapshot.docs.map(doc => serializeData({ id: doc.id, ...doc.data() }) as Transaction);
+}
+
+export async function retryPayout(transactionId: string): Promise<{ success: boolean; message: string }> {
+    const paystackSecret = process.env.PAYSTACK_SECRET_KEY;
+    if (!paystackSecret) throw new Error("Paystack secret key is not configured.");
+
+    const transactionRef = adminDb.collection('transactions').doc(transactionId);
+    const transactionDoc = await transactionRef.get();
+    if (!transactionDoc.exists) throw new Error("Transaction not found.");
+    
+    const transaction = transactionDoc.data() as Transaction;
+    if (transaction.status !== 'failed' && transaction.status !== 'reversed') {
+        throw new Error("Only failed or reversed transfers can be retried.");
+    }
+    
+    // Use Paystack's retry endpoint for failed transfers
+    const response = await fetch('https://api.paystack.co/transfer/retry', {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${paystackSecret}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ transfer_code: transaction.paystackTransferCode }),
+    });
+
+    const data = await response.json();
+    if (!data.status) {
+        throw new Error(data.message || "Failed to retry payout.");
+    }
+
+    // The webhook will handle the status update, so we don't need to do anything here.
+    return { success: true, message: 'Payout retry initiated.' };
 }
