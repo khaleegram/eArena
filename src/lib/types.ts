@@ -29,7 +29,7 @@ export interface UserProfile {
   email: string | null;
   username?: string;
   photoURL?: string;
-  badges?: Badge[];
+  badges?: any[];
   warnings?: number;
   incidentLog?: {
     reason: string;

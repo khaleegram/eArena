@@ -229,12 +229,12 @@ function ProgressStageButton({ tournament, organizerId }: { tournament: Tourname
                 </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
-                <AlertDialogHeader>
+                <DialogHeader>
                     <DialogTitle>Progress to Next Stage?</DialogTitle>
                     <DialogDescription>
                         This will check if all matches in the current stage are complete. If so, it will generate fixtures for the next knockout round. Make sure all disputes are resolved.
                     </DialogDescription>
-                </AlertDialogHeader>
+                </DialogHeader>
                 <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                     <AlertDialogAction onClick={handleProgress} disabled={isLoading}>
@@ -603,7 +603,8 @@ export default function TournamentPage() {
   return (
     <div className="relative min-h-[calc(100vh-3.5rem)]">
         <Image
-            src="/images/MainBackground.png"
+            src="https://placehold.co/1920x1080.png"
+            data-ai-hint="esports gaming"
             alt="background"
             fill
             sizes="100vw"

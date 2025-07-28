@@ -35,8 +35,7 @@ export default async function RootLayout({
   // This server-side check is a first line of defense for non-JS users or initial load.
   // The primary, real-time check is now in AuthProvider on the client.
   const settings = await getPlatformSettings();
-  const cookieStore = cookies();
-  const isAdminCookie = cookieStore.get('isAdmin')?.value === 'true';
+  const isAdminCookie = cookies().get('isAdmin')?.value === 'true';
 
   if (settings.isMaintenanceMode && !isAdminCookie) {
     const headersList = headers();

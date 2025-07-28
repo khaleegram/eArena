@@ -51,6 +51,7 @@ export default function Home() {
                   alt="Hero"
                   className="mx-auto aspect-square overflow-hidden rounded-xl object-cover sm:w-full lg:order-last border-4 border-primary/20 shadow-2xl shadow-primary/30"
                   data-ai-hint="gaming controller"
+                  priority
                 />
                  <div className="absolute -inset-2 bg-primary/20 blur-2xl rounded-full z-[-1]"></div>
               </div>
