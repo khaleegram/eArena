@@ -1,4 +1,3 @@
-
 // components/user-auth-form.tsx
 "use client";
 
@@ -111,7 +110,6 @@ export function UserAuthForm({ className, mode, ...props }: UserAuthFormProps) {
   };
 
   const handleGoogleSignInSuccess = async (userCredential: UserCredential) => {
-    setIsLoading(true);
     try {
       await setDoc(doc(db, "users", userCredential.user.uid), {
           uid: userCredential.user.uid,
@@ -132,19 +130,21 @@ export function UserAuthForm({ className, mode, ...props }: UserAuthFormProps) {
   }
 
   const onGoogleSignIn = () => {
-    // We do not await here and do not set loading state to avoid popup blockers.
-    // The promise is handled by .then() and .catch()
+    // DO NOT set loading state here, as it can cause popup blockers.
+    // The popup must be initiated directly from the user's click event.
     signInWithPopup(auth, googleAuthProvider)
-      .then(handleGoogleSignInSuccess)
+      .then((result) => {
+        setIsLoading(true); // Set loading state only after popup is successful.
+        handleGoogleSignInSuccess(result);
+      })
       .catch((error: any) => {
-        if (error.code === 'auth/popup-closed-by-user') {
-          return;
+        if (error.code !== 'auth/popup-closed-by-user') {
+          toast({
+            variant: 'destructive',
+            title: 'Google Sign-In Error',
+            description: error.message || 'Could not sign in with Google. Please try again.',
+          });
         }
-        toast({
-          variant: 'destructive',
-          title: 'Google Sign-In Error',
-          description: error.message || 'Could not sign in with Google. Please try again.',
-        });
       });
   };
 
