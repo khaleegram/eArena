@@ -110,9 +110,13 @@ export function UserAuthForm({ className, mode, ...props }: UserAuthFormProps) {
   };
 
   const onGoogleSignIn = async () => {
-    setIsLoading(true);
     try {
+      // Immediately attempt the popup. The browser requires this to be a direct result of user interaction.
       const userCredential = await signInWithPopup(auth, googleAuthProvider);
+      
+      // If the popup succeeds, then set the loading state for the database operations.
+      setIsLoading(true);
+      
       // Create or merge the user profile in Firestore.
       await setDoc(doc(db, "users", userCredential.user.uid), {
           uid: userCredential.user.uid,
@@ -120,14 +124,20 @@ export function UserAuthForm({ className, mode, ...props }: UserAuthFormProps) {
           username: userCredential.user.displayName || userCredential.user.email?.split('@')[0],
           photoURL: userCredential.user.photoURL,
       }, { merge: true });
+
       router.push('/dashboard');
     } catch (error: any) {
+       // Ignore popup-closed-by-user errors
+      if (error.code === 'auth/popup-closed-by-user') {
+        return;
+      }
       toast({
         variant: 'destructive',
         title: 'Google Sign-In Error',
         description: error.message || 'Could not sign in with Google. Please try again.',
       });
     } finally {
+      // Ensure loading state is always turned off.
       setIsLoading(false);
     }
   };
