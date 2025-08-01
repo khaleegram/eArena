@@ -11,7 +11,8 @@ import {
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
   sendEmailVerification,
-  signInWithPopup 
+  signInWithPopup,
+  type UserCredential
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 
@@ -109,37 +110,42 @@ export function UserAuthForm({ className, mode, ...props }: UserAuthFormProps) {
     }
   };
 
-  const onGoogleSignIn = async () => {
+  const handleGoogleSignInSuccess = async (userCredential: UserCredential) => {
+    setIsLoading(true);
     try {
-      // Immediately attempt the popup. The browser requires this to be a direct result of user interaction.
-      const userCredential = await signInWithPopup(auth, googleAuthProvider);
-      
-      // If the popup succeeds, then set the loading state for the database operations.
-      setIsLoading(true);
-      
-      // Create or merge the user profile in Firestore.
       await setDoc(doc(db, "users", userCredential.user.uid), {
           uid: userCredential.user.uid,
           email: userCredential.user.email,
           username: userCredential.user.displayName || userCredential.user.email?.split('@')[0],
           photoURL: userCredential.user.photoURL,
       }, { merge: true });
-
       router.push('/dashboard');
     } catch (error: any) {
-       // Ignore popup-closed-by-user errors
-      if (error.code === 'auth/popup-closed-by-user') {
-        return;
-      }
-      toast({
-        variant: 'destructive',
-        title: 'Google Sign-In Error',
-        description: error.message || 'Could not sign in with Google. Please try again.',
-      });
+        toast({
+            variant: 'destructive',
+            title: 'Google Sign-In Error',
+            description: 'Could not save user profile. Please try again.',
+        });
     } finally {
-      // Ensure loading state is always turned off.
-      setIsLoading(false);
+        setIsLoading(false);
     }
+  }
+
+  const onGoogleSignIn = () => {
+    // We do not await here and do not set loading state to avoid popup blockers.
+    // The promise is handled by .then() and .catch()
+    signInWithPopup(auth, googleAuthProvider)
+      .then(handleGoogleSignInSuccess)
+      .catch((error: any) => {
+        if (error.code === 'auth/popup-closed-by-user') {
+          return;
+        }
+        toast({
+          variant: 'destructive',
+          title: 'Google Sign-In Error',
+          description: error.message || 'Could not sign in with Google. Please try again.',
+        });
+      });
   };
 
   return (
