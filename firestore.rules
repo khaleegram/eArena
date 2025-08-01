@@ -1,13 +1,132 @@
-
 rules_version = '2';
+
+// Helper function to check if a user is an admin
+function isAdmin(userId) {
+  // Check the user's custom claims for an 'admin' flag
+  return get(/databases/$(database)/documents/users/$(userId)).data.isAdmin == true;
+}
+
+// Helper function to check if a user is the owner of a document
+function isOwner(userId) {
+  return request.auth.uid == userId;
+}
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow read/write access to all documents for any authenticated user.
-    // This is a permissive rule suitable for development but should be
-    // secured before going to production.
-    match /{document=**} {
-      allow read, write: if request.auth != null;
+
+    // Users can read any profile, but only edit their own.
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if isOwner(userId) || isAdmin(request.auth.uid);
+    }
+    
+    // Notifications and push subscriptions are private to each user.
+    match /users/{userId}/notifications/{notificationId} {
+        allow read, write, delete: if isOwner(userId);
+    }
+    match /users/{userId}/pushSubscriptions/{subscriptionId} {
+        allow read, write, delete: if isOwner(userId);
+    }
+
+    // Player stats can only be written to by server-side logic (no client access).
+    match /playerStats/{userId} {
+        allow read: if true;
+        allow write: if false; // Only server-side admin can update stats
+    }
+    
+     // User memberships can be created by the user, but only deleted by server logic.
+    match /userMemberships/{membershipId} {
+      allow read: if true;
+      allow create: if request.resource.data.userId == request.auth.uid;
+      allow delete: if false; // Prevent users from leaving tournaments directly
+    }
+
+    // Public can read tournaments, only authenticated can create.
+    // Organizer or admin can update/delete.
+    match /tournaments/{tournamentId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update, delete: if get(/databases/$(database)/documents/tournaments/$(tournamentId)).data.organizerId == request.auth.uid || isAdmin(request.auth.uid);
+      
+      // Teams can be added by authenticated users, but only managed by organizer/admin.
+      match /teams/{teamId} {
+        allow read: if true;
+        allow create: if request.auth != null;
+        allow update, delete: if get(/databases/$(database)/documents/tournaments/$(tournamentId)).data.organizerId == request.auth.uid || isAdmin(request.auth.uid);
+        
+        // Team chat is only for team members
+        match /messages/{messageId} {
+            allow read, create: if get(/databases/$(database)/documents/tournaments/$(tournamentId)/teams/$(teamId)).data.playerIds.hasAny([request.auth.uid]);
+        }
+      }
+
+      // Matches can be read by anyone, but only updated by participants or organizer/admin.
+      match /matches/{matchId} {
+        allow read: if true;
+        allow update: if request.auth != null && 
+                      (get(/databases/$(database)/documents/tournaments/$(tournamentId)).data.organizerId == request.auth.uid || 
+                      resource.data.homeTeamId in get(/databases/$(database)/documents/tournaments/$(tournamentId)/teams/.*).data.playerIds ||
+                      resource.data.awayTeamId in get(/databases/$(database)/documents/tournaments/$(tournamentId)/teams/.*).data.playerIds ||
+                      isAdmin(request.auth.uid));
+
+        // Match chat is restricted to the two participating teams and the organizer/admin
+         match /messages/{messageId} {
+             allow read, create: if request.auth != null && 
+                               (get(/databases/$(database)/documents/tournaments/$(tournamentId)).data.organizerId == request.auth.uid || 
+                                resource.data.homeTeamId in get(/databases/$(database)/documents/tournaments/$(tournamentId)/teams/.*).data.playerIds ||
+                                resource.data.awayTeamId in get(/databases/$(database)/documents/tournaments/$(tournamentId)/teams/.*).data.playerIds ||
+                                isAdmin(request.auth.uid));
+             allow delete: if get(/databases/$(database)/documents/tournaments/$(tournamentId)).data.organizerId == request.auth.uid || isAdmin(request.auth.uid);
+         }
+      }
+      
+      // Tournament-wide chat is for participants and organizers
+       match /messages/{messageId} {
+            allow read, create: if request.auth != null && 
+                               (get(/databases/$(database)/documents/tournaments/$(tournamentId)).data.organizerId == request.auth.uid || isAdmin(request.auth.uid) ||
+                                exists(/databases/$(database)/documents/userMemberships/$(request.auth.uid)_$(tournamentId)));
+            allow delete: if get(/databases/$(database)/documents/tournaments/$(tournamentId)).data.organizerId == request.auth.uid || isAdmin(request.auth.uid);
+       }
+       
+      // Announcements can be read by anyone, but only written by organizer/admin
+      match /announcements/{announcementId} {
+        allow read: if true;
+        allow write: if get(/databases/$(database)/documents/tournaments/$(tournamentId)).data.organizerId == request.auth.uid || isAdmin(request.auth.uid);
+      }
+    }
+
+    // Standings are read-only for clients, only server can update.
+    match /standings/{standingId} {
+        allow read: if true;
+        allow write: if false;
+    }
+    
+    // Articles are read-only for clients
+    match /articles/{articleId} {
+      allow read: if true;
+      allow write: if isAdmin(request.auth.uid);
+    }
+    
+    // Conversations are private between participants
+    match /conversations/{conversationId} {
+        allow read, write: if request.auth.uid in resource.data.participantIds;
+        
+        match /messages/{messageId} {
+            allow read, create: if request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds;
+        }
+    }
+    
+    // Transactions and platform settings are admin-only
+    match /transactions/{transactionId} {
+        allow read, write: if isAdmin(request.auth.uid);
+    }
+    match /platformSettings/{docId} {
+        allow read: if true;
+        allow write: if isAdmin(request.auth.uid);
+    }
+     match /platformSummary/{docId} {
+        allow read: if isAdmin(request.auth.uid);
+        allow write: if false; // Only server
     }
   }
 }
