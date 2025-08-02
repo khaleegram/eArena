@@ -34,10 +34,9 @@ const toDate = (timestamp: UnifiedTimestamp | undefined): Date | null => {
 }
 
 const safeFormatDate = (timestamp: UnifiedTimestamp | undefined): string => {
-    const date = toDate(timestamp);
-    if (!date) return 'Invalid Date';
     try {
-        return format(date, 'PPP');
+        const date = toDate(timestamp);
+        return date ? format(date, 'PPP') : 'N/A';
     } catch (error) {
         console.error("Failed to format date:", timestamp, error);
         return 'Invalid Date';
@@ -101,8 +100,16 @@ export default function PublicProfilePage() {
         setStats(statsData);
 
         if (statsData && statsData.totalMatches > 0) {
-          const analysisData = await getPlayerPerformanceAnalysis(statsData);
-          setAnalysis(analysisData);
+          try {
+            const analysisData = await getPlayerPerformanceAnalysis(statsData);
+            setAnalysis(analysisData);
+          } catch(aiError) {
+            console.error("AI analysis failed:", aiError);
+            // Non-critical error, so we don't show a toast.
+            setAnalysis(null);
+          }
+        } else {
+             setAnalysis(null);
         }
 
         if (user) {
