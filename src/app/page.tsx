@@ -12,7 +12,7 @@ export default function Home() {
         <section className="relative w-full py-12 md:py-24 lg:py-32 xl:py-48 overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-background via-background/80 to-blue-950/50 z-0"></div>
           <Image
-            src="https://placehold.co/1920x1080.png"
+            src="/images/PrimaryBackground.png"
             alt="background"
             fill
             sizes="100vw"
@@ -45,7 +45,7 @@ export default function Home() {
               </div>
               <div className="relative">
                 <Image
-                  src="https://placehold.co/600x600.png"
+                  src="/images/MainBackground.png"
                   width="600"
                   height="600"
                   alt="Hero"

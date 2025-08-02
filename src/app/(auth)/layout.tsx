@@ -10,7 +10,7 @@ export default function AuthLayout({
         <div className="relative hidden h-full flex-col p-10 text-white lg:flex">
             <div className="absolute inset-0 z-[-1]">
               <Image 
-                src="https://placehold.co/1280x720.png"
+                src="/images/MainBackground.png"
                 alt="Authentication background"
                 fill
                 sizes="50vw"
