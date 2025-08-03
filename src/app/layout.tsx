@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { getPlatformSettings } from '@/lib/actions';
 import { cookies, headers } from 'next/headers';
 import { HardHat } from 'lucide-react';
+import { PushNotificationManager } from '@/components/push-notification-manager';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -103,6 +104,7 @@ export default async function RootLayout({
             <Footer />
           </div>
           <Toaster />
+          <PushNotificationManager />
         </AuthProvider>
       </body>
     </html>
