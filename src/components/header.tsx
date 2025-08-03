@@ -1,11 +1,11 @@
 
 
-"use client";
+'use client';
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
-import { Trophy, LogOut, UserCircle, LayoutDashboard, BarChart, Shield, MessageSquare } from 'lucide-react';
+import { Trophy, LogOut, UserCircle, LayoutDashboard, BarChart, Shield, MessageSquare, Search } from 'lucide-react';
 
 import { Button } from './ui/button';
 import { Skeleton } from './ui/skeleton';
@@ -63,6 +63,11 @@ export function Header() {
              <Skeleton className="h-8 w-20" />
           ) : user ? (
             <>
+              <Link href="/search">
+                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
+                    <Search className="h-5 w-5" />
+                  </Button>
+              </Link>
               <NotificationBell />
               <Link href="/messages">
                   <Button variant="ghost" size="icon" className="relative h-8 w-8 rounded-full">
@@ -109,6 +114,11 @@ export function Header() {
             </>
           ) : (
             <>
+              <Link href="/search">
+                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
+                    <Search className="h-5 w-5" />
+                  </Button>
+              </Link>
               <Link href="/login">
                 <Button variant="ghost" size="sm">
                   Login
