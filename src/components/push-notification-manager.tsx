@@ -28,51 +28,54 @@ export function PushNotificationManager() {
     const [isSubscribed, setIsSubscribed] = useState(false);
     const [subscription, setSubscription] = useState<PushSubscription | null>(null);
     const [permission, setPermission] = useState<NotificationPermission>('default');
-    const [isLoading, setIsLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(false); // Changed initial state to false
+    const [isChecking, setIsChecking] = useState(true); // New state to handle initial check
 
     useEffect(() => {
+        if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+            setIsChecking(false);
+            return;
+        }
+
         const checkSubscription = async () => {
-            if (typeof window !== 'undefined' && 'Notification' in window && 'serviceWorker' in navigator) {
-                try {
-                    setPermission(Notification.permission);
-                    const swReg = await navigator.serviceWorker.ready;
-                    const sub = await swReg.pushManager.getSubscription();
-                    if (sub) {
-                        setIsSubscribed(true);
-                        setSubscription(sub);
-                    }
-                } catch (error) {
-                    console.error("Error checking push subscription:", error);
-                    toast({
-                        variant: 'destructive',
-                        title: 'Notification Error',
-                        description: 'Could not check notification status.',
-                    });
-                } finally {
-                    setIsLoading(false);
+            try {
+                const swReg = await navigator.serviceWorker.ready;
+                const sub = await swReg.pushManager.getSubscription();
+                setPermission(Notification.permission);
+                if (sub) {
+                    setIsSubscribed(true);
+                    setSubscription(sub);
+                } else {
+                    setIsSubscribed(false);
+                    setSubscription(null);
                 }
-            } else {
-                setIsLoading(false);
+            } catch (error) {
+                console.error("Error checking push subscription:", error);
+            } finally {
+                setIsChecking(false);
             }
         };
+
         checkSubscription();
     }, []);
 
     const handleSubscription = async () => {
-        if (!user) return;
+        if (!user || isChecking) return;
 
         if (Notification.permission === 'denied') {
             toast({ variant: 'destructive', title: 'Permission Denied', description: 'Please enable notifications in your browser settings.' });
             return;
         }
-
+        
         setIsLoading(true);
 
         if (isSubscribed) {
-            // Unsubscribe
+            // Unsubscribe logic
             try {
-                await subscription?.unsubscribe();
-                await deletePushSubscription(user.uid, subscription!.endpoint);
+                if(subscription) {
+                    await subscription.unsubscribe();
+                    await deletePushSubscription(user.uid, subscription.endpoint);
+                }
                 setIsSubscribed(false);
                 setSubscription(null);
                 toast({ title: 'Unsubscribed', description: 'You will no longer receive push notifications.' });
@@ -83,7 +86,7 @@ export function PushNotificationManager() {
                 setIsLoading(false);
             }
         } else {
-            // Subscribe
+            // Subscribe logic
             try {
                 const reg = await navigator.serviceWorker.ready;
                 const sub = await reg.pushManager.subscribe({
@@ -117,12 +120,21 @@ export function PushNotificationManager() {
         );
     }
     
+    if (isChecking) {
+        return (
+             <Button disabled>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin"/>
+                Checking Status...
+            </Button>
+        );
+    }
+
     if (permission === 'denied') {
         return (
              <p className="text-sm text-destructive">
                 Notification permissions are blocked in your browser settings.
             </p>
-        )
+        );
     }
 
     return (
