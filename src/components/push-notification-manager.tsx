@@ -31,20 +31,31 @@ export function PushNotificationManager() {
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        if (typeof window !== 'undefined' && 'Notification' in window && 'serviceWorker' in navigator) {
-            setPermission(Notification.permission);
-            navigator.serviceWorker.ready.then(swReg => {
-                swReg.pushManager.getSubscription().then(sub => {
+        const checkSubscription = async () => {
+            if (typeof window !== 'undefined' && 'Notification' in window && 'serviceWorker' in navigator) {
+                try {
+                    setPermission(Notification.permission);
+                    const swReg = await navigator.serviceWorker.ready;
+                    const sub = await swReg.pushManager.getSubscription();
                     if (sub) {
                         setIsSubscribed(true);
                         setSubscription(sub);
                     }
+                } catch (error) {
+                    console.error("Error checking push subscription:", error);
+                    toast({
+                        variant: 'destructive',
+                        title: 'Notification Error',
+                        description: 'Could not check notification status.',
+                    });
+                } finally {
                     setIsLoading(false);
-                });
-            });
-        } else {
-            setIsLoading(false);
-        }
+                }
+            } else {
+                setIsLoading(false);
+            }
+        };
+        checkSubscription();
     }, []);
 
     const handleSubscription = async () => {
