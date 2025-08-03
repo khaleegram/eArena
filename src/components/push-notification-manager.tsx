@@ -28,8 +28,8 @@ export function PushNotificationManager() {
     const [isSubscribed, setIsSubscribed] = useState(false);
     const [subscription, setSubscription] = useState<PushSubscription | null>(null);
     const [permission, setPermission] = useState<NotificationPermission>('default');
-    const [isLoading, setIsLoading] = useState(false); // Changed initial state to false
-    const [isChecking, setIsChecking] = useState(true); // New state to handle initial check
+    const [isLoading, setIsLoading] = useState(false);
+    const [isChecking, setIsChecking] = useState(true);
 
     useEffect(() => {
         if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
@@ -38,6 +38,7 @@ export function PushNotificationManager() {
         }
 
         const checkSubscription = async () => {
+            setIsChecking(true);
             try {
                 const swReg = await navigator.serviceWorker.ready;
                 const sub = await swReg.pushManager.getSubscription();
