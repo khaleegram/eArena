@@ -26,7 +26,6 @@ export function PushNotificationManager() {
     const { user } = useAuth();
     const { toast } = useToast();
     const [isSubscribed, setIsSubscribed] = useState(false);
-    const [subscription, setSubscription] = useState<PushSubscription | null>(null);
     const [permission, setPermission] = useState<NotificationPermission>('default');
     const [isLoading, setIsLoading] = useState(false);
     const [isChecking, setIsChecking] = useState(true);
@@ -38,20 +37,14 @@ export function PushNotificationManager() {
         }
 
         const checkSubscription = async () => {
-            setIsChecking(true);
             try {
+                setPermission(Notification.permission);
                 const swReg = await navigator.serviceWorker.ready;
                 const sub = await swReg.pushManager.getSubscription();
-                setPermission(Notification.permission);
-                if (sub) {
-                    setIsSubscribed(true);
-                    setSubscription(sub);
-                } else {
-                    setIsSubscribed(false);
-                    setSubscription(null);
-                }
+                setIsSubscribed(!!sub);
             } catch (error) {
                 console.error("Error checking push subscription:", error);
+                setIsSubscribed(false);
             } finally {
                 setIsChecking(false);
             }
@@ -62,80 +55,59 @@ export function PushNotificationManager() {
 
     const handleSubscription = async () => {
         if (!user || isChecking) return;
-
-        if (Notification.permission === 'denied') {
-            toast({ variant: 'destructive', title: 'Permission Denied', description: 'Please enable notifications in your browser settings.' });
-            return;
-        }
-        
         setIsLoading(true);
 
-        if (isSubscribed) {
-            // Unsubscribe logic
-            try {
-                if(subscription) {
-                    await subscription.unsubscribe();
-                    await deletePushSubscription(user.uid, subscription.endpoint);
-                }
+        const currentPermission = Notification.permission;
+        if (currentPermission === 'denied') {
+            toast({ variant: 'destructive', title: 'Permission Denied', description: 'Please enable notifications in your browser settings.' });
+            setIsLoading(false);
+            return;
+        }
+
+        try {
+            const swReg = await navigator.serviceWorker.ready;
+            const existingSubscription = await swReg.pushManager.getSubscription();
+
+            if (existingSubscription) {
+                await existingSubscription.unsubscribe();
+                await deletePushSubscription(user.uid, existingSubscription.endpoint);
                 setIsSubscribed(false);
-                setSubscription(null);
                 toast({ title: 'Unsubscribed', description: 'You will no longer receive push notifications.' });
-            } catch (error) {
-                console.error("Failed to unsubscribe:", error);
-                toast({ variant: 'destructive', title: 'Error', description: 'Could not unsubscribe from notifications.' });
-            } finally {
-                setIsLoading(false);
-            }
-        } else {
-            // Subscribe logic
-            try {
-                const reg = await navigator.serviceWorker.ready;
-                const sub = await reg.pushManager.subscribe({
+            } else {
+                const newSubscription = await swReg.pushManager.subscribe({
                     userVisibleOnly: true,
                     applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!),
                 });
-                
-                await savePushSubscription(user.uid, sub.toJSON());
-
+                await savePushSubscription(user.uid, newSubscription.toJSON());
                 setIsSubscribed(true);
-                setSubscription(sub);
                 toast({ title: 'Subscribed!', description: 'You will now receive notifications.' });
-            } catch (error: any) {
-                console.error('Failed to subscribe the user: ', error);
-                if (error.name === 'NotAllowedError') {
-                    toast({ variant: 'destructive', title: 'Permission Denied', description: 'You need to allow notifications to subscribe.' });
-                } else {
-                    toast({ variant: 'destructive', title: 'Subscription Failed', description: 'Could not subscribe to notifications.' });
-                }
-            } finally {
-                setIsLoading(false);
             }
+        } catch (error: any) {
+            console.error('Failed to update subscription: ', error);
+            if (error.name === 'NotAllowedError') {
+                toast({ variant: 'destructive', title: 'Permission Denied', description: 'You need to allow notifications to subscribe.' });
+            } else {
+                toast({ variant: 'destructive', title: 'Subscription Failed', description: 'Could not update your notification settings.' });
+            }
+            // Re-check state in case of failure
+            const sub = await navigator.serviceWorker.ready.then(reg => reg.pushManager.getSubscription());
+            setIsSubscribed(!!sub);
+        } finally {
+            setIsLoading(false);
+            setPermission(Notification.permission);
         }
     };
 
     if (!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) {
-        return (
-            <p className="text-sm text-destructive">
-                VAPID public key not configured. Push notifications are disabled.
-            </p>
-        );
+        return <p className="text-sm text-destructive">Push notifications are not configured.</p>;
     }
     
     if (isChecking) {
-        return (
-             <Button disabled>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin"/>
-                Checking Status...
-            </Button>
-        );
+        return <Button disabled><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Checking Status...</Button>;
     }
 
     if (permission === 'denied') {
-        return (
-             <p className="text-sm text-destructive">
-                Notification permissions are blocked in your browser settings.
-            </p>
-        );
+        return <p className="text-sm text-destructive">Notification permissions are blocked by your browser.</p>;
     }
 
     return (
