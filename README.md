@@ -19,8 +19,8 @@ eArena is a full-featured platform for creating, managing, and competing in eFoo
 
 ### For Organizers:
 - **Tournament Creation:** A multi-step form to create customized tournaments with different formats (League, Cup, Champions League), rules, and prize pools.
-- **Automated Fixture Generation:** AI-powered scheduling for all tournament formats.
-- **Automated Standings:** Live, automated calculation and display of tournament standings.
+- **Automated Fixture Generation:** Logic-based, deterministic scheduling for all tournament formats.
+- **Automated Standings:** Live, automated calculation and display of tournament standings based on match results.
 - **Communication Hub:** Post announcements to all participants and monitor general chat.
 - **Dispute Resolution:** A dedicated interface to review and resolve disputed match results.
 
@@ -55,28 +55,32 @@ eArena is a full-featured platform for creating, managing, and competing in eFoo
 
 ---
 
-## 4. AI Flows & Core Logic (Genkit)
+## 4. Tournament Logic & AI Flows
 
-The platform's intelligence is powered by several Genkit flows.
+The platform's intelligence and automation are powered by a combination of deterministic logical functions and Genkit AI flows.
 
-### `generateTournamentFixtures`
-- **Purpose:** Creates a fair and complete match schedule.
-- **Input:** A list of team IDs and the tournament format (`league`, `cup`, `champions-league`).
+### Core Logic (Deterministic)
+
+#### `generateRoundRobinFixtures` (in `src/lib/actions.ts`)
+- **Purpose:** Creates a fair and complete match schedule for round-robin stages. This function **does not use AI** to ensure correctness.
+- **Input:** A list of team IDs and a boolean for `homeAndAway`.
 - **Logic:**
-  1.  Takes the list of teams and the chosen format.
-  2.  The AI shuffles the teams to ensure fairness.
-  3.  It generates a round-robin or group-stage-plus-knockout schedule based on the format.
-  4.  The output is a structured array of match objects (`{homeTeamId, awayTeamId, round}`).
+  1.  It systematically pairs each team ID against every other team ID once.
+  2.  If `homeAndAway` is true, it generates a second set of fixtures, swapping the home and away teams.
+  3.  The output is a structured array of match objects (`{homeTeamId, awayTeamId, round}`), which are then assigned dates and written to the database.
 
-### `calculateTournamentStandings`
-- **Purpose:** Ranks teams in a tournament based on their performance.
-- **Input:** An array of teams with their calculated stats (wins, goals, etc.) and optional custom tie-breaker rules.
+#### `updateStandings` (in `src/lib/actions.ts`)
+- **Purpose:** Calculates and ranks teams in a tournament based on performance. This function **does not use AI** to ensure accuracy.
 - **Logic:**
-  1.  Analyzes the provided stats for each team.
-  2.  Applies standard sports tie-breaking logic (Points > Goal Difference > Goals For) or the custom rules provided.
-  3.  Outputs a sorted array of teams with their final ranking, which is then stored in the `standings` collection.
+  1.  Triggered every time a match result is approved.
+  2.  Fetches all `approved` matches for the tournament.
+  3.  Iterates through the results to calculate each team's stats (Points, Wins, Draws, Losses, Goals For, Goals Against, Goal Difference, Clean Sheets).
+  4.  Sorts all teams based on standard football tie-breaking rules: Points > Goal Difference > Goals For > Wins.
+  5.  Saves the final, sorted list to the `standings` collection, which is displayed on the tournament page.
 
-### `predictMatchWinner`
+### AI-Powered Flows (Genkit)
+
+#### `predictMatchWinner`
 - **Purpose:** Provides an entertaining, pundit-style prediction for an upcoming match.
 - **Input:** Key stats for the home and away teams (win rate, avg goals for/against).
 - **Logic:**
@@ -84,7 +88,7 @@ The platform's intelligence is powered by several Genkit flows.
   2.  Makes a call on the likely winner, even if the stats are close.
   3.  Generates a confidence score and a short, flavorful sentence explaining the reasoning.
 
-### `analyzePlayerPerformance`
+#### `analyzePlayerPerformance`
 - **Purpose:** Gives players a personalized analysis of their career performance.
 - **Input:** A player's complete career statistics.
 - **Logic:**
@@ -92,8 +96,8 @@ The platform's intelligence is powered by several Genkit flows.
   2.  Categorizes the player into a descriptive archetype (e.g., 'Clinical Finisher', 'Midfield Maestro').
   3.  Generates a two-sentence analysis highlighting a key strength and a constructive area for improvement.
 
-### `verifyMatchScores` (Most Complex Flow)
-- **Purpose:** To act as an impartial AI referee, verifying match results from screenshot evidence and extracting detailed stats.
+#### `verifyMatchScores` (Most Complex Flow)
+- **Purpose:** To act as an impartial AI referee, verifying match results from screenshot evidence and extracting detailed stats. This is a hybrid system where the AI's visual analysis is governed by a strict logical protocol.
 - **Input:** An array of evidence (screenshots), team names, and match date. Evidence is typed as either `match_stats` (primary) or `match_history` (secondary).
 - **Logic:** The flow follows a strict, multi-phase protocol:
   1.  **Phase 1: Analyze Primary Evidence (`match_stats`)**
