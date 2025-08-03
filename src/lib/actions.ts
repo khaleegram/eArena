@@ -211,7 +211,7 @@ export async function updateUserProfilePhoto(userId: string, formData: FormData)
     throw new Error('No photo file provided.');
   }
 
-  const photoURL = await uploadFileAndGetPublicURL(`avatars/${userId}`, photoFile);
+  const photoURL = await uploadFileAndGetPublicURL(`avatars/${userId}`, photoFile, photoFile.type);
 
   await adminAuth.updateUser(userId, { photoURL });
   await adminDb.collection('users').doc(userId).update({ photoURL });
@@ -736,6 +736,12 @@ export async function startTournamentAndGenerateFixtures(tournamentId: string, o
 
     const fixtures = await generateTournamentFixtures({ teamIds, format: tournament.format });
 
+    if (!fixtures || fixtures.length === 0) {
+        await tournamentRef.update({ status: 'open_for_registration' });
+        revalidatePath(`/tournaments/${tournamentId}`);
+        throw new Error("The AI failed to generate fixtures for this tournament. Please try again in a few moments.");
+    }
+
     const batch = adminDb.batch();
     const playStartDate = toAdminDate(tournament.tournamentStartDate);
     const playEndDate = toAdminDate(tournament.tournamentEndDate);
@@ -985,7 +991,7 @@ export async function submitMatchResult(tournamentId: string, matchId: string, t
     const homeScore = Number(homeScoreRaw);
     const awayScore = Number(awayScoreRaw);
 
-    const evidenceUrl = await uploadFileAndGetPublicURL(`tournaments/${tournamentId}/evidence`, evidenceFile);
+    const evidenceUrl = await uploadFileAndGetPublicURL(`tournaments/${tournamentId}/evidence`, evidenceFile, evidenceFile.type);
     
     const matchRef = adminDb.collection('tournaments').doc(tournamentId).collection('matches').doc(matchId);
     
@@ -1033,7 +1039,7 @@ export async function submitSecondaryEvidence(tournamentId: string, matchId: str
     const evidenceFile = formData.get('evidence') as File;
     if (!evidenceFile || evidenceFile.size === 0) throw new Error("Missing evidence file.");
 
-    const evidenceUrl = await uploadFileAndGetPublicURL(`tournaments/${tournamentId}/evidence`, evidenceFile);
+    const evidenceUrl = await uploadFileAndGetPublicURL(`tournaments/${tournamentId}/evidence`, evidenceFile, evidenceFile.type);
     const matchRef = adminDb.collection('tournaments').doc(tournamentId).collection('matches').doc(matchId);
 
     const report: MatchReport = {

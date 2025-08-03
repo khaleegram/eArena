@@ -35,18 +35,30 @@ const prompt = ai.definePrompt({
   name: 'generateFixturesPrompt',
   input: { schema: GenerateFixturesInputSchema },
   output: { schema: GenerateFixturesOutputSchema },
-  prompt: `You are a tournament scheduler. Your task is to generate a complete set of match fixtures for a tournament based on the provided list of team IDs and the specified format.
+  prompt: `You are a tournament scheduler. Your task is to generate a complete and valid set of match fixtures for a tournament based on the provided list of team IDs and the specified format. It is crucial that the output is a valid JSON array of match objects.
 
 Tournament Details:
 - Team IDs: {{#each teamIds}} {{this}} {{/each}}
 - Format: {{format}}
 
 Instructions:
-1.  **Shuffle Teams (for fairness)**: Before creating fixtures, you should conceptually shuffle the list of team IDs to ensure fairness, unless the format is 'champions-league' where pot-based seeding is used.
-2.  **League Format**: If the format is 'league', generate a single round-robin schedule where every team plays every other team exactly once. Label each set of matches as "Round 1", "Round 2", etc.
-3.  **Cup Format (Groups + Knockout)**: If the format is 'cup', first divide the teams into balanced groups (e.g., for 12 teams, create 3 groups of 4). For each group, generate a *single* round-robin schedule. After the group stage, create a single-elimination knockout bracket for the top advancing teams (e.g., top 2 from each group). Label rounds appropriately: "Group A", "Group B", "Quarter-Final", "Semi-Final", "Final".
-4.  **Champions League Format (UCL Style)**: If the format is 'champions-league', this implies a group stage with seeded pots followed by a knockout stage. Assume the teams are provided in pot order (e.g., for 16 teams, IDs 1-4 are Pot 1, 5-8 are Pot 2, etc.). Create balanced groups by placing one team from each pot into each group. For each group, generate a *double* round-robin schedule (home and away). Then, create a single-elimination knockout bracket for the advancing teams. Label rounds: "Group A", "Group B", "Round of 16", "Quarter-Final", "Semi-Final", "Final".
-5.  **Output**: Ensure the output is a valid JSON array of match objects, each containing 'homeTeamId', 'awayTeamId', and 'round'. Do not create matches where a team plays against itself. Ensure all teams are included in the fixtures. The fixtures should cover both group and knockout stages where applicable.
+1.  **Shuffle Teams for Fairness**: Before generation, randomly shuffle the list of team IDs to ensure a fair draw.
+2.  **League Format**: Generate a single round-robin schedule. Every team must play every other team exactly once. Label rounds as "Round 1", "Round 2", etc.
+3.  **Cup Format**: This is a group stage followed by a single-elimination knockout.
+    *   First, divide teams into balanced groups (e.g., 4 groups of 4 for 16 teams).
+    *   For each group, generate a single round-robin schedule (e.g., "Group A", "Group B").
+    *   Then, create a single-elimination knockout bracket for a sensible number of advancing teams (e.g., top 2 from each group).
+    *   Label knockout rounds clearly: "Quarter-Final", "Semi-Final", "Final".
+4.  **Champions League Format**: This is a group stage followed by a single-elimination knockout.
+    *   Assume teams are provided in seeded pots (e.g., for 16 teams, IDs 1-4 are Pot 1, 5-8 Pot 2, etc.). Create balanced groups by drawing one team from each pot into each group.
+    *   For each group, generate a **double round-robin** schedule (home and away).
+    *   Then, create a single-elimination knockout bracket for the advancing teams.
+    *   Label rounds clearly: "Group A", "Round of 16", "Quarter-Final", "Semi-Final", "Final".
+5.  **Output**:
+    *   Ensure the output is a valid JSON array of match objects.
+    *   Each object MUST contain 'homeTeamId', 'awayTeamId', and 'round'.
+    *   A team cannot play against itself.
+    *   Ensure all teams are included in the generated fixtures for the initial stage.
 `,
 });
 
