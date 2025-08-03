@@ -9,7 +9,7 @@ import { Footer } from '@/components/footer';
 import { Toaster } from '@/components/ui/toaster';
 import { cn } from '@/lib/utils';
 import { getPlatformSettings } from '@/lib/actions';
-import { cookies, headers } from 'next/headers';
+import { cookies } from 'next/headers';
 import { HardHat } from 'lucide-react';
 
 
@@ -37,45 +37,25 @@ export default async function RootLayout({
   // This server-side check is a first line of defense for non-JS users or initial load.
   // The primary, real-time check is now in AuthProvider on the client.
   const settings = await getPlatformSettings();
-  const isAdminCookie = cookies().get('isAdmin')?.value === 'true';
+  const cookieStore = cookies();
+  const isAdminCookie = cookieStore.get('isAdmin')?.value === 'true';
 
   if (settings.isMaintenanceMode && !isAdminCookie) {
-    const headersList = headers();
-    // Use 'next-url' for a more reliable path, as x-invoke-path can be inconsistent.
-    const nextUrl = headersList.get('next-url') || '/';
-    const pathname = new URL(nextUrl, 'http://localhost').pathname;
-
-    const publicPaths = [
-        '/',
-        '/login',
-        '/signup',
-        '/forgot-password',
-        '/verify-email',
-        '/terms',
-        '/privacy'
-    ];
-    
-    const isPublicPath = publicPaths.includes(pathname) || 
-                         pathname.startsWith('/community') || 
-                         pathname.startsWith('/api');
-
-    if (!isPublicPath) {
-        const MaintenancePage = () => (
-            <div className="flex flex-col items-center justify-center h-screen text-center bg-background text-foreground">
-              <HardHat className="w-20 h-20 mb-6 text-primary" />
-              <h1 className="text-4xl font-bold font-headline">Under Maintenance</h1>
-              <p className="mt-2 text-lg text-muted-foreground">eArena is currently down for scheduled maintenance.</p>
-              <p className="text-muted-foreground">Please check back soon.</p>
-            </div>
-        );
-        return (
-          <html lang="en" className="dark">
-            <body className={cn("font-body antialiased", inter.variable, orbitron.variable)}>
-              <MaintenancePage />
-            </body>
-          </html>
-        );
-    }
+    const MaintenancePage = () => (
+        <div className="flex flex-col items-center justify-center h-screen text-center bg-background text-foreground">
+          <HardHat className="w-20 h-20 mb-6 text-primary" />
+          <h1 className="text-4xl font-bold font-headline">Under Maintenance</h1>
+          <p className="mt-2 text-lg text-muted-foreground">eArena is currently down for scheduled maintenance.</p>
+          <p className="text-muted-foreground">Please check back soon.</p>
+        </div>
+    );
+    return (
+      <html lang="en" className="dark">
+        <body className={cn("font-body antialiased", inter.variable, orbitron.variable)}>
+          <MaintenancePage />
+        </body>
+      </html>
+    );
   }
 
 
