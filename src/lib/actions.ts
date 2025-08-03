@@ -183,14 +183,14 @@ async function awardBadges(tournamentId: string) {
 }
 
 
-async function uploadFileAndGetPublicURL(bucketPath: string, file: File): Promise<string> {
+async function uploadFileAndGetPublicURL(bucketPath: string, file: File, forceContentType?: string): Promise<string> {
     const bucket = getStorage().bucket(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
     const buffer = Buffer.from(await file.arrayBuffer());
     const filePath = `${bucketPath}/${Date.now()}_${file.name}`;
     const fileRef = bucket.file(filePath);
 
     await fileRef.save(buffer, {
-        metadata: { contentType: file.type },
+        metadata: { contentType: forceContentType || file.type },
     });
     
     await fileRef.makePublic();
@@ -2937,7 +2937,7 @@ export async function updatePlatformSettings(formData: FormData) {
     for (let i = 0; i < 5; i++) {
         const file = formData.get(`backgroundMusic_${i}`) as File | null;
         if (file && file.size > 0) {
-            const promise = uploadFileAndGetPublicURL('background_music', file).then(url => {
+            const promise = uploadFileAndGetPublicURL('background_music', file, 'audio/mpeg').then(url => {
                 if(!newSettings.backgroundMusic) {
                     newSettings.backgroundMusic = [];
                 }

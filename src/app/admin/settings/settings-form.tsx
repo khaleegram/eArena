@@ -156,17 +156,17 @@ export function SettingsForm({ settings }: SettingsFormProps) {
                 <Card>
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2"><Music /> Background Music</CardTitle>
-                        <CardDescription>Upload up to 5 MP3/WAV files for the background music playlist. Uploading a new file will replace the existing one for that slot.</CardDescription>
+                        <CardDescription>Upload up to 5 audio files for the background music playlist. Uploading a new file will replace the existing one for that slot.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         {[0, 1, 2, 3, 4].map((index) => (
                            <FormItem key={index}>
                                <FormLabel>Track {index + 1}</FormLabel>
-                               {settings.backgroundMusic?.[index] && <p className="text-xs text-muted-foreground">Current: {settings.backgroundMusic[index].split('/').pop()}</p>}
+                               {settings.backgroundMusic?.[index] && <p className="text-xs text-muted-foreground">Current: {settings.backgroundMusic[index].split('/').pop()?.split('?')[0].split('%2F').pop()}</p>}
                                <FormControl>
                                    <Input 
                                       type="file" 
-                                      accept="audio/mpeg, audio/wav"
+                                      accept="audio/mpeg, audio/wav, .mp3, .wav"
                                       ref={el => fileInputRefs.current[index] = el}
                                     />
                                </FormControl>
