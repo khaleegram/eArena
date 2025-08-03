@@ -26,7 +26,6 @@ export function PushNotificationManager() {
     const { user } = useAuth();
     const { toast } = useToast();
     const [isSubscribed, setIsSubscribed] = useState(false);
-    const [permission, setPermission] = useState<NotificationPermission>('default');
     const [isLoading, setIsLoading] = useState(false);
     const [isChecking, setIsChecking] = useState(true);
 
@@ -38,7 +37,6 @@ export function PushNotificationManager() {
 
         const checkSubscription = async () => {
             try {
-                setPermission(Notification.permission);
                 const swReg = await navigator.serviceWorker.ready;
                 const sub = await swReg.pushManager.getSubscription();
                 setIsSubscribed(!!sub);
@@ -57,8 +55,8 @@ export function PushNotificationManager() {
         if (!user || isChecking) return;
         setIsLoading(true);
 
-        const currentPermission = Notification.permission;
-        if (currentPermission === 'denied') {
+        const permission = await Notification.requestPermission();
+        if (permission === 'denied') {
             toast({ variant: 'destructive', title: 'Permission Denied', description: 'Please enable notifications in your browser settings.' });
             setIsLoading(false);
             return;
@@ -94,7 +92,6 @@ export function PushNotificationManager() {
             setIsSubscribed(!!sub);
         } finally {
             setIsLoading(false);
-            setPermission(Notification.permission);
         }
     };
 
@@ -104,10 +101,6 @@ export function PushNotificationManager() {
     
     if (isChecking) {
         return <Button disabled><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Checking Status...</Button>;
-    }
-
-    if (permission === 'denied') {
-        return <p className="text-sm text-destructive">Notification permissions are blocked by your browser.</p>;
     }
 
     return (

@@ -9,7 +9,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { createTournament } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 import { addDays, format, startOfDay } from 'date-fns';
-import { Calendar as CalendarIcon, Loader2, Sparkles, Trophy, Info, Users, CalendarDays, Settings, Award, Send, CreditCard } from 'lucide-react';
+import { Calendar as CalendarIcon, Loader2, Sparkles, Trophy, Info, Users, CalendarDays, Settings, Award, Send, CreditCard, Repeat } from 'lucide-react';
 import * as React from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -62,6 +62,9 @@ const tournamentSchema = z.object({
   rewardType: z.enum(['virtual', 'money']).default('virtual'),
   prizePool: z.coerce.number().optional().default(0),
 
+  recurringEnabled: z.boolean().default(false),
+  recurringDays: z.coerce.number().int().min(1).optional(),
+
 }).refine(data => {
     return data.rewardType !== 'money' || (data.prizePool !== undefined && data.prizePool > 0);
   }, {
@@ -74,6 +77,11 @@ const tournamentSchema = z.object({
   }, {
     message: "Registration must close on or before the tournament start date.",
     path: ['tournamentDates', 'from']
+  }).refine(data => {
+      return !data.recurringEnabled || (data.recurringDays !== undefined && data.recurringDays > 0);
+  }, {
+      message: "Please specify the number of days after which the tournament should recur.",
+      path: ['recurringDays']
   });
 
 type TournamentFormValues = z.infer<typeof tournamentSchema> & {
@@ -117,6 +125,8 @@ export default function CreateTournamentPage() {
       squadRestrictions: 'No specific squad restrictions.',
       rewardType: 'virtual',
       prizePool: 0,
+      recurringEnabled: false,
+      recurringDays: 7,
     },
   });
 
@@ -210,6 +220,7 @@ export default function CreateTournamentPage() {
   }
   
   const rewardType = form.watch('rewardType');
+  const recurringEnabled = form.watch('recurringEnabled');
 
   return (
     <div className="space-y-8">
@@ -512,6 +523,44 @@ export default function CreateTournamentPage() {
                                     <FormControl><Input type="number" placeholder="e.g., 100000" {...field} /></FormControl>
                                     <FormDescription>The total amount to be distributed. You, the organizer, are responsible for funding this prize pool.</FormDescription>
                                     <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        )}
+                    </div>
+
+                    <div className="space-y-4">
+                        <h3 className="font-medium flex items-center gap-2"><Repeat/> Automation</h3>
+                         <FormField
+                            control={form.control}
+                            name="recurringEnabled"
+                            render={({ field }) => (
+                                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                                    <div className="space-y-0.5">
+                                        <FormLabel className="text-base">Recurring Tournament</FormLabel>
+                                        <FormDescription>
+                                            Automatically create a new season of this tournament after it ends.
+                                        </FormDescription>
+                                    </div>
+                                    <FormControl>
+                                        <Switch
+                                            checked={field.value}
+                                            onCheckedChange={field.onChange}
+                                        />
+                                    </FormControl>
+                                </FormItem>
+                            )}
+                        />
+                        {recurringEnabled && (
+                            <FormField
+                                control={form.control}
+                                name="recurringDays"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Recur After (Days)</FormLabel>
+                                        <FormControl><Input type="number" min={1} {...field} onChange={e => field.onChange(Number(e.target.value))} /></FormControl>
+                                        <FormDescription>How many days after this tournament ends should the new one be created?</FormDescription>
+                                        <FormMessage />
                                     </FormItem>
                                 )}
                             />

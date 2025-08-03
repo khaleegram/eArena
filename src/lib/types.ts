@@ -118,6 +118,11 @@ export interface Tournament {
       paystackTransferCode?: string;
       errorMessage?: string;
   }[];
+  recurring?: {
+    enabled: boolean;
+    daysAfterEnd: number;
+    lastCloneDate?: UnifiedTimestamp;
+  };
 }
 
 export type PlayerRole = 'captain' | 'co-captain' | 'player';

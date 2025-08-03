@@ -233,7 +233,7 @@ export default function ProfilePage() {
         <Accordion type="multiple" className="w-full space-y-4">
             <AccordionItem value="payout-settings" className="border rounded-lg bg-card text-card-foreground shadow-sm">
                 <AccordionTrigger className="p-6">
-                    <CardTitle className="font-headline text-xl flex items-center gap-2"><Banknote/> Payout Settings</CardTitle>
+                    <span className="font-headline text-xl flex items-center gap-2"><Banknote/> Payout Settings</span>
                 </AccordionTrigger>
                 <AccordionContent className="p-6 pt-0">
                     <BankDetailsForm userProfile={userProfile} />
@@ -242,7 +242,7 @@ export default function ProfilePage() {
 
             <AccordionItem value="profile-settings" className="border rounded-lg bg-card text-card-foreground shadow-sm">
                 <AccordionTrigger className="p-6">
-                    <CardTitle className="font-headline text-xl">Profile Settings</CardTitle>
+                    <span className="font-headline text-xl">Profile Settings</span>
                 </AccordionTrigger>
                 <AccordionContent className="p-6 pt-0">
                     <Form {...form}>
@@ -273,7 +273,7 @@ export default function ProfilePage() {
             {analysis && (
                  <AccordionItem value="ai-analysis" className="border rounded-lg bg-card text-card-foreground shadow-sm">
                     <AccordionTrigger className="p-6">
-                         <CardTitle className="font-headline text-xl">AI Performance Analysis</CardTitle>
+                         <span className="font-headline text-xl">AI Performance Analysis</span>
                     </AccordionTrigger>
                     <AccordionContent className="p-6 pt-0">
                         <AIAnalysisCard archetype={analysis.archetype} analysis={analysis.analysis} />
@@ -283,7 +283,7 @@ export default function ProfilePage() {
 
             <AccordionItem value="achievements" className="border rounded-lg bg-card text-card-foreground shadow-sm">
                 <AccordionTrigger className="p-6">
-                    <CardTitle className="font-headline text-xl flex items-center gap-2"><Medal className="w-5 h-5 text-primary"/> Achievements</CardTitle>
+                    <span className="font-headline text-xl flex items-center gap-2"><Medal className="w-5 h-5 text-primary"/> Achievements</span>
                 </AccordionTrigger>
                 <AccordionContent className="p-6 pt-0">
                     <AchievementsDisplay userProfile={userProfile} playerStats={stats} />
@@ -292,7 +292,7 @@ export default function ProfilePage() {
             
              <AccordionItem value="notifications" className="border rounded-lg bg-card text-card-foreground shadow-sm">
                 <AccordionTrigger className="p-6">
-                    <CardTitle className="font-headline text-xl flex items-center gap-2"><BellRing /> Notifications</CardTitle>
+                    <span className="font-headline text-xl flex items-center gap-2"><BellRing /> Notifications</span>
                 </AccordionTrigger>
                 <AccordionContent className="p-6 pt-0">
                      <PushNotificationManager />
@@ -301,7 +301,7 @@ export default function ProfilePage() {
 
             <AccordionItem value="titles" className="border rounded-lg bg-card text-card-foreground shadow-sm">
                 <AccordionTrigger className="p-6">
-                     <CardTitle className="font-headline text-xl flex items-center gap-2"><Crown /> Title Selector</CardTitle>
+                     <span className="font-headline text-xl flex items-center gap-2"><Crown /> Title Selector</span>
                 </AccordionTrigger>
                 <AccordionContent className="p-6 pt-0">
                      <TitleSelector />
@@ -310,10 +310,10 @@ export default function ProfilePage() {
             
             <AccordionItem value="trophy-case" className="border rounded-lg bg-card text-card-foreground shadow-sm">
                 <AccordionTrigger className="p-6">
-                    <CardTitle className="font-headline text-xl flex items-center gap-2">
+                    <span className="font-headline text-xl flex items-center gap-2">
                         <Trophy className="w-5 h-5 text-amber-400" />
                         Trophy Case
-                    </CardTitle>
+                    </span>
                 </AccordionTrigger>
                 <AccordionContent className="p-6 pt-0">
                      <TrophyCase profile={userProfile} />
@@ -322,7 +322,7 @@ export default function ProfilePage() {
             
             <AccordionItem value="incident-log" className="border rounded-lg bg-card text-card-foreground shadow-sm">
                 <AccordionTrigger className="p-6">
-                    <CardTitle className="font-headline text-xl flex items-center gap-2"><FileText className="w-5 h-5"/> Incident Log</CardTitle>
+                    <span className="font-headline text-xl flex items-center gap-2"><FileText className="w-5 h-5"/> Incident Log</span>
                 </AccordionTrigger>
                 <AccordionContent className="p-6 pt-0">
                      {userProfile?.incidentLog && userProfile.incidentLog.length > 0 ? (
