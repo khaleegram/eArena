@@ -45,7 +45,8 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const settings = await getPlatformSettings();
-  const isAdminCookie = cookies().get('isAdmin')?.value === 'true';
+  const cookieStore = cookies();
+  const isAdminCookie = cookieStore.get('isAdmin')?.value === 'true';
 
   if (settings.isMaintenanceMode && !isAdminCookie) {
     return <MaintenancePage />;
