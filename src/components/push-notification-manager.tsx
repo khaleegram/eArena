@@ -5,8 +5,9 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from './ui/button';
-import { BellRing } from 'lucide-react';
+import { BellRing, BellOff } from 'lucide-react';
 import { savePushSubscription, deletePushSubscription } from '@/lib/actions/user';
+import { Loader2 } from 'lucide-react';
 
 function urlBase64ToUint8Array(base64String: string) {
     const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -27,45 +28,49 @@ export function PushNotificationManager() {
     const [isSubscribed, setIsSubscribed] = useState(false);
     const [subscription, setSubscription] = useState<PushSubscription | null>(null);
     const [permission, setPermission] = useState<NotificationPermission>('default');
+    const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        if (typeof window !== 'undefined' && 'Notification' in window) {
+        if (typeof window !== 'undefined' && 'Notification' in window && 'serviceWorker' in navigator) {
             setPermission(Notification.permission);
-        }
-    }, []);
-
-    useEffect(() => {
-        if ('serviceWorker' in navigator && user) {
-            navigator.serviceWorker.register('/sw.js').then(swReg => {
-                console.log('Service Worker is registered', swReg);
+            navigator.serviceWorker.ready.then(swReg => {
                 swReg.pushManager.getSubscription().then(sub => {
                     if (sub) {
                         setIsSubscribed(true);
                         setSubscription(sub);
                     }
+                    setIsLoading(false);
                 });
-            }).catch(error => {
-                console.error('Service Worker Error', error);
             });
+        } else {
+            setIsLoading(false);
         }
-    }, [user]);
+    }, []);
 
     const handleSubscription = async () => {
         if (!user) return;
 
-        if (permission === 'denied') {
+        if (Notification.permission === 'denied') {
             toast({ variant: 'destructive', title: 'Permission Denied', description: 'Please enable notifications in your browser settings.' });
             return;
         }
 
+        setIsLoading(true);
+
         if (isSubscribed) {
             // Unsubscribe
-            subscription?.unsubscribe().then(() => {
-                deletePushSubscription(user.uid, subscription.endpoint);
+            try {
+                await subscription?.unsubscribe();
+                await deletePushSubscription(user.uid, subscription!.endpoint);
                 setIsSubscribed(false);
                 setSubscription(null);
                 toast({ title: 'Unsubscribed', description: 'You will no longer receive push notifications.' });
-            });
+            } catch (error) {
+                console.error("Failed to unsubscribe:", error);
+                toast({ variant: 'destructive', title: 'Error', description: 'Could not unsubscribe from notifications.' });
+            } finally {
+                setIsLoading(false);
+            }
         } else {
             // Subscribe
             try {
@@ -80,27 +85,48 @@ export function PushNotificationManager() {
                 setIsSubscribed(true);
                 setSubscription(sub);
                 toast({ title: 'Subscribed!', description: 'You will now receive notifications.' });
-            } catch (error) {
+            } catch (error: any) {
                 console.error('Failed to subscribe the user: ', error);
-                toast({ variant: 'destructive', title: 'Subscription Failed', description: 'Could not subscribe to notifications.' });
+                if (error.name === 'NotAllowedError') {
+                    toast({ variant: 'destructive', title: 'Permission Denied', description: 'You need to allow notifications to subscribe.' });
+                } else {
+                    toast({ variant: 'destructive', title: 'Subscription Failed', description: 'Could not subscribe to notifications.' });
+                }
+            } finally {
+                setIsLoading(false);
             }
         }
     };
 
     if (!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) {
-        return null;
-    }
-
-    if (permission === 'default') {
         return (
-            <div className="p-4 bg-muted border-t">
-                <div className="container flex items-center justify-between">
-                    <p className="text-sm">Enable notifications to get updates?</p>
-                    <Button size="sm" onClick={handleSubscription}><BellRing className="mr-2 h-4 w-4"/>Enable</Button>
-                </div>
-            </div>
+            <p className="text-sm text-destructive">
+                VAPID public key not configured. Push notifications are disabled.
+            </p>
+        );
+    }
+    
+    if (permission === 'denied') {
+        return (
+             <p className="text-sm text-destructive">
+                Notification permissions are blocked in your browser settings.
+            </p>
         )
     }
 
-    return null; // Don't show anything if permission is granted or denied, handled elsewhere.
+    return (
+        <div className="flex items-center gap-4">
+            <p className="text-sm text-muted-foreground">Manage push notifications for this device.</p>
+            <Button onClick={handleSubscription} disabled={isLoading}>
+                {isLoading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin"/>
+                ) : isSubscribed ? (
+                    <BellOff className="mr-2 h-4 w-4"/>
+                ) : (
+                    <BellRing className="mr-2 h-4 w-4"/>
+                )}
+                {isSubscribed ? 'Disable Notifications' : 'Enable Notifications'}
+            </Button>
+        </div>
+    );
 }

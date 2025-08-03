@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Trophy, FileText, Camera, BrainCircuit, Medal, Banknote } from 'lucide-react';
+import { Loader2, Trophy, FileText, Camera, BrainCircuit, Medal, Banknote, BellRing } from 'lucide-react';
 import type { UnifiedTimestamp, PlayerStats as PlayerStatsType } from '@/lib/types';
 import { PlayerStats } from '@/components/player-stats';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -27,6 +27,7 @@ import { TitleSelector } from '@/components/title-selector';
 import { TrophyCase } from '@/components/trophy-case';
 import { FollowersDialog } from '@/components/followers-dialog';
 import { BankDetailsForm } from '@/components/bank-details-form';
+import { PushNotificationManager } from '@/components/push-notification-manager';
 
 const profileSchema = z.object({
   username: z.string().min(3, { message: "Username must be at least 3 characters." }).max(20),
@@ -288,6 +289,15 @@ export default function ProfilePage() {
                  </Card>
             </div>
             <div className="lg:col-span-1 space-y-8">
+                 <Card>
+                    <CardHeader>
+                        <CardTitle className="font-headline text-xl flex items-center gap-2"><BellRing /> Notifications</CardTitle>
+                        <CardDescription>Manage how you receive alerts.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <PushNotificationManager />
+                    </CardContent>
+                </Card>
                  <TitleSelector />
                  <TrophyCase profile={userProfile} />
                  <Card>

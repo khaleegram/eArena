@@ -1,3 +1,4 @@
+
 // components/auth-provider.tsx
 "use client";
 
@@ -8,7 +9,6 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
 import type { UserProfile, PlatformSettings } from '@/lib/types';
 import Cookies from 'js-cookie';
-import { PushNotificationManager } from './push-notification-manager';
 import { getPlatformSettings } from '@/lib/actions';
 import { HardHat } from 'lucide-react';
 
@@ -114,7 +114,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   return (
     <AuthContext.Provider value={{ user, userProfile, loading, isAdmin, settings }}>
       {children}
-      {user && <PushNotificationManager />}
     </AuthContext.Provider>
   );
 };
