@@ -364,7 +364,7 @@ function MatchCard({ match, teams, getTeam, userTeam, isOrganizer }: { match: Ma
 
     const [prediction, setPrediction] = useState<{ predictedWinnerName: string; confidence: number; reasoning: string } | null>(null);
     const [isPredicting, setIsPredicting] = useState(false);
-    const { toast } = useToast();
+    const { toast } } from useToast();
 
     const handleGetPrediction = async () => {
         setIsPredicting(true);
