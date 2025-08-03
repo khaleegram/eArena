@@ -229,12 +229,12 @@ function ProgressStageButton({ tournament, organizerId }: { tournament: Tourname
                 </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
-                <DialogHeader>
-                    <DialogTitle>Progress to Next Stage?</DialogTitle>
-                    <DialogDescription>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Progress to Next Stage?</AlertDialogTitle>
+                    <AlertDialogDescription>
                         This will check if all matches in the current stage are complete. If so, it will generate fixtures for the next knockout round. Make sure all disputes are resolved.
-                    </DialogDescription>
-                </DialogHeader>
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
                 <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                     <AlertDialogAction onClick={handleProgress} disabled={isLoading}>
