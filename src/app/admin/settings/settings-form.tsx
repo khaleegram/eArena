@@ -26,7 +26,6 @@ const settingsSchema = z.object({
   facebookUrl: urlSchema,
   instagramUrl: urlSchema,
   youtubeUrl: urlSchema,
-  backgroundMusic: z.array(urlSchema).max(5).optional(),
 });
 
 type SettingsFormValues = z.infer<typeof settingsSchema>;
@@ -38,9 +37,9 @@ interface SettingsFormProps {
 export function SettingsForm({ settings }: SettingsFormProps) {
     const { toast } = useToast();
     const [isLoading, setIsLoading] = React.useState(false);
-
-    // Pad the music array to always have 5 elements for the form
-    const paddedMusic = [...(settings.backgroundMusic || []), '', '', '', '', ''].slice(0, 5);
+    
+    // Store file inputs separately from the main form data for handling
+    const fileInputRefs = React.useRef<(HTMLInputElement | null)[]>([]);
 
     const form = useForm<SettingsFormValues>({
         resolver: zodResolver(settingsSchema),
@@ -51,19 +50,35 @@ export function SettingsForm({ settings }: SettingsFormProps) {
             facebookUrl: settings.facebookUrl || '',
             instagramUrl: settings.instagramUrl || '',
             youtubeUrl: settings.youtubeUrl || '',
-            backgroundMusic: paddedMusic,
         }
     });
 
     const onSubmit = async (values: SettingsFormValues) => {
         setIsLoading(true);
         try {
-            // Filter out empty strings before submitting
-            const dataToSubmit = {
-                ...values,
-                backgroundMusic: values.backgroundMusic?.filter(url => url && url.trim() !== '') || []
-            };
-            await updatePlatformSettings(dataToSubmit);
+            const formData = new FormData();
+            // Append all the regular form values
+            Object.entries(values).forEach(([key, value]) => {
+                formData.append(key, String(value));
+            });
+
+            // Append file uploads
+            fileInputRefs.current.forEach((input, index) => {
+                if (input && input.files && input.files[0]) {
+                    formData.append(`backgroundMusic_${index}`, input.files[0]);
+                }
+            });
+            
+            // Append existing music URLs that weren't replaced
+            settings.backgroundMusic?.forEach((url, index) => {
+                const fileInput = fileInputRefs.current[index];
+                if(url && (!fileInput || !fileInput.files || !fileInput.files[0])) {
+                     formData.append(`existingBackgroundMusic_${index}`, url);
+                }
+            });
+
+
+            await updatePlatformSettings(formData);
             toast({ title: "Success!", description: "Platform settings have been updated." });
         } catch (error: any) {
             toast({ variant: 'destructive', title: "Error", description: error.message });
@@ -141,24 +156,21 @@ export function SettingsForm({ settings }: SettingsFormProps) {
                 <Card>
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2"><Music /> Background Music</CardTitle>
-                        <CardDescription>Enter up to 5 public URLs for the background music playlist. Leave blank to remove a track.</CardDescription>
+                        <CardDescription>Upload up to 5 MP3/WAV files for the background music playlist. Uploading a new file will replace the existing one for that slot.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         {[0, 1, 2, 3, 4].map((index) => (
-                             <FormField
-                                key={index}
-                                control={form.control}
-                                name={`backgroundMusic.${index}`}
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Track {index + 1} URL</FormLabel>
-                                        <FormControl>
-                                            <Input placeholder="https://example.com/track.mp3" {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
+                           <FormItem key={index}>
+                               <FormLabel>Track {index + 1}</FormLabel>
+                               {settings.backgroundMusic?.[index] && <p className="text-xs text-muted-foreground">Current: {settings.backgroundMusic[index].split('/').pop()}</p>}
+                               <FormControl>
+                                   <Input 
+                                      type="file" 
+                                      accept="audio/mpeg, audio/wav"
+                                      ref={el => fileInputRefs.current[index] = el}
+                                    />
+                               </FormControl>
+                           </FormItem>
                         ))}
                     </CardContent>
                 </Card>

@@ -20,7 +20,7 @@ export function BackgroundMusicPlayer({ musicTracks }: BackgroundMusicPlayerProp
 
     useEffect(() => {
         if (musicTracks.length > 0 && !audioRef.current && typeof window !== 'undefined') {
-            audioRef.current = new Audio(musicTracks[0]);
+            audioRef.current = new Audio();
             audioRef.current.volume = volume;
             audioRef.current.loop = false;
         }
@@ -43,7 +43,11 @@ export function BackgroundMusicPlayer({ musicTracks }: BackgroundMusicPlayerProp
         audio.addEventListener('ended', handleTrackEnd);
         audio.addEventListener('canplaythrough', handleCanPlayThrough);
         
-        audio.src = musicTracks[currentTrackIndex];
+        // Only change the source if it's different to prevent re-loading the same track
+        if(audio.src !== musicTracks[currentTrackIndex]) {
+            audio.src = musicTracks[currentTrackIndex];
+        }
+
         if(isPlaying) {
             audio.play().catch(error => console.error("Playback failed after track change:", error));
         }
@@ -61,6 +65,9 @@ export function BackgroundMusicPlayer({ musicTracks }: BackgroundMusicPlayerProp
         if (isPlaying) {
             audio.pause();
         } else {
+             if (!audio.src && musicTracks.length > 0) {
+                audio.src = musicTracks[currentTrackIndex];
+             }
             audio.play().catch(error => console.error("Playback was prevented:", error));
         }
         setIsPlaying(!isPlaying);

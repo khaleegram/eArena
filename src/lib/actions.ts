@@ -183,10 +183,10 @@ async function awardBadges(tournamentId: string) {
 }
 
 
-async function uploadFileAndGetPublicURL(tournamentId: string, teamId: string, file: File): Promise<string> {
+async function uploadFileAndGetPublicURL(bucketPath: string, file: File): Promise<string> {
     const bucket = getStorage().bucket(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
     const buffer = Buffer.from(await file.arrayBuffer());
-    const filePath = `tournaments/${tournamentId}/evidence/${teamId}_${Date.now()}_${file.name}`;
+    const filePath = `${bucketPath}/${Date.now()}_${file.name}`;
     const fileRef = bucket.file(filePath);
 
     await fileRef.save(buffer, {
@@ -211,17 +211,7 @@ export async function updateUserProfilePhoto(userId: string, formData: FormData)
     throw new Error('No photo file provided.');
   }
 
-  const bucket = getStorage().bucket(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
-  const buffer = Buffer.from(await photoFile.arrayBuffer());
-  const filePath = `avatars/${userId}/${Date.now()}_${photoFile.name}`;
-  const fileRef = bucket.file(filePath);
-
-  await fileRef.save(buffer, {
-    metadata: { contentType: photoFile.type },
-  });
-  
-  await fileRef.makePublic();
-  const photoURL = fileRef.publicUrl();
+  const photoURL = await uploadFileAndGetPublicURL(`avatars/${userId}`, photoFile);
 
   await adminAuth.updateUser(userId, { photoURL });
   await adminDb.collection('users').doc(userId).update({ photoURL });
@@ -929,7 +919,7 @@ export async function submitMatchResult(tournamentId: string, matchId: string, t
     const homeScore = Number(homeScoreRaw);
     const awayScore = Number(awayScoreRaw);
 
-    const evidenceUrl = await uploadFileAndGetPublicURL(tournamentId, teamId, evidenceFile);
+    const evidenceUrl = await uploadFileAndGetPublicURL(`tournaments/${tournamentId}/evidence`, evidenceFile);
     
     const matchRef = adminDb.collection('tournaments').doc(tournamentId).collection('matches').doc(matchId);
     
@@ -977,7 +967,7 @@ export async function submitSecondaryEvidence(tournamentId: string, matchId: str
     const evidenceFile = formData.get('evidence') as File;
     if (!evidenceFile || evidenceFile.size === 0) throw new Error("Missing evidence file.");
 
-    const evidenceUrl = await uploadFileAndGetPublicURL(tournamentId, teamId, evidenceFile);
+    const evidenceUrl = await uploadFileAndGetPublicURL(`tournaments/${tournamentId}/evidence`, evidenceFile);
     const matchRef = adminDb.collection('tournaments').doc(tournamentId).collection('matches').doc(matchId);
 
     const report: MatchReport = {
@@ -2853,6 +2843,7 @@ export async function getPlatformSettings(): Promise<PlatformSettings> {
         const defaultSettings = {
             isMaintenanceMode: false,
             allowNewTournaments: true,
+            backgroundMusic: [],
         };
         await settingsRef.set(defaultSettings);
         return defaultSettings;
@@ -2860,12 +2851,48 @@ export async function getPlatformSettings(): Promise<PlatformSettings> {
     return doc.data() as PlatformSettings;
 }
 
-export async function updatePlatformSettings(data: PlatformSettings) {
+export async function updatePlatformSettings(formData: FormData) {
     const settingsRef = adminDb.collection('platformSettings').doc('config');
-    await settingsRef.set(data, { merge: true });
+    const currentSettingsDoc = await settingsRef.get();
+    const currentSettings = currentSettingsDoc.data() as PlatformSettings;
+    
+    const newSettings: Partial<PlatformSettings> = {
+        isMaintenanceMode: formData.get('isMaintenanceMode') === 'true',
+        allowNewTournaments: formData.get('allowNewTournaments') === 'true',
+        whatsappUrl: formData.get('whatsappUrl') as string,
+        facebookUrl: formData.get('facebookUrl') as string,
+        instagramUrl: formData.get('instagramUrl') as string,
+        youtubeUrl: formData.get('youtubeUrl') as string,
+        backgroundMusic: [...(currentSettings.backgroundMusic || [])],
+    };
+
+    const uploadPromises: Promise<void>[] = [];
+
+    for (let i = 0; i < 5; i++) {
+        const file = formData.get(`backgroundMusic_${i}`) as File | null;
+        if (file && file.size > 0) {
+            const promise = uploadFileAndGetPublicURL('background_music', file).then(url => {
+                if(!newSettings.backgroundMusic) {
+                    newSettings.backgroundMusic = [];
+                }
+                newSettings.backgroundMusic[i] = url;
+            });
+            uploadPromises.push(promise);
+        } else {
+            const existingUrl = formData.get(`existingBackgroundMusic_${i}`) as string | null;
+            if (newSettings.backgroundMusic) {
+               newSettings.backgroundMusic[i] = existingUrl || newSettings.backgroundMusic[i] || '';
+            }
+        }
+    }
+    
+    await Promise.all(uploadPromises);
+
+    newSettings.backgroundMusic = newSettings.backgroundMusic?.filter(url => url);
+
+    await settingsRef.set(newSettings, { merge: true });
     revalidatePath('/admin/settings');
 }
-
 
 export async function initializeTournamentPayment(tournamentId: string, amount: number, email: string, userId: string) {
     const paystackSecret = process.env.PAYSTACK_SECRET_KEY;
