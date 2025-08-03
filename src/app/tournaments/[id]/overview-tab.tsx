@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,6 +24,7 @@ export function OverviewTab({ tournament }: { tournament: Tournament }) {
     const [copied, setCopied] = useState(false);
 
     const handleCopy = () => {
+        if (!tournament.code) return;
         navigator.clipboard.writeText(tournament.code);
         setCopied(true);
         toast({ title: "Copied!", description: "Tournament code copied to clipboard." });
@@ -91,3 +93,4 @@ export function OverviewTab({ tournament }: { tournament: Tournament }) {
         </div>
     )
 }
+

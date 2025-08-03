@@ -1,0 +1,37 @@
+
+# This configuration file is for Firebase App Hosting.
+# It is used to configure the server-side environment for the application.
+
+# The `run` command specifies how to start the application server.
+# Next.js applications are typically started with the 'next start' command,
+# which runs on port 3000 by default. App Hosting automatically maps
+# incoming requests on port 80/443 to this port.
+run:
+  # The command to start the application.
+  # Using 'npm run start' which is defined in package.json as 'next start'.
+  command: npm run start
+  # The server timeout is increased to 5 minutes to handle long-running
+  # processes like large file uploads (e.g., background music).
+  serverTimeout: 300s
+
+# The `resources` section defines the CPU and memory allocation for the backend.
+# These values can be adjusted based on application performance needs.
+resources:
+  # The number of vCPUs to allocate.
+  cpu: 1
+  # The amount of memory to allocate.
+  memoryMiB: 512
+
+# The `gcp` section contains Google Cloud-specific configurations.
+gcp:
+  # The `vpc` configuration allows connecting the backend to a Virtual
+  # Private Cloud (VPC) network, enabling access to other Google Cloud
+  # services like databases or internal APIs.
+  vpc:
+    # `connectorName` is the name of the VPC Serverless Access Connector.
+    # This must be created separately in the Google Cloud Console.
+    # It allows the App Hosting backend to communicate with resources in the VPC.
+    # `egressSettings` controls how outbound traffic is routed.
+    # 'all-traffic' routes all outbound traffic through the VPC connector.
+    connectorName: projects/earena-b7xaa/locations/us-central1/connectors/dev-vpc
+    egressSettings: ALL_TRAFFIC

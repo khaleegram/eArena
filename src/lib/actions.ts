@@ -7,9 +7,7 @@ import type { Timestamp as FirebaseAdminTimestamp } from 'firebase-admin/firesto
 import { Timestamp, FieldValue, FieldPath } from 'firebase-admin/firestore';
 import type { Tournament, UserProfile, Team, Match, Standing, TournamentFormat, Player, MatchReport, Notification, RewardDetails, TeamMatchStats, MatchStatus, UnifiedTimestamp, PlayerStats, TournamentPerformancePoint, Highlight, Article, UserMembership, ReplayRequest, EarnedAchievement, PlayerTitle, PlatformSettings, Conversation, ChatMessage, PlayerRole, PushSubscription, TournamentAward, BankDetails, PrizeAllocation, Transaction, DisputedMatchInfo, PrizeDistributionItem } from './types';
 import { revalidatePath } from 'next/cache';
-import { generateTournamentFixtures } from '@/ai/flows/generate-tournament-fixtures';
 import { verifyMatchScores, type VerifyMatchScoresInput, type VerifyMatchScoresOutput } from '@/ai/flows/verify-match-scores';
-import { calculateTournamentStandings, type CalculateTournamentStandingsInput } from '@/ai/flows/calculate-tournament-standings';
 import { getStorage } from 'firebase-admin/storage';
 import { addHours, differenceInDays, isBefore, format, addDays, startOfDay, endOfDay, isPast, isToday, isAfter, subDays, startOfMonth, endOfMonth, eachMonthOfInterval, formatISO } from 'date-fns';
 import { analyzePlayerPerformance, type PlayerPerformanceInput } from '@/ai/flows/analyze-player-performance';
@@ -710,6 +708,37 @@ export async function getJoinedTournamentIdsForUser(userId: string): Promise<str
 
 
 // Fixture & Match Actions
+function generateRoundRobinFixtures(teamIds: string[], doubleRoundRobin: boolean): Omit<Match, 'id' | 'tournamentId' | 'matchDay' | 'status'>[] {
+    const fixtures: Omit<Match, 'id' | 'tournamentId' | 'matchDay' | 'status'>[] = [];
+    if (teamIds.length < 2) return [];
+
+    const schedule = (teams: string[]) => {
+        for (let i = 0; i < teams.length; i++) {
+            for (let j = i + 1; j < teams.length; j++) {
+                // Alternate home and away
+                if ((i + j) % 2 === 0) {
+                    fixtures.push({ homeTeamId: teams[i], awayTeamId: teams[j], round: 'League Stage', hostId: teams[i], homeScore: null, awayScore: null, hostTransferRequested: false });
+                } else {
+                    fixtures.push({ homeTeamId: teams[j], awayTeamId: teams[i], round: 'League Stage', hostId: teams[j], homeScore: null, awayScore: null, hostTransferRequested: false });
+                }
+            }
+        }
+    };
+
+    schedule(teamIds);
+    if (doubleRoundRobin) {
+        const secondLegFixtures = fixtures.map(f => ({
+            ...f,
+            homeTeamId: f.awayTeamId,
+            awayTeamId: f.homeTeamId,
+            hostId: f.awayTeamId,
+        }));
+        fixtures.push(...secondLegFixtures);
+    }
+    
+    return fixtures;
+}
+
 export async function startTournamentAndGenerateFixtures(tournamentId: string, organizerId: string) {
     const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
     const tournamentDoc = await tournamentRef.get();
@@ -728,18 +757,17 @@ export async function startTournamentAndGenerateFixtures(tournamentId: string, o
     if (teamsSnapshot.docs.length < 4) {
         throw new Error("A minimum of 4 approved teams is required to start the tournament.");
     }
-    const teams = teamsSnapshot.docs.map(doc => ({id: doc.id, ...doc.data()}) as Team);
-    const teamIds = teams.map(team => team.id);
     
     await tournamentRef.update({ status: 'generating_fixtures' });
     revalidatePath(`/tournaments/${tournamentId}`);
-
-    const fixtures = await generateTournamentFixtures({ teamIds, format: tournament.format });
-
+    
+    const teams = teamsSnapshot.docs.map(team => team.id);
+    const fixtures = generateRoundRobinFixtures(teams, tournament.homeAndAway);
+    
     if (!fixtures || fixtures.length === 0) {
-        await tournamentRef.update({ status: 'open_for_registration' });
+        await tournamentRef.update({ status: 'open_for_registration' }); // Revert status
         revalidatePath(`/tournaments/${tournamentId}`);
-        throw new Error("The AI failed to generate fixtures for this tournament. Please try again in a few moments.");
+        throw new Error("Failed to generate fixtures for this tournament. Please check team count and format settings.");
     }
 
     const batch = adminDb.batch();
@@ -749,7 +777,6 @@ export async function startTournamentAndGenerateFixtures(tournamentId: string, o
 
     fixtures.forEach((fixture, index) => {
         const matchRef = tournamentRef.collection('matches').doc();
-        const hostId = Math.random() < 0.5 ? fixture.homeTeamId : fixture.awayTeamId;
         
         // Distribute matches across available days
         const dayOffset = index % totalDays;
@@ -759,10 +786,6 @@ export async function startTournamentAndGenerateFixtures(tournamentId: string, o
             ...fixture,
             id: matchRef.id,
             tournamentId,
-            hostId: hostId,
-            hostTransferRequested: false,
-            homeScore: null,
-            awayScore: null,
             status: 'scheduled',
             matchDay: Timestamp.fromDate(matchDay),
         });
@@ -784,8 +807,7 @@ export async function startTournamentAndGenerateFixtures(tournamentId: string, o
     }
 
     if(newStatus === 'in_progress') {
-        // Send notifications to all players that it has started
-        const allPlayerIds = teams.flatMap(team => team.playerIds);
+        const allPlayerIds = (await teamsSnapshot.docs.map(doc => (doc.data() as Team).playerIds)).flat();
         const uniquePlayerIds = [...new Set(allPlayerIds)];
 
         for (const userId of uniquePlayerIds) {
@@ -908,16 +930,12 @@ export async function progressTournamentStage(tournamentId: string, organizerId:
     
     const advancingTeamIds = standingsSnapshot.docs.map(doc => doc.data().teamId);
     
-    const fixtures = await generateTournamentFixtures({
-        teamIds: advancingTeamIds,
-        format: 'cup', // Simplified to generate a simple knockout
-    });
+    const fixtures = generateRoundRobinFixtures(advancingTeamIds, false).map((f, i) => ({ ...f, round: `Round of ${advancingTeamIds.length}`})); // Simplified knockout
 
     const batch = adminDb.batch();
     
     fixtures.forEach((fixture, index) => {
         const matchRef = tournamentRef.collection('matches').doc();
-        const hostId = Math.random() < 0.5 ? fixture.homeTeamId : fixture.awayTeamId;
         
         // Schedule knockout matches with a one day interval
         const matchDay = new Date(lastMatchDay.getTime());
@@ -929,9 +947,6 @@ export async function progressTournamentStage(tournamentId: string, organizerId:
             ...fixture,
             id: matchRef.id,
             tournamentId,
-            hostId: hostId,
-            homeScore: null,
-            awayScore: null,
             status: 'scheduled',
             matchDay: Timestamp.fromDate(matchDay),
         });
@@ -1026,8 +1041,13 @@ export async function submitMatchResult(tournamentId: string, matchId: string, t
 
     // Phase 1 Immediate Processing: If both have submitted primary evidence, trigger AI now.
     if (updatedMatchData.homeTeamReport && updatedMatchData.awayTeamReport) {
-      const result = await triggerAIVerification(tournamentId, matchId);
-      await handleAIVerificationResult(tournamentId, matchId, result);
+      try {
+        const result = await triggerAIVerification(tournamentId, matchId);
+        await handleAIVerificationResult(tournamentId, matchId, result);
+      } catch (error: any) {
+        console.error(`AI Verification failed for match ${matchId}:`, error);
+        await matchRef.update({ status: 'disputed', resolutionNotes: `AI verification failed: ${error.message}`});
+      }
     } else {
       await matchRef.update({ status: 'awaiting_confirmation' });
     }
@@ -1067,8 +1087,13 @@ export async function submitSecondaryEvidence(tournamentId: string, matchId: str
 
     // Wait for the second report before triggering verification
     if (updatedMatchData.homeTeamSecondaryReport && updatedMatchData.awayTeamSecondaryReport) {
-        const result = await triggerAIVerification(tournamentId, matchId);
-        await handleAIVerificationResult(tournamentId, matchId, result);
+        try {
+            const result = await triggerAIVerification(tournamentId, matchId);
+            await handleAIVerificationResult(tournamentId, matchId, result);
+        } catch (error: any) {
+            console.error(`AI Verification failed for match ${matchId}:`, error);
+            await matchRef.update({ status: 'disputed', resolutionNotes: `AI verification failed: ${error.message}`});
+        }
     }
 
     revalidatePath(`/tournaments/${tournamentId}`);
@@ -3478,4 +3503,5 @@ export async function deleteTournamentMessage(tournamentId: string, messageId: s
     const messageRef = tournamentRef.collection('messages').doc(messageId);
     await messageRef.delete();
 }
+
 

@@ -603,7 +603,7 @@ export default function TournamentPage() {
   return (
     <div className="relative min-h-[calc(100vh-3.5rem)]">
         <Image
-            src="https://placehold.co/1920x1080.png"
+            src="/images/Tournament.png"
             data-ai-hint="esports gaming"
             alt="background"
             fill

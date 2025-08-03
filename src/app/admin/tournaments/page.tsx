@@ -1,4 +1,5 @@
 
+
 import { adminGetAllTournaments } from "@/lib/actions";
 import { columns } from "./columns";
 import { DataTable } from "./data-table";
@@ -16,3 +17,4 @@ export default async function AdminTournamentsPage() {
         </div>
     )
 }
+
