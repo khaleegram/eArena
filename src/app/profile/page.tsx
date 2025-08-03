@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Trophy, FileText, Camera, BrainCircuit, Medal, Banknote, BellRing } from 'lucide-react';
+import { Loader2, Trophy, FileText, Camera, BrainCircuit, Medal, Banknote, BellRing, Crown } from 'lucide-react';
 import type { UnifiedTimestamp, PlayerStats as PlayerStatsType } from '@/lib/types';
 import { PlayerStats } from '@/components/player-stats';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -235,7 +235,7 @@ export default function ProfilePage() {
         <Accordion type="multiple" className="w-full space-y-4">
             <AccordionItem value="payout-settings" className="border rounded-lg bg-card text-card-foreground shadow-sm">
                 <AccordionTrigger className="p-6">
-                    <CardTitle className="font-headline text-xl">Payout Settings</CardTitle>
+                    <CardTitle className="font-headline text-xl flex items-center gap-2"><Banknote/> Payout Settings</CardTitle>
                 </AccordionTrigger>
                 <AccordionContent className="p-6 pt-0">
                     <BankDetailsForm userProfile={userProfile} />
@@ -303,7 +303,7 @@ export default function ProfilePage() {
 
             <AccordionItem value="titles" className="border rounded-lg bg-card text-card-foreground shadow-sm">
                 <AccordionTrigger className="p-6">
-                     <CardTitle className="font-headline text-xl">Title Selector</CardTitle>
+                     <CardTitle className="font-headline text-xl flex items-center gap-2"><Crown /> Title Selector</CardTitle>
                 </AccordionTrigger>
                 <AccordionContent className="p-6 pt-0">
                      <TitleSelector />
