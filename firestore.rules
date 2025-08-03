@@ -1,67 +1,13 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // By default, allow reads for all, but deny writes.
-    // This allows public browsing of the site content.
+    // WARNING: These rules are insecure and allow anyone to read and write to your database.
+    // They are intended for development and testing purposes only.
+    // For a production app, you should implement more secure rules.
     match /{document=**} {
-      allow read: if true;
-      allow write: if false;
-    }
-    
-    // Users can only write to their own document.
-    match /users/{userId} {
-      allow write: if request.auth.uid == userId;
-    }
-
-    // Users can only write to their own subcollections (notifications, subscriptions)
-    match /users/{userId}/{subcollection}/{docId} {
-        allow write: if request.auth.uid == userId;
-    }
-    
-    // Only authenticated users can create tournaments.
-    match /tournaments/{tournamentId} {
-      allow create: if request.auth.uid != null;
-      // Only the organizer can update/delete a tournament.
-      allow update, delete: if resource.data.organizerId == request.auth.uid;
-    }
-    
-    // Only authenticated users can create teams (join tournaments).
-    match /tournaments/{tournamentId}/teams/{teamId} {
-        allow create: if request.auth.uid != null;
-        // Only captain or organizer can update a team.
-        allow update: if resource.data.captainId == request.auth.uid || get(/databases/$(database)/documents/tournaments/$(tournamentId)).data.organizerId == request.auth.uid;
-        // Only organizer can delete a team.
-        allow delete: if get(/databases/$(database)/documents/tournaments/$(tournamentId)).data.organizerId == request.auth.uid;
-    }
-    
-    // Only authenticated users can report scores (update matches).
-    match /tournaments/{tournamentId}/matches/{matchId} {
-        allow update: if request.auth.uid != null;
-    }
-    
-    // Any authenticated user can send messages in tournament/team/match chats.
-    match /tournaments/{tournamentId}/{subcollection}/{docId}/messages/{messageId} {
-      allow write: if request.auth.uid != null;
-    }
-     match /tournaments/{tournamentId}/messages/{messageId} {
-      allow write: if request.auth.uid != null;
-    }
-
-    // Only the organizer can create announcements.
-    match /tournaments/{tournamentId}/announcements/{announcementId} {
-      allow create: if get(/databases/$(database)/documents/tournaments/$(tournamentId)).data.organizerId == request.auth.uid;
-    }
-
-    // Conversations can be created and updated by participants.
-    match /conversations/{conversationId} {
-      allow write: if request.auth.uid in resource.data.participantIds;
-    }
-
-    // Messages can be written by conversation participants.
-    match /conversations/{conversationId}/messages/{messageId} {
-      allow write: if request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds;
+      allow read, write: if true;
     }
   }
 }

@@ -1246,7 +1246,7 @@ export async function approveMatchResult(tournamentId: string, matchId: string, 
         wasAutoForfeited,
     };
     if (homeStats) updateData.homeTeamStats = homeStats;
-    if (awayStats) updateData.awayTeamStats = awayStats;
+    if (awayStats) updateData.awayStats = awayStats;
     if (highlightUrl) {
       updateData.highlightUrl = highlightUrl;
     }
@@ -1580,26 +1580,35 @@ export async function updateStandings(tournamentId: string) {
         if (match.awayScore === 0) homeStats.cleanSheets++;
         if (match.homeScore === 0) awayStats.cleanSheets++;
     });
-    
-    const tournamentDoc = await adminDb.collection('tournaments').doc(tournamentId).get();
-    const tournamentData = tournamentDoc.data() as Tournament;
 
-    const standingsInput: CalculateTournamentStandingsInput = {
-        teamsWithStats: teamStatsList,
-        tieBreakerRules: tournamentData.rules,
-    };
+    const goalDifferences = new Map<string, number>();
+    teamStatsList.forEach(team => {
+        goalDifferences.set(team.teamId, team.goalsFor - team.goalsAgainst);
+    });
 
-    const rankedStandings = await calculateTournamentStandings(standingsInput);
-    
+    teamStatsList.sort((a, b) => {
+        if (b.points !== a.points) return b.points - a.points;
+        const gdA = goalDifferences.get(a.teamId) ?? 0;
+        const gdB = goalDifferences.get(b.teamId) ?? 0;
+        if (gdB !== gdA) return gdB - gdA;
+        if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
+        return a.wins - b.wins;
+    });
+
     const batch = adminDb.batch();
     const standingsRef = adminDb.collection('standings');
     
     const oldStandingsSnapshot = await standingsRef.where('tournamentId', '==', tournamentId).get();
     oldStandingsSnapshot.docs.forEach(doc => batch.delete(doc.ref));
 
-    rankedStandings.forEach(standing => {
-        const docRef = standingsRef.doc(`${tournamentId}_${standing.teamId}`);
-        batch.set(docRef, { ...standing, tournamentId });
+    teamStatsList.forEach((team, index) => {
+        const docRef = standingsRef.doc(`${tournamentId}_${team.teamId}`);
+        const standingData = {
+            ...team,
+            tournamentId,
+            ranking: index + 1
+        };
+        batch.set(docRef, standingData);
     });
 
     await batch.commit();
@@ -3469,3 +3478,4 @@ export async function deleteTournamentMessage(tournamentId: string, messageId: s
     const messageRef = tournamentRef.collection('messages').doc(messageId);
     await messageRef.delete();
 }
+
