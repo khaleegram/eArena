@@ -1,5 +1,4 @@
 
-// components/auth-provider.tsx
 "use client";
 
 import React, { createContext, useState, useEffect, ReactNode } from 'react';
@@ -9,19 +8,9 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
 import type { UserProfile, PlatformSettings } from '@/lib/types';
 import Cookies from 'js-cookie';
-import { getPlatformSettings } from '@/lib/actions';
 import { HardHat } from 'lucide-react';
 
-const MaintenancePage = () => (
-    <div className="flex flex-col items-center justify-center h-screen text-center bg-background text-foreground">
-        <HardHat className="w-20 h-20 mb-6 text-primary" />
-        <h1 className="text-4xl font-bold font-headline">Under Maintenance</h1>
-        <p className="mt-2 text-lg text-muted-foreground">eArena is currently down for scheduled maintenance.</p>
-        <p className="text-muted-foreground">Please check back soon.</p>
-    </div>
-);
-
-export interface AuthContextType {
+interface AuthContextType {
   user: User | null;
   userProfile: UserProfile | null;
   loading: boolean;
@@ -31,18 +20,14 @@ export interface AuthContextType {
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider = ({ children }: { children: ReactNode }) => {
+export const AuthProvider = ({ children, settings }: { children: ReactNode, settings: PlatformSettings }) => {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true); // Represents initial auth state check
+  const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [settings, setSettings] = useState<PlatformSettings | null>(null);
   const pathname = usePathname();
 
   useEffect(() => {
-    // Fetch settings on initial load
-    getPlatformSettings().then(setSettings);
-
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       
@@ -63,7 +48,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         Cookies.remove('isAdmin');
       }
       
-      setLoading(false); // Auth state is now known
+      setLoading(false);
     });
 
     return () => unsubscribeAuth();
@@ -89,6 +74,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (unsubscribeProfile) unsubscribeProfile();
     };
   }, [user]);
+
+  const MaintenancePage = () => (
+    <div className="flex flex-col items-center justify-center h-screen text-center bg-background text-foreground">
+        <HardHat className="w-20 h-20 mb-6 text-primary" />
+        <h1 className="text-4xl font-bold font-headline">Under Maintenance</h1>
+        <p className="mt-2 text-lg text-muted-foreground">eArena is currently down for scheduled maintenance.</p>
+        <p className="text-muted-foreground">Please check back soon.</p>
+    </div>
+  );
 
   // Client-side real-time maintenance check
   if (settings && settings.isMaintenanceMode && !isAdmin) {

@@ -1,18 +1,21 @@
+
+'use client';
+
 import Link from 'next/link';
 import { Trophy } from 'lucide-react';
-import { getPlatformSettings } from '@/lib/actions';
+import { useAuth } from '@/hooks/use-auth';
 import { SocialIcons } from './social-icons';
 import { BackgroundMusicPlayer } from './background-music-player';
 
-export async function Footer() {
+export function Footer() {
+  const { settings } = useAuth();
   const currentYear = new Date().getFullYear();
-  const settings = await getPlatformSettings();
 
   const socialLinks = {
-    whatsapp: settings.whatsappUrl,
-    facebook: settings.facebookUrl,
-    instagram: settings.instagramUrl,
-    youtube: settings.youtubeUrl,
+    whatsapp: settings?.whatsappUrl,
+    facebook: settings?.facebookUrl,
+    instagram: settings?.instagramUrl,
+    youtube: settings?.youtubeUrl,
   };
 
   const hasSocialLinks = Object.values(socialLinks).some(link => link);
@@ -28,7 +31,7 @@ export async function Footer() {
           </p>
         </div>
         <div className="flex items-center gap-4">
-            <BackgroundMusicPlayer musicTracks={settings.backgroundMusic || []} />
+            <BackgroundMusicPlayer musicTracks={settings?.backgroundMusic || []} />
             <div className="hidden md:flex items-center gap-4">
                 {hasSocialLinks && <SocialIcons links={socialLinks} />}
                 {supportEmail && (
