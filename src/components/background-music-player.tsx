@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -6,15 +7,11 @@ import { Volume2, VolumeX, Play, Pause } from 'lucide-react';
 import { Button } from './ui/button';
 import { Slider } from './ui/slider';
 
-const musicTracks = [
-    '/audio/track1.mp3',
-    '/audio/track2.mp3',
-    '/audio/track3.mp3',
-    '/audio/track4.mp3',
-    '/audio/track5.mp3',
-];
+interface BackgroundMusicPlayerProps {
+    musicTracks: string[];
+}
 
-export function BackgroundMusicPlayer() {
+export function BackgroundMusicPlayer({ musicTracks }: BackgroundMusicPlayerProps) {
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [isMuted, setIsMuted] = useState(false);
@@ -22,17 +19,16 @@ export function BackgroundMusicPlayer() {
     const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
 
     useEffect(() => {
-        // We only want to create the audio element once on the client
-        if (!audioRef.current && typeof window !== 'undefined') {
-            audioRef.current = new Audio(musicTracks[currentTrackIndex]);
+        if (musicTracks.length > 0 && !audioRef.current && typeof window !== 'undefined') {
+            audioRef.current = new Audio(musicTracks[0]);
             audioRef.current.volume = volume;
-            audioRef.current.loop = false; // We will handle looping manually
+            audioRef.current.loop = false;
         }
-    }, [volume, currentTrackIndex]);
+    }, [musicTracks, volume]);
 
     useEffect(() => {
         const audio = audioRef.current;
-        if (!audio) return;
+        if (!audio || musicTracks.length === 0) return;
 
         const handleTrackEnd = () => {
             setCurrentTrackIndex((prevIndex) => (prevIndex + 1) % musicTracks.length);
@@ -47,7 +43,6 @@ export function BackgroundMusicPlayer() {
         audio.addEventListener('ended', handleTrackEnd);
         audio.addEventListener('canplaythrough', handleCanPlayThrough);
         
-        // When track changes, update src and try to play if already playing
         audio.src = musicTracks[currentTrackIndex];
         if(isPlaying) {
             audio.play().catch(error => console.error("Playback failed after track change:", error));
@@ -57,7 +52,7 @@ export function BackgroundMusicPlayer() {
             audio.removeEventListener('ended', handleTrackEnd);
             audio.removeEventListener('canplaythrough', handleCanPlayThrough);
         };
-    }, [currentTrackIndex, isPlaying]);
+    }, [currentTrackIndex, isPlaying, musicTracks]);
 
     const togglePlayPause = () => {
         const audio = audioRef.current;
@@ -85,6 +80,10 @@ export function BackgroundMusicPlayer() {
             audioRef.current.volume = newVolume;
         }
     };
+    
+    if (musicTracks.length === 0) {
+        return null; // Don't render the player if no tracks are set
+    }
 
     return (
         <div className="flex items-center gap-2">

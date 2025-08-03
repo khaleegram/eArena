@@ -333,6 +333,7 @@ export interface PlatformSettings {
   facebookUrl?: string;
   instagramUrl?: string;
   youtubeUrl?: string;
+  backgroundMusic?: string[];
 }
 
 export interface PlatformSummary {

@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import * as React from 'react';
@@ -13,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormDescription, FormMessage } from '@/components/ui/form';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Music } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 
 const urlSchema = z.string().url({ message: "Please enter a valid URL." }).or(z.literal(''));
@@ -25,6 +26,7 @@ const settingsSchema = z.object({
   facebookUrl: urlSchema,
   instagramUrl: urlSchema,
   youtubeUrl: urlSchema,
+  backgroundMusic: z.array(urlSchema).max(5).optional(),
 });
 
 type SettingsFormValues = z.infer<typeof settingsSchema>;
@@ -37,6 +39,9 @@ export function SettingsForm({ settings }: SettingsFormProps) {
     const { toast } = useToast();
     const [isLoading, setIsLoading] = React.useState(false);
 
+    // Pad the music array to always have 5 elements for the form
+    const paddedMusic = [...(settings.backgroundMusic || []), '', '', '', '', ''].slice(0, 5);
+
     const form = useForm<SettingsFormValues>({
         resolver: zodResolver(settingsSchema),
         defaultValues: {
@@ -46,13 +51,19 @@ export function SettingsForm({ settings }: SettingsFormProps) {
             facebookUrl: settings.facebookUrl || '',
             instagramUrl: settings.instagramUrl || '',
             youtubeUrl: settings.youtubeUrl || '',
+            backgroundMusic: paddedMusic,
         }
     });
 
     const onSubmit = async (values: SettingsFormValues) => {
         setIsLoading(true);
         try {
-            await updatePlatformSettings(values);
+            // Filter out empty strings before submitting
+            const dataToSubmit = {
+                ...values,
+                backgroundMusic: values.backgroundMusic?.filter(url => url && url.trim() !== '') || []
+            };
+            await updatePlatformSettings(dataToSubmit);
             toast({ title: "Success!", description: "Platform settings have been updated." });
         } catch (error: any) {
             toast({ variant: 'destructive', title: "Error", description: error.message });
@@ -124,6 +135,31 @@ export function SettingsForm({ settings }: SettingsFormProps) {
                          <FormField control={form.control} name="facebookUrl" render={({ field }) => (<FormItem><FormLabel>Facebook URL</FormLabel><FormControl><Input placeholder="https://facebook.com/..." {...field} /></FormControl><FormMessage /></FormItem>)} />
                          <FormField control={form.control} name="instagramUrl" render={({ field }) => (<FormItem><FormLabel>Instagram URL</FormLabel><FormControl><Input placeholder="https://instagram.com/..." {...field} /></FormControl><FormMessage /></FormItem>)} />
                          <FormField control={form.control} name="youtubeUrl" render={({ field }) => (<FormItem><FormLabel>YouTube URL</FormLabel><FormControl><Input placeholder="https://youtube.com/..." {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2"><Music /> Background Music</CardTitle>
+                        <CardDescription>Enter up to 5 public URLs for the background music playlist. Leave blank to remove a track.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        {[0, 1, 2, 3, 4].map((index) => (
+                             <FormField
+                                key={index}
+                                control={form.control}
+                                name={`backgroundMusic.${index}`}
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Track {index + 1} URL</FormLabel>
+                                        <FormControl>
+                                            <Input placeholder="https://example.com/track.mp3" {...field} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        ))}
                     </CardContent>
                 </Card>
                 

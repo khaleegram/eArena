@@ -28,7 +28,7 @@ export async function Footer() {
           </p>
         </div>
         <div className="flex items-center gap-4">
-            <BackgroundMusicPlayer />
+            <BackgroundMusicPlayer musicTracks={settings.backgroundMusic || []} />
             <div className="hidden md:flex items-center gap-4">
                 {hasSocialLinks && <SocialIcons links={socialLinks} />}
                 {supportEmail && (
