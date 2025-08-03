@@ -1,6 +1,5 @@
 
-
-"use client";
+'use client';
 
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -13,7 +12,7 @@ import * as React from 'react';
 import { format } from 'date-fns';
 
 import { Button } from '@/components/ui/button';
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, Trophy, FileText, Camera, BrainCircuit, Medal, Banknote, BellRing } from 'lucide-react';
@@ -28,6 +27,7 @@ import { TrophyCase } from '@/components/trophy-case';
 import { FollowersDialog } from '@/components/followers-dialog';
 import { BankDetailsForm } from '@/components/bank-details-form';
 import { PushNotificationManager } from '@/components/push-notification-manager';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 const profileSchema = z.object({
   username: z.string().min(3, { message: "Username must be at least 3 characters." }).max(20),
@@ -226,87 +226,108 @@ export default function ProfilePage() {
             </CardContent>
         </Card>
         
-        <div className="grid lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2 space-y-8">
-                 <Card>
-                    <CardHeader>
-                        <CardTitle className="font-headline text-xl">Payout Settings</CardTitle>
-                        <CardDescription>Manage your bank account for receiving prize money.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                       <BankDetailsForm userProfile={userProfile} />
-                    </CardContent>
-                </Card>
-                <Card>
-                     <CardHeader>
-                        <CardTitle className="font-headline text-xl">Profile Settings</CardTitle>
-                        <CardDescription>Manage your public display name.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <Form {...form}>
-                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-                            <FormField
-                            control={form.control}
-                            name="username"
-                            render={({ field }) => (
-                                <FormItem>
-                                <FormLabel>Username</FormLabel>
-                                <FormControl>
-                                    <Input placeholder="Your public display name" {...field} />
-                                </FormControl>
-                                <FormDescription>This will be displayed on tournament pages.</FormDescription>
-                                <FormMessage />
-                                </FormItem>
-                            )}
-                            />
+        {statsLoading ? (
+            <div className="flex justify-center items-center h-40"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+        ) : (
+            <PlayerStats stats={stats} />
+        )}
 
-                            <Button type="submit" disabled={isLoading}>
-                            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Save Changes
-                            </Button>
-                        </form>
-                        </Form>
-                    </CardContent>
-                </Card>
-                {statsLoading ? (
-                    <div className="flex justify-center items-center h-40"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-                ) : (
-                    <>
-                        <PlayerStats stats={stats} />
-                        {analysis && <AIAnalysisCard archetype={analysis.archetype} analysis={analysis.analysis} />}
-                    </>
-                )}
-                 <Card>
-                    <CardHeader>
-                        <CardTitle className="font-headline flex items-center gap-2"><Medal className="w-5 h-5 text-primary"/> Achievements</CardTitle>
-                        <CardDescription>
-                            Your collection of badges earned on eArena.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <AchievementsDisplay userProfile={userProfile} playerStats={stats} />
-                    </CardContent>
-                 </Card>
-            </div>
-            <div className="lg:col-span-1 space-y-8">
-                 <Card>
-                    <CardHeader>
-                        <CardTitle className="font-headline text-xl flex items-center gap-2"><BellRing /> Notifications</CardTitle>
-                        <CardDescription>Manage how you receive alerts.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <PushNotificationManager />
-                    </CardContent>
-                </Card>
-                 <TitleSelector />
-                 <TrophyCase profile={userProfile} />
-                 <Card>
-                    <CardHeader>
-                        <CardTitle className="font-headline text-xl flex items-center gap-2"><FileText className="w-5 h-5"/> Incident Log</CardTitle>
-                        <CardDescription>A record of warnings and disputes.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {userProfile?.incidentLog && userProfile.incidentLog.length > 0 ? (
+        <Accordion type="multiple" className="w-full space-y-4">
+            <AccordionItem value="payout-settings" className="border rounded-lg bg-card text-card-foreground shadow-sm">
+                <AccordionTrigger className="p-6">
+                    <CardTitle className="font-headline text-xl">Payout Settings</CardTitle>
+                </AccordionTrigger>
+                <AccordionContent className="p-6 pt-0">
+                    <BankDetailsForm userProfile={userProfile} />
+                </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="profile-settings" className="border rounded-lg bg-card text-card-foreground shadow-sm">
+                <AccordionTrigger className="p-6">
+                    <CardTitle className="font-headline text-xl">Profile Settings</CardTitle>
+                </AccordionTrigger>
+                <AccordionContent className="p-6 pt-0">
+                    <Form {...form}>
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+                        <FormField
+                        control={form.control}
+                        name="username"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Username</FormLabel>
+                            <FormControl>
+                                <Input placeholder="Your public display name" {...field} />
+                            </FormControl>
+                            <FormDescription>This will be displayed on tournament pages.</FormDescription>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                        />
+                        <Button type="submit" disabled={isLoading}>
+                        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Save Changes
+                        </Button>
+                    </form>
+                    </Form>
+                </AccordionContent>
+            </AccordionItem>
+            
+            {analysis && (
+                 <AccordionItem value="ai-analysis" className="border rounded-lg bg-card text-card-foreground shadow-sm">
+                    <AccordionTrigger className="p-6">
+                         <CardTitle className="font-headline text-xl">AI Performance Analysis</CardTitle>
+                    </AccordionTrigger>
+                    <AccordionContent className="p-6 pt-0">
+                        <AIAnalysisCard archetype={analysis.archetype} analysis={analysis.analysis} />
+                    </AccordionContent>
+                </AccordionItem>
+            )}
+
+            <AccordionItem value="achievements" className="border rounded-lg bg-card text-card-foreground shadow-sm">
+                <AccordionTrigger className="p-6">
+                    <CardTitle className="font-headline text-xl flex items-center gap-2"><Medal className="w-5 h-5 text-primary"/> Achievements</CardTitle>
+                </AccordionTrigger>
+                <AccordionContent className="p-6 pt-0">
+                    <AchievementsDisplay userProfile={userProfile} playerStats={stats} />
+                </AccordionContent>
+            </AccordionItem>
+            
+             <AccordionItem value="notifications" className="border rounded-lg bg-card text-card-foreground shadow-sm">
+                <AccordionTrigger className="p-6">
+                    <CardTitle className="font-headline text-xl flex items-center gap-2"><BellRing /> Notifications</CardTitle>
+                </AccordionTrigger>
+                <AccordionContent className="p-6 pt-0">
+                     <PushNotificationManager />
+                </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="titles" className="border rounded-lg bg-card text-card-foreground shadow-sm">
+                <AccordionTrigger className="p-6">
+                     <CardTitle className="font-headline text-xl">Title Selector</CardTitle>
+                </AccordionTrigger>
+                <AccordionContent className="p-6 pt-0">
+                     <TitleSelector />
+                </AccordionContent>
+            </AccordionItem>
+            
+            <AccordionItem value="trophy-case" className="border rounded-lg bg-card text-card-foreground shadow-sm">
+                <AccordionTrigger className="p-6">
+                    <CardTitle className="font-headline text-xl flex items-center gap-2">
+                        <Trophy className="w-5 h-5 text-amber-400" />
+                        Trophy Case
+                    </CardTitle>
+                </AccordionTrigger>
+                <AccordionContent className="p-6 pt-0">
+                     <TrophyCase profile={userProfile} />
+                </AccordionContent>
+            </AccordionItem>
+            
+            <AccordionItem value="incident-log" className="border rounded-lg bg-card text-card-foreground shadow-sm">
+                <AccordionTrigger className="p-6">
+                    <CardTitle className="font-headline text-xl flex items-center gap-2"><FileText className="w-5 h-5"/> Incident Log</CardTitle>
+                </AccordionTrigger>
+                <AccordionContent className="p-6 pt-0">
+                     {userProfile?.incidentLog && userProfile.incidentLog.length > 0 ? (
                         <div className="space-y-3">
                             {userProfile.incidentLog.slice(0, 5).map((log, index) => (
                             <div key={index} className="text-xs border-l-2 pl-2">
@@ -318,10 +339,10 @@ export default function ProfilePage() {
                         ) : (
                         <p className="text-muted-foreground text-center py-4 text-sm">No incidents recorded. Great job!</p>
                         )}
-                    </CardContent>
-                </Card>
-            </div>
-        </div>
+                </AccordionContent>
+            </AccordionItem>
+
+        </Accordion>
     </div>
   );
 }
