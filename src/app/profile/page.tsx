@@ -4,7 +4,6 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { updateUserProfile, getPlayerStats, updateUserProfilePhoto, getPlayerPerformanceAnalysis } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
@@ -69,7 +68,6 @@ const AIAnalysisCard = ({ analysis, archetype }: { analysis: string, archetype: 
 };
 
 export default function ProfilePage() {
-  const router = useRouter();
   const { user, userProfile, loading } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = React.useState(false);

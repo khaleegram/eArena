@@ -1,4 +1,5 @@
 
+
 import type { Metadata } from 'next';
 import { Inter, Orbitron } from 'next/font/google';
 import './globals.css';
@@ -14,12 +15,12 @@ import { HardHat } from 'lucide-react';
 
 const inter = Inter({
   subsets: ['latin'],
-  variable: '--font-inter',
+  variable: '--font-body',
 });
 const orbitron = Orbitron({
   subsets: ['latin'],
   weight: ['400', '700'],
-  variable: '--font-orbitron',
+  variable: '--font-headline',
 });
 
 export const metadata: Metadata = {
