@@ -22,7 +22,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { auth, db, googleAuthProvider } from '@/lib/firebase';
-import { resendVerificationEmail } from '@/lib/actions';
+import { handleNewUserSetup, resendVerificationEmail } from '@/lib/actions';
 import type { UserProfile } from '@/lib/types';
 
 interface UserAuthFormProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -55,6 +55,7 @@ export function UserAuthForm({ className, mode, ...props }: UserAuthFormProps) {
           username_lowercase: username?.toLowerCase(), // Add lowercase username
           photoURL: userCredential.user.photoURL,
       }, { merge: true });
+      await handleNewUserSetup(userCredential.user.uid);
       router.push('/dashboard');
     } catch (error: any) {
         toast({
@@ -117,9 +118,12 @@ export function UserAuthForm({ className, mode, ...props }: UserAuthFormProps) {
           uid: user.uid,
           email: user.email,
           username: username,
-          username_lowercase: username.toLowerCase(), // Add lowercase username
+          username_lowercase: username.toLowerCase(),
           photoURL: user.photoURL,
         });
+
+        // Server action to handle admin auto-follow logic
+        await handleNewUserSetup(user.uid);
 
         router.push('/verify-email');
       }

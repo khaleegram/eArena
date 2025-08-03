@@ -282,22 +282,88 @@ export async function resendVerificationEmail(email: string) {
     }
 }
 
+// Fetches admin UIDs based on emails in environment variables
+async function getAdminUids(): Promise<string[]> {
+    const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || '')
+        .split(',')
+        .map(e => e.trim().toLowerCase())
+        .filter(e => e); // Filter out empty strings
+
+    if (adminEmails.length === 0) {
+        return [];
+    }
+
+    try {
+        const adminUsers = await adminAuth.getUsers(
+            adminEmails.map(email => ({ email }))
+        );
+        return adminUsers.users.map(user => user.uid);
+    } catch (error) {
+        console.error("Error fetching admin UIDs:", error);
+        return [];
+    }
+}
+
+// This function is called after a new user signs up.
+export async function handleNewUserSetup(newUserId: string) {
+    const newUserRef = adminDb.collection('users').doc(newUserId);
+    const adminUids = await getAdminUids();
+
+    if (adminUids.length === 0) {
+        return; // No admins to follow
+    }
+    
+    // 1. New user follows all admins.
+    await newUserRef.update({
+        following: FieldValue.arrayUnion(...adminUids)
+    });
+
+    // 2. All admins follow the new user.
+    const batch = adminDb.batch();
+    adminUids.forEach(adminId => {
+        const adminRef = adminDb.collection('users').doc(adminId);
+        batch.update(adminRef, {
+            followers: FieldValue.arrayUnion(newUserId)
+        });
+    });
+
+    await batch.commit();
+}
 
 export async function followUser(currentUserId: string, targetUserId: string) {
     if (currentUserId === targetUserId) {
         throw new Error("You cannot follow yourself.");
     }
+    
+    const adminUids = await getAdminUids();
 
     const currentUserRef = adminDb.collection('users').doc(currentUserId);
     const targetUserRef = adminDb.collection('users').doc(targetUserId);
 
     await adminDb.runTransaction(async (transaction) => {
+        const currentUserDoc = await transaction.get(currentUserRef);
+        const currentUserProfile = currentUserDoc.data() as UserProfile;
+        
+        // Ensure user is following all admins as a sync mechanism
+        const currentFollowing = currentUserProfile.following || [];
+        const adminsToFollow = adminUids.filter(adminId => !currentFollowing.includes(adminId) && adminId !== currentUserId);
+
         transaction.update(currentUserRef, {
-            following: FieldValue.arrayUnion(targetUserId)
+            following: FieldValue.arrayUnion(targetUserId, ...adminsToFollow)
         });
         transaction.update(targetUserRef, {
             followers: FieldValue.arrayUnion(currentUserId)
         });
+
+        // Add the current user as a follower to any admins they weren't following
+        if (adminsToFollow.length > 0) {
+            for (const adminId of adminsToFollow) {
+                const adminRef = adminDb.collection('users').doc(adminId);
+                transaction.update(adminRef, {
+                    followers: FieldValue.arrayUnion(currentUserId)
+                });
+            }
+        }
     });
 
     const currentUser = await adminAuth.getUser(currentUserId);
