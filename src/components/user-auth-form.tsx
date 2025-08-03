@@ -45,6 +45,47 @@ export function UserAuthForm({ className, mode, ...props }: UserAuthFormProps) {
     resolver: zodResolver(formSchema),
   });
 
+  const handleGoogleSignInSuccess = async (userCredential: UserCredential) => {
+    try {
+      const username = userCredential.user.displayName || userCredential.user.email?.split('@')[0];
+      await setDoc(doc(db, "users", userCredential.user.uid), {
+          uid: userCredential.user.uid,
+          email: userCredential.user.email,
+          username: username,
+          username_lowercase: username?.toLowerCase(), // Add lowercase username
+          photoURL: userCredential.user.photoURL,
+      }, { merge: true });
+      router.push('/dashboard');
+    } catch (error: any) {
+        toast({
+            variant: 'destructive',
+            title: 'Google Sign-In Error',
+            description: 'Could not save user profile. Please try again.',
+        });
+    } finally {
+        setIsLoading(false);
+    }
+  }
+
+  const onGoogleSignIn = () => {
+    // DO NOT set loading state here, as it can cause popup blockers.
+    // The popup must be initiated directly from the user's click event.
+    signInWithPopup(auth, googleAuthProvider)
+      .then((result) => {
+        setIsLoading(true); // Set loading state only after popup is successful.
+        handleGoogleSignInSuccess(result);
+      })
+      .catch((error: any) => {
+        if (error.code !== 'auth/popup-closed-by-user') {
+          toast({
+            variant: 'destructive',
+            title: 'Google Sign-In Error',
+            description: error.message || 'Could not sign in with Google. Please try again.',
+          });
+        }
+      });
+  };
+  
   const onSubmit = async (data: UserFormValue) => {
     setIsLoading(true);
     try {
@@ -70,11 +111,13 @@ export function UserAuthForm({ className, mode, ...props }: UserAuthFormProps) {
         
         await sendEmailVerification(user);
 
+        const username = user.email?.split('@')[0] || `user_${Date.now()}`;
         // Create a user profile document in Firestore for new users.
         await setDoc(doc(db, 'users', user.uid), {
           uid: user.uid,
           email: user.email,
-          username: user.email?.split('@')[0] || `user_${Date.now()}`,
+          username: username,
+          username_lowercase: username.toLowerCase(), // Add lowercase username
           photoURL: user.photoURL,
         });
 
@@ -107,45 +150,6 @@ export function UserAuthForm({ className, mode, ...props }: UserAuthFormProps) {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleGoogleSignInSuccess = async (userCredential: UserCredential) => {
-    try {
-      await setDoc(doc(db, "users", userCredential.user.uid), {
-          uid: userCredential.user.uid,
-          email: userCredential.user.email,
-          username: userCredential.user.displayName || userCredential.user.email?.split('@')[0],
-          photoURL: userCredential.user.photoURL,
-      }, { merge: true });
-      router.push('/dashboard');
-    } catch (error: any) {
-        toast({
-            variant: 'destructive',
-            title: 'Google Sign-In Error',
-            description: 'Could not save user profile. Please try again.',
-        });
-    } finally {
-        setIsLoading(false);
-    }
-  }
-
-  const onGoogleSignIn = () => {
-    // DO NOT set loading state here, as it can cause popup blockers.
-    // The popup must be initiated directly from the user's click event.
-    signInWithPopup(auth, googleAuthProvider)
-      .then((result) => {
-        setIsLoading(true); // Set loading state only after popup is successful.
-        handleGoogleSignInSuccess(result);
-      })
-      .catch((error: any) => {
-        if (error.code !== 'auth/popup-closed-by-user') {
-          toast({
-            variant: 'destructive',
-            title: 'Google Sign-In Error',
-            description: error.message || 'Could not sign in with Google. Please try again.',
-          });
-        }
-      });
   };
 
   return (

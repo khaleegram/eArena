@@ -29,25 +29,44 @@ function serializeData(data: any): any {
 }
 
 
-export async function findUsersByUsername(username: string): Promise<UserProfile[]> {
-    if (!username || !username.trim()) {
+export async function findUsersByUsername(query: string): Promise<UserProfile[]> {
+    if (!query || !query.trim()) {
         return [];
     }
     const usersRef = adminDb.collection('users');
-    const searchTerm = username.trim().toLowerCase();
+    const searchTerm = query.trim().toLowerCase();
     
-    const snapshot = await usersRef
-        .orderBy('username')
+    // Query by lowercase username
+    const usernameQuery = usersRef
+        .orderBy('username_lowercase')
         .startAt(searchTerm)
         .endAt(searchTerm + '\uf8ff')
         .limit(10)
         .get();
 
-    if (snapshot.empty) {
-        return [];
-    }
+    // Query by email
+    const emailQuery = usersRef
+        .orderBy('email')
+        .startAt(searchTerm)
+        .endAt(searchTerm + '\uf8ff')
+        .limit(10)
+        .get();
+        
+    const [usernameSnapshot, emailSnapshot] = await Promise.all([usernameQuery, emailQuery]);
     
-    return snapshot.docs.map(doc => serializeData({uid: doc.id, ...doc.data()} as UserProfile));
+    const resultsMap = new Map<string, UserProfile>();
+
+    usernameSnapshot.docs.forEach(doc => {
+        resultsMap.set(doc.id, {uid: doc.id, ...doc.data()} as UserProfile);
+    });
+
+    emailSnapshot.docs.forEach(doc => {
+        if (!resultsMap.has(doc.id)) {
+            resultsMap.set(doc.id, {uid: doc.id, ...doc.data()} as UserProfile);
+        }
+    });
+
+    return serializeData(Array.from(resultsMap.values()));
 }
 
 export async function savePushSubscription(userId: string, subscription: PushSubscription) {

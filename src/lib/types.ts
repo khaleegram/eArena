@@ -28,6 +28,7 @@ export interface UserProfile {
   uid: string;
   email: string | null;
   username?: string;
+  username_lowercase?: string;
   photoURL?: string;
   badges?: any[];
   warnings?: number;
