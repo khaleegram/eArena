@@ -82,4 +82,25 @@ export const allAchievements: Achievement[] = [
     ],
     evaluator: (profile, stats) => stats.totalCleanSheets || 0,
   },
+  // Community
+  {
+    id: 'good-sport',
+    name: 'Good Sport',
+    category: 'Community',
+    description: 'Maintain a good reputation with few warnings.',
+    icon: 'ShieldCheck',
+    tiers: [
+        { name: 'Bronze', value: 10, description: 'Play 10 matches with less than 5 warnings' },
+        { name: 'Silver', value: 50, description: 'Play 50 matches with less than 5 warnings' },
+        { name: 'Gold', value: 100, description: 'Play 100 matches with less than 3 warnings' },
+    ],
+    evaluator: (profile, stats) => {
+        const warnings = profile.warnings || 0;
+        if(warnings >= 5) return 0;
+        if(warnings < 3 && stats.totalMatches >=100) return 100;
+        if(warnings < 5 && stats.totalMatches >=50) return 50;
+        if(warnings < 5 && stats.totalMatches >=10) return 10;
+        return 0;
+    }
+  }
 ];
