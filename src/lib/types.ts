@@ -388,6 +388,8 @@ export interface DisputedMatchInfo extends Match {
     awayTeam: Team;
 }
 
+export type Rarity = 'Common' | 'Uncommon' | 'Rare' | 'Epic' | 'Legendary';
+
 export interface EarnedAchievement {
     achievementId: string;
     tier: number; // Index of the tier in the achievement's tiers array

@@ -1088,11 +1088,11 @@ export async function submitSecondaryEvidence(tournamentId: string, matchId: str
     // Wait for the second report before triggering verification
     if (updatedMatchData.homeTeamSecondaryReport && updatedMatchData.awayTeamSecondaryReport) {
         try {
-            const result = await triggerAIVerification(tournamentId, matchId);
-            await handleAIVerificationResult(tournamentId, matchId, result);
+            const result = await triggerAIVerification(tournamentId, doc.id);
+            await handleAIVerificationResult(tournamentId, doc.id, result);
         } catch (error: any) {
-            console.error(`AI Verification failed for match ${matchId}:`, error);
-            await matchRef.update({ status: 'disputed', resolutionNotes: `AI verification failed: ${error.message}`});
+            console.error(`AI Verification failed for match ${doc.id}:`, error);
+            await doc.ref.update({ status: 'disputed', resolutionNotes: `AI verification failed: ${error.message}`});
         }
     }
 
@@ -3536,4 +3536,5 @@ export async function forfeitMatch(tournamentId: string, matchId: string, forfei
 
     revalidatePath(`/tournaments/${tournamentId}`);
 }
+
 
