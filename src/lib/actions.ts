@@ -3504,4 +3504,36 @@ export async function deleteTournamentMessage(tournamentId: string, messageId: s
     await messageRef.delete();
 }
 
+export async function forfeitMatch(tournamentId: string, matchId: string, forfeitingUserId: string) {
+    const matchRef = adminDb.collection('tournaments').doc(tournamentId).collection('matches').doc(matchId);
+    const matchDoc = await matchRef.get();
+    if (!matchDoc.exists) throw new Error("Match not found.");
+
+    const match = matchDoc.data() as Match;
+
+    const isHomeCaptain = match.homeTeamId && (await adminDb.collection('tournaments').doc(tournamentId).collection('teams').doc(match.homeTeamId).get()).data()?.captainId === forfeitingUserId;
+    const isAwayCaptain = match.awayTeamId && (await adminDb.collection('tournaments').doc(tournamentId).collection('teams').doc(match.awayTeamId).get()).data()?.captainId === forfeitingUserId;
+
+    if (!isHomeCaptain && !isAwayCaptain) {
+        throw new Error("You are not a captain in this match and cannot forfeit.");
+    }
+
+    const homeScore = isHomeCaptain ? 0 : 3;
+    const awayScore = isAwayCaptain ? 0 : 3;
+
+    await approveMatchResult(
+        tournamentId,
+        matchId,
+        homeScore,
+        awayScore,
+        `Match forfeited by ${isHomeCaptain ? 'home team' : 'away team'}.`,
+        true, // Apply stats penalty
+        undefined, // No home stats
+        undefined, // No away stats
+        forfeitingUserId, // ID of the forfeiting player's captain
+        true // Mark as auto-forfeited
+    );
+
+    revalidatePath(`/tournaments/${tournamentId}`);
+}
 

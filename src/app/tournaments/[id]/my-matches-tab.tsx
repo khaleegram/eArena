@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef } from "react";
 import { db, storage } from "@/lib/firebase";
 import { collection, onSnapshot, query, type Timestamp, orderBy, doc, updateDoc, getDocs } from "firebase/firestore";
-import type { Match, Team, MatchReport, MatchStatus, Tournament, Player, ChatMessage, UserProfile, TeamMatchStats, UnifiedTimestamp, ReplayRequest } from "@/lib/types";
+import type { Match, Team, MatchStatus, MatchReport, TeamMatchStats, UnifiedTimestamp, ReplayRequest, Tournament, Player, ChatMessage, UserProfile } from "@/lib/types";
 import { useAuth } from "@/hooks/use-auth";
 import { useCountdown } from "@/hooks/use-countdown";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { approveMatchResult, submitMatchResult, transferHost, setMatchRoomCode, postMatchMessage, deleteMatchReport, submitSecondaryEvidence, getMatchPrediction, scheduleRematch, submitPlayerStreamUrl, requestPlayerReplay, respondToPlayerReplay, organizerForceReplayProblematicMatches, deleteMatchMessage } from "@/lib/actions";
+import { approveMatchResult, submitMatchResult, transferHost, setMatchRoomCode, postMatchMessage, deleteMatchReport, submitSecondaryEvidence, getMatchPrediction, scheduleRematch, submitPlayerStreamUrl, requestPlayerReplay, respondToPlayerReplay, organizerForceReplayProblematicMatches, deleteMatchMessage, forfeitMatch } from "@/lib/actions";
 import { Loader2, CheckCircle, Clock, AlertTriangle, User, MessageSquareQuote, FileText, BarChartHorizontal, Video, Tv, Sparkles, History, Send, Handshake, Trash2, Upload, Copy, Check, ArrowRightLeft, Swords, Info, Timer, Hourglass, Bot, MessageCircle } from "lucide-react";
 import { format, formatDistanceToNow, isToday, isFuture, endOfDay, isPast } from "date-fns";
 import { Badge } from "@/components/ui/badge";
@@ -411,6 +411,8 @@ function MatchCard({ match, teams, getTeam, userTeam, isOrganizer }: { match: Ma
     const opponentId = user.uid === homeTeam.captainId ? awayTeam.captainId : homeTeam.captainId;
     const canRespondToReplay = user.uid === opponentId && replayRequest?.status === 'pending';
 
+    const canForfeit = (isHomeCaptain || isAwayCaptain) && isMatchDay && match.status === 'scheduled';
+
 
     return (
         <div className="border rounded-lg p-4 space-y-4 bg-card/50 transition-colors hover:bg-card">
@@ -521,7 +523,8 @@ function MatchCard({ match, teams, getTeam, userTeam, isOrganizer }: { match: Ma
                 </Alert>
             )}
 
-            <div className="flex justify-end pt-2">
+            <div className="flex justify-end pt-2 gap-2">
+                {canForfeit && <ForfeitMatchDialog match={match} forfeitingTeamName={isHomeCaptain ? homeTeam.name : awayTeam.name} />}
                 {canRequestReplay && <RequestReplayDialog match={match} />}
                 {canRespondToReplay && <RespondToReplayDialog match={match} />}
             </div>
@@ -553,6 +556,48 @@ function MatchCard({ match, teams, getTeam, userTeam, isOrganizer }: { match: Ma
             )}
         </div>
     )
+}
+
+function ForfeitMatchDialog({ match, forfeitingTeamName }: { match: Match; forfeitingTeamName: string }) {
+    const { user } = useAuth();
+    const { toast } = useToast();
+    const [isLoading, setIsLoading] = useState(false);
+
+    const handleForfeit = async () => {
+        if (!user) return;
+        setIsLoading(true);
+        try {
+            await forfeitMatch(match.tournamentId, match.id, user.uid);
+            toast({ title: 'Match Forfeited', description: 'The result has been recorded.' });
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Error', description: error.message });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <AlertDialog>
+            <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm">Forfeit Match</Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Are you sure you want to forfeit?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        This will result in a 3-0 loss for your team ({forfeitingTeamName}). This action cannot be undone.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleForfeit} disabled={isLoading} className="bg-destructive hover:bg-destructive/90">
+                        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                        Confirm Forfeit
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    );
 }
 
 function MatchStatsDialog({ match, homeTeam, awayTeam }: { match: Match; homeTeam: Team; awayTeam: Team }) {
@@ -1008,3 +1053,4 @@ export function ForceReplayAllDialog({ tournament, organizerId }: { tournament: 
     
 
     
+
