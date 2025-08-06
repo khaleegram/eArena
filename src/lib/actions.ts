@@ -1,5 +1,6 @@
 
 
+
 'use server';
 
 import { adminDb, adminAuth } from './firebase-admin';
@@ -3536,5 +3537,6 @@ export async function forfeitMatch(tournamentId: string, matchId: string, forfei
 
     revalidatePath(`/tournaments/${tournamentId}`);
 }
+
 
 
