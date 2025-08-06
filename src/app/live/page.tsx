@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, Video, Clapperboard, Tv } from 'lucide-react';
 import { format } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '../components/ui/badge';
+import { Badge } from '@/components/ui/badge';
 
 const toDate = (timestamp: UnifiedTimestamp): Date => {
     if (typeof timestamp === 'string') {
