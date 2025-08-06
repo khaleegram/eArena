@@ -6,7 +6,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from './ui/button';
 import { BellRing, BellOff } from 'lucide-react';
-import { savePushSubscription, deletePushSubscription } from '@/lib/actions/user';
+import { savePushSubscription, deletePushSubscription } from '@/lib/actions';
 import { Loader2 } from 'lucide-react';
 
 function urlBase64ToUint8Array(base64String: string) {
