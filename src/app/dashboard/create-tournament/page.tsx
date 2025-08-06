@@ -27,8 +27,10 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 const formatOptions: Record<TournamentFormat, number[]> = {
     league: [4, 6, 8, 10, 12, 14, 16, 18, 20],
-    cup: [8, 12, 16, 24, 32],
+    cup: [8, 16, 32],
     'champions-league': [16, 32],
+    'double-elimination': [8, 16, 32],
+    swiss: [8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32],
 };
 
 type SchedulingPreset = 'custom' | '1-day-cup' | 'weekend-knockout' | 'week-long-league' | '1-day-league-blitz';
@@ -38,7 +40,7 @@ const tournamentSchema = z.object({
   description: z.string().min(10, { message: "Description must be at least 10 characters." }),
   game: z.string().min(1, { message: "Please specify the game." }),
   platform: z.string().min(1, { message: "Please select a platform." }),
-  format: z.enum(['league', 'cup', 'champions-league']),
+  format: z.enum(['league', 'cup', 'champions-league', 'double-elimination', 'swiss']),
   registrationDates: z.object({
     from: z.date({ required_error: "Registration start date is required." }),
     to: z.date({ required_error: "Registration end date is required." }),
@@ -322,6 +324,8 @@ export default function CreateTournamentPage() {
                                     <SelectItem value="league">League (Round-Robin)</SelectItem>
                                     <SelectItem value="cup">Cup (Groups + Knockout)</SelectItem>
                                     <SelectItem value="champions-league">UCL Style (Groups + Knockout)</SelectItem>
+                                    <SelectItem value="double-elimination">Double Elimination</SelectItem>
+                                    <SelectItem value="swiss">Swiss</SelectItem>
                                 </SelectContent>
                                 </Select>
                                 <FormDescription>Choose the structure of your competition.</FormDescription>

@@ -1,6 +1,7 @@
 
 
 
+
 'use server';
 
 import { adminDb, adminAuth } from './firebase-admin';
@@ -503,20 +504,20 @@ export async function getPublicTournaments(): Promise<Tournament[]> {
     try {
         const validStatuses: TournamentStatus[] = ['open_for_registration', 'generating_fixtures', 'in_progress', 'completed', 'ready_to_start'];
         const snapshot = await adminDb.collection('tournaments')
-            .where('status', 'in', validStatuses)
+            .where('isPublic', '==', true)
             .get();
         
-        const allTournaments = snapshot.docs.map(doc => ({ id: doc.id, ...serializeData(doc.data()) } as Tournament));
-        const publicTournaments = allTournaments.filter(t => t.isPublic);
+        let allTournaments = snapshot.docs.map(doc => ({ id: doc.id, ...serializeData(doc.data()) } as Tournament));
+        allTournaments = allTournaments.filter(t => validStatuses.includes(t.status));
         
         // Sort manually to avoid needing a composite index
-        publicTournaments.sort((a, b) => {
+        allTournaments.sort((a, b) => {
             const dateA = toAdminDate(a.tournamentStartDate).getTime();
             const dateB = toAdminDate(b.tournamentStartDate).getTime();
             return dateB - dateA;
         });
 
-        return publicTournaments;
+        return allTournaments;
 
     } catch (error: any) {
         console.error("Error fetching public tournaments:", error);
@@ -709,34 +710,56 @@ export async function getJoinedTournamentIdsForUser(userId: string): Promise<str
 
 
 // Fixture & Match Actions
-function generateRoundRobinFixtures(teamIds: string[], doubleRoundRobin: boolean): Omit<Match, 'id' | 'tournamentId' | 'matchDay' | 'status'>[] {
-    const fixtures: Omit<Match, 'id' | 'tournamentId' | 'matchDay' | 'status'>[] = [];
+function generateFixtures(teamIds: string[], format: TournamentFormat, homeAndAway: boolean): Omit<Match, 'id' | 'tournamentId' | 'matchDay' | 'status'>[] {
     if (teamIds.length < 2) return [];
 
-    const schedule = (teams: string[]) => {
-        for (let i = 0; i < teams.length; i++) {
-            for (let j = i + 1; j < teams.length; j++) {
-                // Alternate home and away
-                if ((i + j) % 2 === 0) {
-                    fixtures.push({ homeTeamId: teams[i], awayTeamId: teams[j], round: 'League Stage', hostId: teams[i], homeScore: null, awayScore: null, hostTransferRequested: false });
-                } else {
-                    fixtures.push({ homeTeamId: teams[j], awayTeamId: teams[i], round: 'League Stage', hostId: teams[j], homeScore: null, awayScore: null, hostTransferRequested: false });
+    let fixtures: Omit<Match, 'id' | 'tournamentId' | 'matchDay' | 'status'>[] = [];
+
+    if (format === 'league') {
+        // Round Robin
+        const schedule = (teams: string[]) => {
+            for (let i = 0; i < teams.length; i++) {
+                for (let j = i + 1; j < teams.length; j++) {
+                    // Alternate home and away
+                    if ((i + j) % 2 === 0) {
+                        fixtures.push({ homeTeamId: teams[i], awayTeamId: teams[j], round: 'League Stage', hostId: teams[i], homeScore: null, awayScore: null, hostTransferRequested: false });
+                    } else {
+                        fixtures.push({ homeTeamId: teams[j], awayTeamId: teams[i], round: 'League Stage', hostId: teams[j], homeScore: null, awayScore: null, hostTransferRequested: false });
+                    }
                 }
             }
+        };
+        schedule(teamIds);
+        if (homeAndAway) {
+            const secondLegFixtures = fixtures.map(f => ({
+                ...f,
+                homeTeamId: f.awayTeamId,
+                awayTeamId: f.homeTeamId,
+                hostId: f.awayTeamId,
+            }));
+            fixtures.push(...secondLegFixtures);
         }
-    };
-
-    schedule(teamIds);
-    if (doubleRoundRobin) {
-        const secondLegFixtures = fixtures.map(f => ({
-            ...f,
-            homeTeamId: f.awayTeamId,
-            awayTeamId: f.homeTeamId,
-            hostId: f.awayTeamId,
-        }));
-        fixtures.push(...secondLegFixtures);
+    } else if (format === 'cup' || format === 'champions-league' || format === 'double-elimination') {
+        // Simple seeded single elimination for now
+        let shuffledTeams = [...teamIds].sort(() => Math.random() - 0.5); // Random seeding
+        const roundOf = shuffledTeams.length;
+        
+        for (let i = 0; i < shuffledTeams.length / 2; i++) {
+            const homeTeamId = shuffledTeams[i];
+            const awayTeamId = shuffledTeams[shuffledTeams.length - 1 - i];
+            fixtures.push({
+                homeTeamId: homeTeamId,
+                awayTeamId: awayTeamId,
+                round: `Round of ${roundOf}`,
+                hostId: homeTeamId,
+                homeScore: null,
+                awayScore: null,
+                hostTransferRequested: false,
+            });
+        }
     }
-    
+    // Swiss format logic would be much more complex and state-dependent per round, handled separately.
+
     return fixtures;
 }
 
@@ -763,7 +786,7 @@ export async function startTournamentAndGenerateFixtures(tournamentId: string, o
     revalidatePath(`/tournaments/${tournamentId}`);
     
     const teams = teamsSnapshot.docs.map(team => team.id);
-    const fixtures = generateRoundRobinFixtures(teams, tournament.homeAndAway);
+    const fixtures = generateFixtures(teams, tournament.format, tournament.homeAndAway);
     
     if (!fixtures || fixtures.length === 0) {
         await tournamentRef.update({ status: 'open_for_registration' }); // Revert status
@@ -931,7 +954,7 @@ export async function progressTournamentStage(tournamentId: string, organizerId:
     
     const advancingTeamIds = standingsSnapshot.docs.map(doc => doc.data().teamId);
     
-    const fixtures = generateRoundRobinFixtures(advancingTeamIds, false).map((f, i) => ({ ...f, round: `Round of ${advancingTeamIds.length}`})); // Simplified knockout
+    const fixtures = generateFixtures(advancingTeamIds, 'double-elimination', false).map((f, i) => ({ ...f, round: `Round of ${advancingTeamIds.length}`})); // Simplified knockout
 
     const batch = adminDb.batch();
     
@@ -3537,6 +3560,7 @@ export async function forfeitMatch(tournamentId: string, matchId: string, forfei
 
     revalidatePath(`/tournaments/${tournamentId}`);
 }
+
 
 
 
