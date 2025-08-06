@@ -5,13 +5,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getTournamentById, getUserTeamForTournament, leaveTournament, addTeam, organizerResolveOverdueMatches, extendRegistration, progressTournamentStage, rescheduleTournamentAndStart, findUserByEmail, regenerateTournamentFixtures, initializeTournamentPayment, savePrizeAllocation } from '@/lib/actions';
+import { getTournamentById, getUserTeamForTournament, leaveTournament, addTeam, organizerResolveOverdueMatches, extendRegistration, progressTournamentStage, rescheduleTournamentAndStart, findUserByEmail, regenerateTournamentFixtures } from '@/lib/actions';
 import { useAuth } from "@/hooks/use-auth";
-import type { Tournament, TournamentStatus, Team, Player, UserProfile, UnifiedTimestamp, Match, Standing, PrizeAllocation } from "@/lib/types";
+import type { Tournament, TournamentStatus, Team, Player, UserProfile, UnifiedTimestamp, Match, Standing } from "@/lib/types";
 import { format, isBefore, isAfter, isToday, isFuture, addDays, differenceInDays, endOfDay, isPast } from "date-fns";
 import { collection, onSnapshot, query, where, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Calendar, Gamepad2, Info, List, Trophy, Users, Loader2, Lock, Globe, Crown, PlusCircle, BookOpenCheck, Rss, Award, Swords, Timer, Hourglass, Bot, Sparkles, ShieldCheck, History, RefreshCw, AlertCircle, CreditCard, Settings, Coins } from "lucide-react";
+import { Calendar, Gamepad2, Info, List, Trophy, Users, Loader2, Lock, Globe, Crown, PlusCircle, BookOpenCheck, Rss, Award, Swords, Timer, Hourglass, Bot, Sparkles, ShieldCheck, History, RefreshCw, AlertCircle } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OverviewTab } from "./overview-tab";
@@ -39,7 +39,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Textarea } from '@/components/ui/textarea';
 import { TournamentPodium } from '@/components/tournament-podium';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
-import { PrizeAllocationEditor } from '@/app/admin/tournaments/[id]/prize-allocation';
 
 const toDate = (timestamp: UnifiedTimestamp): Date => {
     if (typeof timestamp === 'string') {
@@ -443,48 +442,9 @@ function OrganizerTools({ tournament, user, allMatches, onSuccess }: { tournamen
     );
 }
 
-function ActivateTournamentButton({ tournament, user }: { tournament: Tournament, user: UserProfile }) {
-    const router = useRouter();
-    const { toast } = useToast();
-    const [isLoading, setIsLoading] = useState(false);
-
-    const handlePayment = async () => {
-        setIsLoading(true);
-        try {
-            const result = await initializeTournamentPayment(tournament.id, tournament.rewardDetails.prizePool, user.email!, user.uid);
-            if (result.paymentUrl) {
-                router.push(result.paymentUrl);
-            } else {
-                throw new Error("Could not initialize payment.");
-            }
-        } catch (error: any) {
-            toast({ variant: "destructive", title: "Payment Error", description: error.message });
-        } finally {
-            setIsLoading(false);
-        }
-    }
-    
-    return (
-        <Card className="border-amber-500/50 bg-amber-950/30">
-            <CardHeader>
-                <CardTitle className="text-amber-400 font-headline flex items-center gap-2"><CreditCard /> Tournament Pending Activation</CardTitle>
-                <CardDescription>This tournament requires payment to become active.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <Button onClick={handlePayment} disabled={isLoading} className="w-full bg-amber-500 hover:bg-amber-600 text-black">
-                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
-                    Pay ₦{tournament.rewardDetails.prizePool.toLocaleString()} to Activate
-                </Button>
-            </CardContent>
-        </Card>
-    );
-}
-
 export default function TournamentPage() {
   const { id } = useParams() as { id: string };
   const searchParams = useSearchParams();
-  const router = useRouter();
-  const { toast } = useToast();
   const defaultTab = searchParams.get('tab') || 'overview';
   
   const { user, userProfile } = useAuth();
@@ -495,17 +455,6 @@ export default function TournamentPage() {
   const [loading, setLoading] = useState(true);
   const [userTeam, setUserTeam] = useState<Team | null | undefined>(undefined);
   const [isActionLoading, setIsActionLoading] = useState(false);
-
-  useEffect(() => {
-      const paymentStatus = searchParams.get('payment');
-      if (paymentStatus === 'success') {
-          toast({ title: 'Payment Successful!', description: 'Your tournament has been activated.' });
-          router.replace(`/tournaments/${id}`);
-      } else if (paymentStatus === 'failed') {
-          toast({ variant: 'destructive', title: 'Payment Failed', description: 'Your payment was not successful. Please try again.' });
-          router.replace(`/tournaments/${id}`);
-      }
-  }, [searchParams, id, router, toast]);
 
   const fetchTournament = useCallback(async () => {
     if (!id) return;
@@ -520,10 +469,10 @@ export default function TournamentPage() {
         }
     } catch (error) {
         console.error("Failed to fetch tournament:", error);
-        toast({variant: 'destructive', title: 'Error', description: 'Failed to load tournament data.'})
+        // Do not toast here as it can be annoying on re-renders
         setTournament(null);
     }
-  }, [id, user, toast]);
+  }, [id, user]);
 
 
   useEffect(() => {
@@ -553,10 +502,9 @@ export default function TournamentPage() {
     setIsActionLoading(true);
     try {
         await leaveTournament(tournament.id, userTeam.id, user.uid);
-        toast({ title: "Success", description: "You have left the tournament." });
         setUserTeam(null); 
     } catch (error: any) {
-        toast({ variant: "destructive", title: "Error", description: error.message });
+        // toast({ variant: "destructive", title: "Error", description: error.message });
     } finally {
         setIsActionLoading(false);
     }
@@ -660,7 +608,6 @@ export default function TournamentPage() {
                 
                 <div className="space-y-3">
                     <TournamentStatusTimers tournament={tournament} />
-                    {isOrganizer && user && tournament.status === 'pending' && <ActivateTournamentButton tournament={tournament} user={user} />}
                     {isOrganizer && user && <OrganizerTools tournament={tournament} user={user} allMatches={allMatches} onSuccess={fetchTournament} />}
                 </div>
 
@@ -720,7 +667,6 @@ export default function TournamentPage() {
                                     <TabsTrigger value="schedule"><BookOpenCheck className="w-4 h-4 mr-2 sm:hidden md:inline-block"/>Schedule</TabsTrigger>
                                     <TabsTrigger value="standings"><Trophy className="w-4 h-4 mr-2 sm:hidden md:inline-block"/>Standings</TabsTrigger>
                                     <TabsTrigger value="rewards"><Award className="w-4 h-4 mr-2 sm:hidden md:inline-block"/>Rewards</TabsTrigger>
-                                     {isOrganizer && tournament.rewardDetails.type === 'money' && <TabsTrigger value="prizesettings"><Coins className="w-4 h-4 mr-2 sm:hidden md:inline-block"/>Prize Settings</TabsTrigger>}
                                     <TabsTrigger value="chat"><Rss className="w-4 h-4 mr-2 sm:hidden md:inline-block"/>Chat</TabsTrigger>
                                 </TabsList>
                                 <ScrollBar orientation="horizontal" />
@@ -746,11 +692,6 @@ export default function TournamentPage() {
                         <TabsContent value="rewards" className="mt-4">
                         <RewardsTab tournament={tournament} />
                         </TabsContent>
-                        {isOrganizer && (
-                             <TabsContent value="prizesettings" className="mt-4">
-                                <PrizeAllocationEditor tournament={tournament} />
-                            </TabsContent>
-                        )}
                         <TabsContent value="chat" className="mt-4">
                         <CommunicationHub tournament={tournament} isOrganizer={isOrganizer} userTeam={userTeam}/>
                         </TabsContent>

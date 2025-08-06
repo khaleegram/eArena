@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useRef } from "react";
@@ -13,7 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { approveMatchResult, submitMatchResult, transferHost, setMatchRoomCode, postMatchMessage, deleteMatchReport, submitSecondaryEvidence, getMatchPrediction, scheduleRematch, submitPlayerStreamUrl, requestPlayerReplay, respondToPlayerReplay, organizerForceReplayProblematicMatches, deleteMatchMessage, forfeitMatch } from "@/lib/actions";
+import { approveMatchResult, submitMatchResult, transferHost, setMatchRoomCode, postMatchMessage, deleteMatchReport, submitSecondaryEvidence, getMatchPrediction, scheduleRematch, submitPlayerStreamUrl, requestPlayerReplay, respondToPlayerReplay, organizerForceReplay, deleteMatchMessage, forfeitMatch } from "@/lib/actions";
 import { Loader2, CheckCircle, Clock, AlertTriangle, User, MessageSquareQuote, FileText, BarChartHorizontal, Video, Tv, Sparkles, History, Send, Handshake, Trash2, Upload, Copy, Check, ArrowRightLeft, Swords, Info, Timer, Hourglass, Bot, MessageCircle } from "lucide-react";
 import { format, formatDistanceToNow, isToday, isFuture, endOfDay, isPast } from "date-fns";
 import { Badge } from "@/components/ui/badge";
@@ -990,67 +991,12 @@ function SetPlayerStreamUrlDialog({ match, userTeam }: { match: Match; userTeam:
         </Dialog>
     );
 }
-
-export function ForceReplayAllDialog({ tournament, organizerId }: { tournament: Tournament; organizerId: string }) {
-    const [open, setOpen] = useState(false);
-    const [reason, setReason] = useState("");
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const { toast } = useToast();
-
-    const handleForceReplayAll = async () => {
-        if (!reason.trim()) {
-            toast({ variant: "destructive", title: "Reason Required", description: "Please provide a reason for replaying." });
-            return;
-        }
-        setIsSubmitting(true);
-        try {
-            const count = await organizerForceReplayProblematicMatches(tournament.id, organizerId, reason);
-            toast({ title: "Replays Ordered", description: `${count} problematic match(es) have been reset and rescheduled.` });
-            setOpen(false);
-        } catch (error: any) {
-            toast({ variant: "destructive", title: "Error", description: error.message || "Failed to order replays." });
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
-
-    if (tournament.status !== 'in_progress' && tournament.status !== 'completed') return null;
-
-    return (
-        <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-                <Button variant="destructive" size="sm" className="w-full justify-start"><History className="mr-2" /> Force Replay All Pending</Button>
-            </DialogTrigger>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Force Replay All Problematic Matches?</DialogTitle>
-                    <DialogDescription>
-                        This will find all matches that are stuck (e.g., disputed, unconfirmed, or automatically forfeited) and schedule a new match for them. Use this to resolve widespread issues. This action is final.
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="py-4 space-y-2">
-                    <Label htmlFor="reason">Reason for mass replay</Label>
-                    <Textarea
-                        id="reason"
-                        placeholder="e.g., Clearing all stuck matches for the end of the round."
-                        value={reason}
-                        onChange={(e) => setReason(e.target.value)}
-                    />
-                </div>
-                <DialogFooter>
-                    <Button variant="destructive" onClick={handleForceReplayAll} disabled={isSubmitting}>
-                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                        Confirm & Order Replays
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-    )
-}
+    
 
     
 
     
 
     
+
 
