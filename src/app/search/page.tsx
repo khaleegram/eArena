@@ -10,6 +10,8 @@ import { Loader2, Search as SearchIcon, Trophy, User } from 'lucide-react';
 import { ReputationAvatar } from '@/components/reputation-avatar';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { AchievementIcons } from '@/components/achievement-icons';
+import { Badge } from '@/components/ui/badge';
 
 function UserResultCard({ user }: { user: UserProfile }) {
     return (
@@ -18,8 +20,11 @@ function UserResultCard({ user }: { user: UserProfile }) {
                 <div className="flex items-center gap-4">
                     <ReputationAvatar profile={user} className="w-16 h-16" />
                     <div>
-                        <CardTitle>{user.username}</CardTitle>
-                        <CardDescription>{user.email}</CardDescription>
+                        <div className="flex items-center gap-2">
+                            <CardTitle>{user.username}</CardTitle>
+                            <AchievementIcons profile={user} />
+                        </div>
+                        {user.activeTitle && <Badge variant="outline" className="text-xs w-fit mt-1">{user.activeTitle}</Badge>}
                     </div>
                 </div>
             </CardHeader>
