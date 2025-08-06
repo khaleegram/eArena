@@ -19,13 +19,13 @@ const TeamStatsSchema = z.object({
   saves: z.number().optional(),
 });
 
-export const GenerateMatchSummaryInputSchema = z.object({
+const GenerateMatchSummaryInputSchema = z.object({
   homeTeam: TeamStatsSchema,
   awayTeam: TeamStatsSchema,
 });
 export type GenerateMatchSummaryInput = z.infer<typeof GenerateMatchSummaryInputSchema>;
 
-export const GenerateMatchSummaryOutputSchema = z.object({
+const GenerateMatchSummaryOutputSchema = z.object({
   summary: z.string().describe("A 2-3 sentence summary of the match written in the style of a sports journalist, highlighting key moments or standout stats."),
 });
 export type GenerateMatchSummaryOutput = z.infer<typeof GenerateMatchSummaryOutputSchema>;
