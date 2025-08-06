@@ -5,7 +5,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
-import { Trophy, LogOut, UserCircle, LayoutDashboard, BarChart, Shield, MessageSquare, Search } from 'lucide-react';
+import { Trophy, LogOut, UserCircle, LayoutDashboard, BarChart, Shield, MessageSquare, Search, Clapperboard } from 'lucide-react';
 
 import { Button } from './ui/button';
 import { Skeleton } from './ui/skeleton';
@@ -47,6 +47,13 @@ export function Header() {
         <nav className="flex flex-1 items-center space-x-4">
            <Link href="/tournaments" className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary">
             Browse
+          </Link>
+          <Link href="/live" className="relative text-sm font-medium text-muted-foreground transition-colors hover:text-primary">
+            Live
+            <span className="absolute -right-2 -top-1 flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-red-600"></span>
+            </span>
           </Link>
           <Link href="/highlights" className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary">
             Highlights

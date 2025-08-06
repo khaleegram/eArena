@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useForm } from 'react-hook-form';
@@ -28,6 +27,7 @@ import { FollowersDialog } from '@/components/followers-dialog';
 import { BankDetailsForm } from '@/components/bank-details-form';
 import { PushNotificationManager } from '@/components/push-notification-manager';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { AchievementIcons } from '@/components/achievement-icons';
 
 const profileSchema = z.object({
   username: z.string().min(3, { message: "Username must be at least 3 characters." }).max(20),
@@ -201,6 +201,7 @@ export default function ProfilePage() {
                         <Badge variant="outline" className="text-sm font-bold text-amber-400 border-amber-400/50">{userProfile.activeTitle}</Badge>
                     )}
                 </div>
+                 <AchievementIcons profile={userProfile} />
                 <CardDescription>{userProfile.email}</CardDescription>
             </CardHeader>
                 <CardContent className="flex flex-col items-center text-center gap-4">

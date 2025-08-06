@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -12,6 +11,7 @@ import { Loader2, Trophy, ShieldCheck, Target, HeartHandshake } from 'lucide-rea
 import { ReputationAvatar } from '@/components/reputation-avatar';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
+import { AchievementIcons } from '@/components/achievement-icons';
 
 type LeaderboardCategory = 'wins' | 'trophies' | 'goals' | 'reputation';
 type LeaderboardData = (UserProfile & Partial<PlayerStats>)[];
@@ -77,7 +77,10 @@ const LeaderboardTable = ({ data, isLoading, statKey, statLabel, category }: { d
                             <Link href={`/profile/${player.uid}`} className="flex items-center gap-3 hover:underline">
                                 <ReputationAvatar profile={player} />
                                 <div className="flex flex-col">
-                                  <span className="font-medium">{player.username}</span>
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-medium">{player.username}</span>
+                                        <AchievementIcons profile={player} />
+                                    </div>
                                   {player.activeTitle && <Badge variant="outline" className="text-xs w-fit">{player.activeTitle}</Badge>}
                                 </div>
                             </Link>
