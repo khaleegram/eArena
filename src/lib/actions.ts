@@ -4,8 +4,8 @@
 
 import { adminDb, adminAuth } from './firebase-admin';
 import type { Timestamp as FirebaseAdminTimestamp } from 'firebase-admin/firestore';
-import { Timestamp, FieldValue, FieldPath } from 'firebase-admin/firestore';
-import type { Tournament, UserProfile, Team, Match, Standing, TournamentFormat, Player, MatchReport, Notification, RewardDetails, TeamMatchStats, MatchStatus, UnifiedTimestamp, PlayerStats, TournamentPerformancePoint, Highlight, Article, UserMembership, ReplayRequest, EarnedAchievement, PlayerTitle, PlatformSettings, Conversation, ChatMessage, PlayerRole, PushSubscription, TournamentAward, BankDetails, PrizeAllocation, Transaction, DisputedMatchInfo, PrizeDistributionItem } from './types';
+import { Timestamp, FieldValue, FieldPath, getDocs, collection, query, where, orderBy, doc } from 'firebase-admin/firestore';
+import type { Tournament, UserProfile, Team, Match, Standing, TournamentFormat, Player, MatchReport, Notification, RewardDetails, TeamMatchStats, MatchStatus, UnifiedTimestamp, PlayerStats, TournamentPerformancePoint, Highlight, Article, UserMembership, ReplayRequest, EarnedAchievement, PlayerTitle, PlatformSettings, Conversation, ChatMessage, PlayerRole, PushSubscription, TournamentAward, BankDetails, PrizeAllocation, Transaction, DisputedMatchInfo, Badge, TournamentStatus } from './types';
 import { revalidatePath } from 'next/cache';
 import { verifyMatchScores, type VerifyMatchScoresInput, type VerifyMatchScoresOutput } from '@/ai/flows/verify-match-scores';
 import { getStorage } from 'firebase-admin/storage';
@@ -16,6 +16,7 @@ import { generateMatchSummary, type GenerateMatchSummaryInput } from '@/ai/flows
 import { allAchievements } from './achievements';
 import { sendEmail } from './email';
 import webpush from 'web-push';
+import { toDate } from './utils';
 
 if (process.env.VAPID_PRIVATE_KEY && process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) {
     webpush.setVapidDetails(
@@ -458,15 +459,15 @@ export async function createTournament(data: Omit<Tournament, 'id' | 'organizerU
 
 async function deleteCollection(collectionPath: string, batchSize: number) {
   const collectionRef = adminDb.collection(collectionPath);
-  const query = collectionRef.orderBy('__name__').limit(batchSize);
+  const q = collectionRef.orderBy('__name__').limit(batchSize);
 
   return new Promise((resolve, reject) => {
-    deleteQueryBatch(query, resolve).catch(reject);
+    deleteQueryBatch(q, resolve).catch(reject);
   });
 }
 
-async function deleteQueryBatch(query: FirebaseFirestore.Query, resolve: (value?: unknown) => void) {
-  const snapshot = await query.get();
+async function deleteQueryBatch(q: FirebaseFirestore.Query, resolve: (value?: unknown) => void) {
+  const snapshot = await q.get();
 
   const batchSize = snapshot.size;
   if (batchSize === 0) {
@@ -481,7 +482,7 @@ async function deleteQueryBatch(query: FirebaseFirestore.Query, resolve: (value?
   await batch.commit();
 
   process.nextTick(() => {
-    deleteQueryBatch(query, resolve);
+    deleteQueryBatch(q, resolve);
   });
 }
 
@@ -1111,11 +1112,11 @@ export async function submitSecondaryEvidence(tournamentId: string, matchId: str
     // Wait for the second report before triggering verification
     if (updatedMatchData.homeTeamSecondaryReport && updatedMatchData.awayTeamSecondaryReport) {
         try {
-            const result = await triggerAIVerification(tournamentId, doc.id);
-            await handleAIVerificationResult(tournamentId, doc.id, result);
+            const result = await triggerAIVerification(tournamentId, matchId);
+            await handleAIVerificationResult(tournamentId, matchId, result);
         } catch (error: any) {
-            console.error(`AI Verification failed for match ${doc.id}:`, error);
-            await doc.ref.update({ status: 'disputed', resolutionNotes: `AI verification failed: ${error.message}`});
+            console.error(`AI Verification failed for match ${matchId}:`, error);
+            await matchRef.update({ status: 'disputed', resolutionNotes: `AI verification failed: ${error.message}`});
         }
     }
 
@@ -3469,23 +3470,21 @@ export async function retryPayout(transactionId: string): Promise<{ success: boo
 export async function adminGetAllDisputedMatches(): Promise<DisputedMatchInfo[]> {
     // This function is rewritten to avoid collection group queries which require manual index creation.
     // Instead, we iterate through active tournaments and query their subcollections.
-    const activeTournamentsSnapshot = await adminDb.collection('tournaments')
-        .where('status', 'in', ['in_progress', 'completed']) // Only check tournaments that could have disputes
-        .get();
+    const activeTournamentsSnapshot = await getDocs(query(collection(adminDb, 'tournaments'), where('status', 'in', ['in_progress', 'completed'])));
 
     const allProblemMatches: Match[] = [];
     const seenMatchIds = new Set<string>();
 
     for (const tournamentDoc of activeTournamentsSnapshot.docs) {
-        const matchesRef = tournamentDoc.ref.collection('matches');
+        const matchesRef = collection(tournamentDoc.ref, 'matches');
 
-        const disputedMatchesSnapshot = await matchesRef
-            .where('status', 'in', ['disputed', 'needs_secondary_evidence'])
-            .get();
+        const disputedMatchesSnapshot = await getDocs(query(matchesRef,
+            where('status', 'in', ['disputed', 'needs_secondary_evidence'])
+        ));
 
-        const replayRequestSnapshot = await matchesRef
-            .where('replayRequest.status', 'in', ['pending', 'accepted'])
-            .get();
+        const replayRequestSnapshot = await getDocs(query(matchesRef,
+            where('replayRequest.status', 'in', ['pending', 'accepted'])
+        ));
 
         const processSnapshot = (snapshot: FirebaseFirestore.QuerySnapshot) => {
             snapshot.docs.forEach(doc => {
@@ -3591,7 +3590,162 @@ export async function forfeitMatch(tournamentId: string, matchId: string, forfei
     revalidatePath(`/tournaments/${tournamentId}`);
 }
 
+export async function getTeamsForTournament(tournamentId: string): Promise<Team[]> {
+    const snapshot = await adminDb.collection('tournaments').doc(tournamentId).collection('teams').get();
+    return snapshot.docs.map(doc => ({ id: doc.id, ...serializeData(doc.data()) } as Team));
+}
 
+export async function getStandingsForTournament(tournamentId: string): Promise<Standing[]> {
+    const snapshot = await adminDb.collection('standings').where('tournamentId', '==', tournamentId).orderBy('ranking', 'asc').get();
+    return snapshot.docs.map(doc => serializeData(doc.data()) as Standing);
+}
 
+export async function getLiveMatches(): Promise<{ match: Match; homeTeam: Team; awayTeam: Team; }[]> {
+    try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(today.getDate() + 1);
 
+        const matchesSnapshot = await adminDb.collectionGroup('matches')
+            .where('matchDay', '>=', today)
+            .where('matchDay', '<', tomorrow)
+            .where('status', '==', 'scheduled')
+            .get();
 
+        if (matchesSnapshot.empty) {
+            return [];
+        }
+
+        const liveMatches: { match: Match; homeTeam: Team; awayTeam: Team; }[] = [];
+
+        for (const doc of matchesSnapshot.docs) {
+            const match = doc.data() as Match;
+            if (match.streamLinks && Object.keys(match.streamLinks).length > 0) {
+                 const tournamentDoc = await adminDb.collection('tournaments').doc(match.tournamentId).get();
+                 if (!tournamentDoc.exists) continue;
+
+                 const homeTeamDoc = await adminDb.collection('tournaments').doc(match.tournamentId).collection('teams').doc(match.homeTeamId).get();
+                 const awayTeamDoc = await adminDb.collection('tournaments').doc(match.tournamentId).collection('teams').doc(match.awayTeamId).get();
+
+                 if (homeTeamDoc.exists && awayTeamDoc.exists) {
+                    liveMatches.push({
+                        match: {id: doc.id, ...match},
+                        homeTeam: {id: homeTeamDoc.id, ...homeTeamDoc.data()} as Team,
+                        awayTeam: {id: awayTeamDoc.id, ...awayTeamDoc.data()} as Team,
+                    });
+                 }
+            }
+        }
+        
+        return serializeData(liveMatches);
+
+    } catch (error: any) {
+         if (error.code === 9) { // FAILED_PRECONDITION, indicates missing index
+            console.warn(
+                `[eArena] Firestore index missing for live matches. Please create the required index in your Firebase console for the 'matches' collection group. The app will function, but the live page will be empty. Required Index: status ASC, matchDay ASC`
+            );
+            return [];
+        }
+        console.error("Error fetching live matches:", error);
+        throw new Error("Could not fetch live matches.");
+    }
+}
+
+export async function exportStandingsToCSV(tournamentId: string): Promise<{ csv: string, filename: string }> {
+    const tournamentDoc = await adminDb.collection('tournaments').doc(tournamentId).get();
+    if (!tournamentDoc.exists) {
+        throw new Error("Tournament not found");
+    }
+    const tournament = tournamentDoc.data() as Tournament;
+
+    const standings = await getStandingsForTournament(tournamentId);
+    const teams = await getTeamsForTournament(tournamentId);
+
+    if (standings.length === 0) {
+        throw new Error("No standings available to export.");
+    }
+
+    const teamsMap = new Map(teams.map(team => [team.id, team]));
+
+    const headers = ["Rank", "Team", "MP", "W", "D", "L", "GF", "GA", "GD", "CS", "Pts"];
+    const rows = standings.map(s => {
+        const teamName = teamsMap.get(s.teamId)?.name || 'Unknown Team';
+        const gd = s.goalsFor - s.goalsAgainst;
+        return [
+            s.ranking,
+            `"${teamName.replace(/"/g, '""')}"`, // escape double quotes
+            s.matchesPlayed,
+            s.wins,
+            s.draws,
+            s.losses,
+            s.goalsFor,
+            s.goalsAgainst,
+            gd,
+            s.cleanSheets,
+            s.points,
+        ].join(',');
+    });
+
+    const csv = [headers.join(','), ...rows].join('\n');
+    const filename = `${tournament.name.replace(/ /g, '_')}_standings.csv`;
+    
+    return { csv, filename };
+}
+
+export async function findUsersByUsername(query: string): Promise<UserProfile[]> {
+    if (!query || !query.trim()) {
+        return [];
+    }
+    const usersRef = adminDb.collection('users');
+    const searchTerm = query.trim().toLowerCase();
+    
+    // Query by lowercase username
+    const usernameQuery = usersRef
+        .orderBy('username_lowercase')
+        .startAt(searchTerm)
+        .endAt(searchTerm + '\uf8ff')
+        .limit(10)
+        .get();
+
+    // Query by email
+    const emailQuery = usersRef
+        .orderBy('email')
+        .startAt(searchTerm)
+        .endAt(searchTerm + '\uf8ff')
+        .limit(10)
+        .get();
+        
+    const [usernameSnapshot, emailSnapshot] = await Promise.all([usernameQuery, emailQuery]);
+    
+    const resultsMap = new Map<string, UserProfile>();
+
+    usernameSnapshot.docs.forEach(doc => {
+        resultsMap.set(doc.id, {uid: doc.id, ...doc.data()} as UserProfile);
+    });
+
+    emailSnapshot.docs.forEach(doc => {
+        if (!resultsMap.has(doc.id)) {
+            resultsMap.set(doc.id, {uid: doc.id, ...doc.data()} as UserProfile);
+        }
+    });
+
+    return serializeData(Array.from(resultsMap.values()));
+}
+
+export async function savePushSubscription(userId: string, subscription: PushSubscription) {
+    if (!userId || !subscription) {
+        throw new Error('User ID and subscription are required.');
+    }
+    const subscriptionRef = adminDb.collection('users').doc(userId).collection('pushSubscriptions').doc(subscription.endpoint.substring(subscription.endpoint.lastIndexOf('/') + 1));
+    await subscriptionRef.set(subscription);
+}
+
+export async function deletePushSubscription(userId: string, endpoint: string) {
+    if (!userId || !endpoint) {
+        throw new Error('User ID and endpoint are required.');
+    }
+    const subscriptionId = endpoint.substring(endpoint.lastIndexOf('/') + 1);
+    const subscriptionRef = adminDb.collection('users').doc(userId).collection('pushSubscriptions').doc(subscriptionId);
+    await subscriptionRef.delete();
+}

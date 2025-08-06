@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { exportStandingsToCSV } from '@/lib/actions/tournament';
+import { exportStandingsToCSV } from '@/lib/actions';
 import { Loader2, Download } from 'lucide-react';
 
 export function ExportStandingsButton({ tournamentId }: { tournamentId: string }) {
