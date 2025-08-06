@@ -7,7 +7,7 @@ import { db } from "@/lib/firebase";
 import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 import type { Match, Team, MatchStatus, MatchReport, TeamMatchStats, UnifiedTimestamp, ReplayRequest, Tournament } from "@/lib/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, CheckCircle, Clock, AlertTriangle, User, MessageSquareQuote, FileText, BarChartHorizontal, Video, Tv, Sparkles, History, Send, Timer } from "lucide-react";
+import { Loader2, CheckCircle, Clock, AlertTriangle, User, MessageSquareQuote, FileText, BarChartHorizontal, Video, Tv, Sparkles, History, Send, Timer, Hourglass, Bot } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
@@ -25,6 +25,7 @@ import { format, isPast, endOfDay } from "date-fns";
 import { useAuth } from "@/hooks/use-auth";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../components/ui/select";
+import { Bracket } from "@/components/bracket";
 
 const toDate = (timestamp: UnifiedTimestamp): Date => {
     if (typeof timestamp === 'string') {
@@ -474,6 +475,8 @@ export function FixturesTab({ tournament, isOrganizer }: { tournament: Tournamen
     }, [tournament.id]);
     
     const getTeam = (teamId: string) => teams.find(t => t.id === teamId);
+
+    const isBracketFormat = ['cup', 'champions-league', 'double-elimination'].includes(tournament.format);
     
     const groupedMatches = matches.reduce((acc, match) => {
         const round = match.round || 'Uncategorized';
@@ -493,6 +496,8 @@ export function FixturesTab({ tournament, isOrganizer }: { tournament: Tournamen
                     <div className="flex justify-center items-center h-40"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
                 ) : matches.length === 0 ? (
                     <p className="text-muted-foreground text-center py-8">Fixtures have not been generated yet.</p>
+                ) : isBracketFormat ? (
+                    <Bracket matches={matches} teams={teams} />
                 ) : (
                     <div className="space-y-6">
                         {Object.entries(groupedMatches).map(([round, roundMatches]) => (
@@ -634,5 +639,3 @@ function MatchListItem({ match, getTeam, isOrganizer, tournament }: { match: Mat
         </div>
     )
 }
-
-    

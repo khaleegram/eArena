@@ -94,3 +94,24 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Bracket Styles */
+@layer components {
+  .bracket-connector {
+    @apply relative w-8;
+  }
+  .bracket-connector::before {
+    @apply content-[''] absolute bg-border h-full top-0 w-px;
+  }
+  .bracket-connector::after {
+    @apply content-[''] absolute bg-border h-px w-full top-1/2;
+  }
+
+  .bracket-connector-top::before {
+    @apply top-1/2;
+  }
+
+  .bracket-connector-bottom::before {
+    @apply bottom-1/2;
+  }
+}
