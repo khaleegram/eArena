@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -9,8 +8,9 @@ import { collection, onSnapshot, query, where, orderBy } from "firebase/firestor
 import type { Standing, Team } from "@/lib/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, Trophy } from "lucide-react";
+import { Loader2, Trophy, ExternalLink } from "lucide-react";
 import { ReputationAvatar } from "@/components/reputation-avatar";
+import { Button } from "@/components/ui/button";
 
 export function StandingsTab({ tournamentId }: { tournamentId: string }) {
   const [standings, setStandings] = useState<Standing[]>([]);
@@ -65,9 +65,17 @@ export function StandingsTab({ tournamentId }: { tournamentId: string }) {
   
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="font-headline flex items-center gap-2"><Trophy className="w-5 h-5"/> Tournament Standings</CardTitle>
-        <CardDescription>Live rankings based on approved match results.</CardDescription>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+            <CardTitle className="font-headline flex items-center gap-2"><Trophy className="w-5 h-5"/> Tournament Standings</CardTitle>
+            <CardDescription>Live rankings based on approved match results.</CardDescription>
+        </div>
+        <Button asChild variant="outline" size="sm">
+            <Link href={`/tournaments/${tournamentId}/standings`} target="_blank">
+                <ExternalLink className="mr-2 h-4 w-4"/>
+                Shareable View
+            </Link>
+        </Button>
       </CardHeader>
       <CardContent>
         {loading ? (
