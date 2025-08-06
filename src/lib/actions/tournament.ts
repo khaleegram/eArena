@@ -46,8 +46,8 @@ export async function getLiveMatches(): Promise<{ match: Match; homeTeam: Team; 
                  if (homeTeamDoc.exists && awayTeamDoc.exists) {
                     liveMatches.push({
                         match: {id: doc.id, ...match},
-                        homeTeam: homeTeamDoc.data() as Team,
-                        awayTeam: awayTeamDoc.data() as Team,
+                        homeTeam: {id: homeTeamDoc.id, ...homeTeamDoc.data()} as Team,
+                        awayTeam: {id: awayTeamDoc.id, ...awayTeamDoc.data()} as Team,
                     });
                  }
             }
@@ -68,10 +68,11 @@ export async function getLiveMatches(): Promise<{ match: Match; homeTeam: Team; 
 }
 
 export async function exportStandingsToCSV(tournamentId: string): Promise<{ csv: string, filename: string }> {
-    const tournament = (await adminDb.collection('tournaments').doc(tournamentId).get()).data();
-    if (!tournament) {
+    const tournamentDoc = await adminDb.collection('tournaments').doc(tournamentId).get();
+    if (!tournamentDoc.exists) {
         throw new Error("Tournament not found");
     }
+    const tournament = tournamentDoc.data() as Tournament;
 
     const standings = await getStandingsForTournament(tournamentId);
     const teams = await getTeamsForTournament(tournamentId);
@@ -106,4 +107,3 @@ export async function exportStandingsToCSV(tournamentId: string): Promise<{ csv:
     
     return { csv, filename };
 }
-
