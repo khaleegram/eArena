@@ -24,13 +24,20 @@ export interface BankDetails {
     confirmedForPayout?: boolean;
 }
 
+export interface Badge {
+    tournamentName: string;
+    tournamentId: string;
+    rank: number; // 1, 2, or 3
+    date: UnifiedTimestamp;
+}
+
 export interface UserProfile {
   uid: string;
   email: string | null;
   username?: string;
   username_lowercase?: string;
   photoURL?: string;
-  badges?: any[];
+  badges?: Badge[];
   warnings?: number;
   incidentLog?: {
     reason: string;

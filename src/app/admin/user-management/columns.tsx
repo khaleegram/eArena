@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import { ColumnDef } from "@tanstack/react-table"
@@ -19,6 +20,7 @@ import Link from "next/link"
 import { useTransition } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { adminUpdateUser } from "@/lib/actions"
+import { AchievementIcons } from "@/components/achievement-icons"
 
 
 const ActionsCell = ({ row }: { row: { original: UserProfile }}) => {
@@ -74,7 +76,13 @@ export const columns: ColumnDef<UserProfile>[] = [
         return (
             <div className="flex items-center gap-2">
                 <ReputationAvatar profile={user} />
-                <span className="font-medium">{user.username}</span>
+                <div className="flex flex-col">
+                    <span className="font-medium">{user.username}</span>
+                    <div className="flex items-center gap-1.5">
+                        {user.activeTitle && <Badge variant="outline" className="text-xs">{user.activeTitle}</Badge>}
+                        <AchievementIcons profile={user} />
+                    </div>
+                </div>
             </div>
         )
     }

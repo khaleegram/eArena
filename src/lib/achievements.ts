@@ -37,7 +37,7 @@ export const allAchievements: Achievement[] = [
       { name: 'Diamond', value: 50, description: 'Win 50 tournaments' },
       { name: 'Legendary', value: 100, description: 'Win 100 tournaments', title: 'eArena Legend' },
     ],
-    evaluator: (profile) => profile.badges?.filter((b: any) => b.rank === 1).length || 0,
+    evaluator: (profile) => profile.tournamentsWon || 0,
   },
   // Participation & Consistency
   {

@@ -13,10 +13,7 @@ import { Trophy, Gamepad2, Target, Shield, ShieldQuestion } from 'lucide-react';
 
 
 const iconMap: { [key: string]: React.ElementType } = {
-  Trophy,
-  Gamepad2,
-  Target,
-  Shield,
+  ...LucideIcons
 };
 
 
