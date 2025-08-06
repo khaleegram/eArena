@@ -229,6 +229,7 @@ export interface Match {
   replayRequest?: ReplayRequest;
   isReplay?: boolean;
   deadlineExtended?: boolean;
+  summary?: string;
 }
 
 export interface Highlight {

@@ -606,6 +606,16 @@ function MatchListItem({ match, getTeam, isOrganizer, tournament }: { match: Mat
                     <OrganizerApproveReplayButton match={match} organizerId={user.uid} />
                 )}
             </div>
+            
+            {match.summary && (
+                 <Alert variant="default" className="text-xs p-3 w-full bg-muted/50">
+                    <Bot className="h-4 w-4" />
+                    <AlertTitle className="font-semibold">AI Match Summary</AlertTitle>
+                    <AlertDescription>
+                        {match.summary}
+                    </AlertDescription>
+                </Alert>
+            )}
 
             {match.resolutionNotes && (
                 <Alert variant="default" className="text-xs p-3 w-full">

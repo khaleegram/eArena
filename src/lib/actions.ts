@@ -1,7 +1,5 @@
 
 
-
-
 'use server';
 
 import { adminDb, adminAuth } from './firebase-admin';
@@ -14,6 +12,7 @@ import { getStorage } from 'firebase-admin/storage';
 import { addHours, differenceInDays, isBefore, format, addDays, startOfDay, endOfDay, isPast, isToday, isAfter, subDays, startOfMonth, endOfMonth, eachMonthOfInterval, formatISO } from 'date-fns';
 import { analyzePlayerPerformance, type PlayerPerformanceInput } from '@/ai/flows/analyze-player-performance';
 import { predictMatchWinner, type PredictWinnerInput } from '@/ai/flows/predict-match-winner';
+import { generateMatchSummary, type GenerateMatchSummaryInput } from '@/ai/flows/generate-match-summary';
 import { allAchievements } from './achievements';
 import { sendEmail } from './email';
 import webpush from 'web-push';
@@ -1300,6 +1299,37 @@ export async function approveMatchResult(tournamentId: string, matchId: string, 
       updateData.highlightUrl = highlightUrl;
     }
     
+    // Call the summary generation flow
+    try {
+        const homeTeamDoc = await adminDb.collection('tournaments').doc(tournamentId).collection('teams').doc(matchData.homeTeamId).get();
+        const awayTeamDoc = await adminDb.collection('tournaments').doc(tournamentId).collection('teams').doc(matchData.awayTeamId).get();
+
+        if (homeTeamDoc.exists && awayTeamDoc.exists) {
+            const summaryInput: GenerateMatchSummaryInput = {
+                homeTeam: {
+                    name: homeTeamDoc.data()!.name,
+                    score: homeScore,
+                    shotsOnTarget: homeStats?.shotsOnTarget,
+                    possession: homeStats?.possession,
+                    saves: homeStats?.saves
+                },
+                awayTeam: {
+                    name: awayTeamDoc.data()!.name,
+                    score: awayScore,
+                    shotsOnTarget: awayStats?.shotsOnTarget,
+                    possession: awayStats?.possession,
+                    saves: awayStats?.saves
+                }
+            };
+            const summaryResult = await generateMatchSummary(summaryInput);
+            updateData.summary = summaryResult.summary;
+        }
+    } catch (e) {
+        console.error("AI Match Summary generation failed:", e);
+        // Do not block match approval if summary fails
+    }
+
+
     batch.update(matchRef, updateData);
     
     await batch.commit();
@@ -3560,6 +3590,7 @@ export async function forfeitMatch(tournamentId: string, matchId: string, forfei
 
     revalidatePath(`/tournaments/${tournamentId}`);
 }
+
 
 
 
