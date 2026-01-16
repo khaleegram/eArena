@@ -21,9 +21,24 @@ export function Bracket({ matches, teams }: BracketProps) {
 
     const getTeam = (teamId: string) => teams.find(t => t.id === teamId);
 
-    const roundKeys = Object.keys(rounds).sort((a,b) => {
-        // Simple sort for now, can be improved for "Final", "Semi-Final" etc.
-        return a.localeCompare(b, undefined, { numeric: true });
+    // Sort rounds in proper tournament progression order
+    const roundOrder = ['Final', 'Semi-finals', 'Quarter-finals'];
+    const getRoundOrder = (round: string): number => {
+        // Extract number from "Round of X"
+        const match = round.match(/Round of (\d+)/);
+        if (match) {
+            return parseInt(match[1], 10); // Higher number = earlier round
+        }
+        // Check for named rounds
+        const index = roundOrder.indexOf(round);
+        if (index !== -1) {
+            return 1000 - index; // Final = 1000, Semi-finals = 999, etc.
+        }
+        return 0; // Unknown rounds go first
+    };
+    
+    const roundKeys = Object.keys(rounds).sort((a, b) => {
+        return getRoundOrder(b) - getRoundOrder(a); // Descending: Round of 16 -> Round of 8 -> Semi-finals -> Final
     });
 
     return (

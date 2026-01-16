@@ -9,7 +9,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { createTournament } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 import { addDays, format, startOfDay } from 'date-fns';
-import { Calendar as CalendarIcon, Loader2, Sparkles, Trophy, Info, Users, CalendarDays, Settings, Award, Send, CreditCard, Repeat } from 'lucide-react';
+import { Calendar as CalendarIcon, Loader2, Sparkles, Trophy, Info, Users, CalendarDays, Settings, Award, Send, CreditCard, Repeat, HelpCircle } from 'lucide-react';
 import * as React from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -24,13 +24,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import type { TournamentFormat } from '@/lib/types';
 import { Switch } from '@/components/ui/switch';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const formatOptions: Record<TournamentFormat, number[]> = {
     league: [4, 6, 8, 10, 12, 14, 16, 18, 20],
     cup: [8, 16, 32],
-    'champions-league': [16, 32],
-    'double-elimination': [8, 16, 32],
-    swiss: [8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32],
 };
 
 type SchedulingPreset = 'custom' | '1-day-cup' | 'weekend-knockout' | 'week-long-league' | '1-day-league-blitz';
@@ -38,9 +36,7 @@ type SchedulingPreset = 'custom' | '1-day-cup' | 'weekend-knockout' | 'week-long
 const tournamentSchema = z.object({
   name: z.string().min(3, { message: "Tournament name must be at least 3 characters." }),
   description: z.string().min(10, { message: "Description must be at least 10 characters." }),
-  game: z.string().min(1, { message: "Please specify the game." }),
-  platform: z.string().min(1, { message: "Please select a platform." }),
-  format: z.enum(['league', 'cup', 'champions-league', 'double-elimination', 'swiss']),
+  format: z.enum(['league', 'cup']),
   registrationDates: z.object({
     from: z.date({ required_error: "Registration start date is required." }),
     to: z.date({ required_error: "Registration end date is required." }),
@@ -57,7 +53,6 @@ const tournamentSchema = z.object({
   substitutions: z.coerce.number().int().min(0, "Number of substitutions cannot be negative."),
   extraTime: z.boolean().default(false),
   penalties: z.boolean().default(false),
-  injuries: z.boolean().default(false),
   homeAndAway: z.boolean().default(false),
   squadRestrictions: z.string().optional(),
   
@@ -102,8 +97,6 @@ export default function CreateTournamentPage() {
     defaultValues: {
       name: '',
       description: '',
-      game: 'eFootball 2024',
-      platform: 'PS5',
       format: 'league',
       schedulingPreset: 'custom',
       registrationDates: {
@@ -122,7 +115,6 @@ export default function CreateTournamentPage() {
       substitutions: 5,
       extraTime: false,
       penalties: false,
-      injuries: false,
       homeAndAway: false,
       squadRestrictions: 'No specific squad restrictions.',
       rewardType: 'virtual',
@@ -270,46 +262,6 @@ export default function CreateTournamentPage() {
                      <div className="grid md:grid-cols-2 gap-6">
                         <FormField
                             control={form.control}
-                            name="game"
-                            render={({ field }) => (
-                                <FormItem>
-                                <FormLabel>Game</FormLabel>
-                                <FormControl>
-                                    <Input {...field} />
-                                </FormControl>
-                                <FormDescription>e.g., eFootball 2025</FormDescription>
-                                <FormMessage />
-                                </FormItem>
-                            )}
-                            />
-                        <FormField
-                            control={form.control}
-                            name="platform"
-                            render={({ field }) => (
-                                <FormItem>
-                                <FormLabel>Platform</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                    <FormControl>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select a platform" />
-                                    </SelectTrigger>
-                                    </FormControl>
-                                    <SelectContent>
-                                    <SelectItem value="PS5">PlayStation 5</SelectItem>
-                                    <SelectItem value="PS4">PlayStation 4</SelectItem>
-                                    <SelectItem value="XBOX">Xbox</SelectItem>
-                                    <SelectItem value="PC">PC (Steam)</SelectItem>
-                                    <SelectItem value="Mobile">Mobile</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                                <FormMessage />
-                                </FormItem>
-                            )}
-                            />
-                     </div>
-                     <div className="grid md:grid-cols-2 gap-6">
-                        <FormField
-                            control={form.control}
                             name="format"
                             render={({ field }) => (
                             <FormItem>
@@ -323,9 +275,6 @@ export default function CreateTournamentPage() {
                                 <SelectContent>
                                     <SelectItem value="league">League (Round-Robin)</SelectItem>
                                     <SelectItem value="cup">Cup (Groups + Knockout)</SelectItem>
-                                    <SelectItem value="champions-league">UCL Style (Groups + Knockout)</SelectItem>
-                                    <SelectItem value="double-elimination">Double Elimination</SelectItem>
-                                    <SelectItem value="swiss">Swiss</SelectItem>
                                 </SelectContent>
                                 </Select>
                                 <FormDescription>Choose the structure of your competition.</FormDescription>
@@ -469,24 +418,189 @@ export default function CreateTournamentPage() {
             <Card>
                  <CardHeader>
                     <CardTitle className="flex items-center gap-2"><Settings className="h-5 w-5"/> Step 3: Rules &amp; Rewards</CardTitle>
-                    <CardDescription>Configure match settings, custom rules, and prize information.</CardDescription>
+                    <CardDescription>Configure match settings and prize information.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                     <div className="space-y-2">
-                        <h3 className="font-medium">Match Settings</h3>
-                        <div className="grid md:grid-cols-2 gap-6">
-                            <FormField control={form.control} name="matchLength" render={({ field }) => (<FormItem><FormLabel>Match Length (min)</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                            <FormField control={form.control} name="substitutions" render={({ field }) => (<FormItem><FormLabel>Substitutions</FormLabel><Select onValueChange={(v) => field.onChange(Number(v))} defaultValue={String(field.value)}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="3">3</SelectItem><SelectItem value="5">5</SelectItem><SelectItem value="7">7</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+                        <div className="flex items-center gap-2">
+                            <h3 className="font-medium">Match Settings</h3>
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p className="max-w-xs">These settings apply to all matches in your tournament.</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
                         </div>
-                        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
-                            <FormField control={form.control} name="extraTime" render={({ field }) => (<FormItem className="flex items-center justify-between rounded-lg border p-3"><FormLabel>Extra Time</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
-                            <FormField control={form.control} name="penalties" render={({ field }) => (<FormItem className="flex items-center justify-between rounded-lg border p-3"><FormLabel>Penalties</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
-                            <FormField control={form.control} name="injuries" render={({ field }) => (<FormItem className="flex items-center justify-between rounded-lg border p-3"><FormLabel>Injuries</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
-                            <FormField control={form.control} name="homeAndAway" render={({ field }) => (<FormItem className="flex items-center justify-between rounded-lg border p-3"><FormLabel>Home/Away</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+                        <div className="grid md:grid-cols-2 gap-6">
+                            <FormField 
+                                control={form.control} 
+                                name="matchLength" 
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <div className="flex items-center gap-2">
+                                            <FormLabel>Match Length (minutes)</FormLabel>
+                                            <TooltipProvider>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" />
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        <p>Standard eFootball matches are 6 minutes. You can customize this.</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                        </div>
+                                        <FormControl>
+                                            <Input type="number" {...field} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )} 
+                            />
+                            <FormField 
+                                control={form.control} 
+                                name="substitutions" 
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Substitutions</FormLabel>
+                                        <Select onValueChange={(v) => field.onChange(Number(v))} defaultValue={String(field.value)}>
+                                            <FormControl>
+                                                <SelectTrigger>
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="3">3</SelectItem>
+                                                <SelectItem value="5">5</SelectItem>
+                                                <SelectItem value="7">7</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )} 
+                            />
+                        </div>
+                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
+                            <FormField 
+                                control={form.control} 
+                                name="extraTime" 
+                                render={({ field }) => (
+                                    <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                                        <div className="flex items-center gap-2">
+                                            <FormLabel>Extra Time</FormLabel>
+                                            <TooltipProvider>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" />
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        <p>If enabled, matches can go to extra time if tied after regulation.</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                        </div>
+                                        <FormControl>
+                                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                        </FormControl>
+                                    </FormItem>
+                                )} 
+                            />
+                            <FormField 
+                                control={form.control} 
+                                name="penalties" 
+                                render={({ field }) => (
+                                    <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                                        <div className="flex items-center gap-2">
+                                            <FormLabel>Penalties</FormLabel>
+                                            <TooltipProvider>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" />
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        <p>If enabled, matches can go to penalty shootout if still tied after extra time.</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                        </div>
+                                        <FormControl>
+                                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                        </FormControl>
+                                    </FormItem>
+                                )} 
+                            />
+                            <FormField 
+                                control={form.control} 
+                                name="homeAndAway" 
+                                render={({ field }) => (
+                                    <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                                        <div className="flex items-center gap-2">
+                                            <FormLabel>Home & Away</FormLabel>
+                                            <TooltipProvider>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" />
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        <p>If enabled, teams will play each other twice (home and away legs).</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                        </div>
+                                        <FormControl>
+                                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                        </FormControl>
+                                    </FormItem>
+                                )} 
+                            />
                         </div>
                     </div>
-                    <FormField name="squadRestrictions" render={({ field }) => (<FormItem><FormLabel>Squad Restrictions</FormLabel><FormControl><Textarea placeholder="e.g., Max 3 legendary players, only silver ball players allowed." {...field} /></FormControl><FormMessage /></FormItem>)} />
-                    <FormField name="rules" render={({ field }) => (<FormItem><FormLabel>General Rules / Code of Conduct</FormLabel><FormControl><Textarea placeholder="Detail any other general rules for your tournament." {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField 
+                        name="squadRestrictions" 
+                        render={({ field }) => (
+                            <FormItem>
+                                <div className="flex items-center gap-2">
+                                    <FormLabel>Squad Restrictions (Optional)</FormLabel>
+                                    <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p className="max-w-xs">Add any restrictions on player ratings, team strength, or specific player types allowed.</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
+                                </div>
+                                <FormControl>
+                                    <Textarea 
+                                        placeholder="e.g., Max 3 legendary players, only silver ball players allowed. (Leave empty for no restrictions)" 
+                                        {...field} 
+                                    />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )} 
+                    />
+                    <FormField 
+                        name="rules" 
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>General Rules / Code of Conduct (Optional)</FormLabel>
+                                <FormControl>
+                                    <Textarea 
+                                        placeholder="Detail any other general rules for your tournament. (Optional)" 
+                                        {...field} 
+                                    />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )} 
+                    />
                     
                     <div className="space-y-4">
                         <h3 className="font-medium flex items-center gap-2"><Award/> Rewards &amp; Prizes</h3>
@@ -533,42 +647,51 @@ export default function CreateTournamentPage() {
                         )}
                     </div>
 
-                    <div className="space-y-4">
-                        <h3 className="font-medium flex items-center gap-2"><Repeat/> Automation</h3>
-                         <FormField
-                            control={form.control}
-                            name="recurringEnabled"
-                            render={({ field }) => (
-                                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                                    <div className="space-y-0.5">
-                                        <FormLabel className="text-base">Recurring Tournament</FormLabel>
-                                        <FormDescription>
-                                            Automatically create a new season of this tournament after it ends.
-                                        </FormDescription>
-                                    </div>
-                                    <FormControl>
-                                        <Switch
-                                            checked={field.value}
-                                            onCheckedChange={field.onChange}
-                                        />
-                                    </FormControl>
-                                </FormItem>
-                            )}
-                        />
-                        {recurringEnabled && (
-                            <FormField
-                                control={form.control}
-                                name="recurringDays"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Recur After (Days)</FormLabel>
-                                        <FormControl><Input type="number" min={1} {...field} onChange={e => field.onChange(Number(e.target.value))} /></FormControl>
-                                        <FormDescription>How many days after this tournament ends should the new one be created?</FormDescription>
-                                        <FormMessage />
-                                    </FormItem>
+                    {/* Move Recurring to Collapsible Advanced Section */}
+                    <div className="border-t pt-6">
+                        <details className="group">
+                            <summary className="flex items-center gap-2 cursor-pointer font-medium text-sm list-none">
+                                <Repeat className="h-4 w-4" />
+                                Advanced Options
+                                <span className="ml-auto text-xs text-muted-foreground">Click to expand</span>
+                            </summary>
+                            <div className="mt-4 space-y-4">
+                                <FormField
+                                    control={form.control}
+                                    name="recurringEnabled"
+                                    render={({ field }) => (
+                                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                                            <div className="space-y-0.5">
+                                                <FormLabel className="text-base">Recurring Tournament</FormLabel>
+                                                <FormDescription>
+                                                    Automatically create a new season of this tournament after it ends.
+                                                </FormDescription>
+                                            </div>
+                                            <FormControl>
+                                                <Switch
+                                                    checked={field.value}
+                                                    onCheckedChange={field.onChange}
+                                                />
+                                            </FormControl>
+                                        </FormItem>
+                                    )}
+                                />
+                                {recurringEnabled && (
+                                    <FormField
+                                        control={form.control}
+                                        name="recurringDays"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Recur After (Days)</FormLabel>
+                                                <FormControl><Input type="number" min={1} {...field} onChange={e => field.onChange(Number(e.target.value))} /></FormControl>
+                                                <FormDescription>How many days after this tournament ends should the new one be created?</FormDescription>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
                                 )}
-                            />
-                        )}
+                            </div>
+                        </details>
                     </div>
                 </CardContent>
             </Card>

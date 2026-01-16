@@ -20,6 +20,9 @@ dist/ # Another common build output directory
 
 # Testing
 /coverage
+/playwright-report
+/test-results
+/playwright/.cache
 
 # Debugging and logs
 npm-debug.log*

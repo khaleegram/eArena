@@ -5,7 +5,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getTournamentById, getUserTeamForTournament, leaveTournament, addTeam, organizerResolveOverdueMatches, extendRegistration, progressTournamentStage, rescheduleTournamentAndStart, findUserByEmail, regenerateTournamentFixtures } from '@/lib/actions';
+import { getTournamentById, getUserTeamForTournament, leaveTournament, addTeam, organizerResolveOverdueMatches, extendRegistration, progressTournamentStage, rescheduleTournamentAndStart, findUserByEmail, regenerateTournamentFixtures, devSeedDummyTeams, devAutoApproveCurrentStageMatches, devAutoApproveAndProgress, devAutoRunCupToCompletion } from '@/lib/actions';
 import { useAuth } from "@/hooks/use-auth";
 import type { Tournament, TournamentStatus, Team, Player, UserProfile, UnifiedTimestamp, Match, Standing } from "@/lib/types";
 import { format, isBefore, isAfter, isToday, isFuture, addDays, differenceInDays, endOfDay, isPast } from "date-fns";
@@ -249,7 +249,13 @@ function ProgressStageButton({ tournament, organizerId }: { tournament: Tourname
 function JoinTournamentDialog({ tournament, user, userProfile, onTeamJoined }: { tournament: Tournament, user: UserProfile, userProfile: UserProfile, onTeamJoined: (team: Team) => void }) {
     const { toast } = useToast();
     const [open, setOpen] = useState(false);
-    const [teamName, setTeamName] = useState("");
+    // Auto-load saved team name from localStorage
+    const [teamName, setTeamName] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('lastTeamName') || '';
+        }
+        return '';
+    });
     const [teamLogo, setTeamLogo] = useState<File | null>(null);
     const [previewLogo, setPreviewLogo] = useState<string | null>(userProfile?.photoURL || null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -281,6 +287,11 @@ function JoinTournamentDialog({ tournament, user, userProfile, onTeamJoined }: {
         if (!teamName || !user || !userProfile) {
             toast({ variant: "destructive", title: "Error", description: "You must be logged in and provide a team name." });
             return;
+        }
+
+        // Save team name to localStorage for next time
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('lastTeamName', teamName);
         }
 
         if(captainProfile?.warnings && captainProfile.warnings >= 5) {
@@ -343,8 +354,15 @@ function JoinTournamentDialog({ tournament, user, userProfile, onTeamJoined }: {
                         </div>
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="teamName">Team Name</Label>
+                        <Label htmlFor="teamName">Team Name <span className="text-destructive">*</span></Label>
                         <Input id="teamName" value={teamName} onChange={e => setTeamName(e.target.value)} required placeholder="e.g., The All-Stars" />
+                        <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800">
+                            <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+                            <p className="text-xs text-blue-800 dark:text-blue-200">
+                                <strong>Important:</strong> Your team name must <strong>exactly match</strong> your in-game team name. 
+                                This is required for AI verification of match screenshots. The system will use this name to verify your submitted evidence.
+                            </p>
+                        </div>
                     </div>
                     <DialogFooter>
                         <Button type="submit" className="w-full" disabled={isSubmitting}>
@@ -438,6 +456,92 @@ function OrganizerTools({ tournament, user, allMatches, onSuccess }: { tournamen
             <ExtendRegistrationDialog tournament={tournament} organizerId={user.uid} onSuccess={onSuccess} />
             <ProgressStageButton tournament={tournament} organizerId={user.uid} />
             <RegenerateFixturesDialog tournamentId={tournament.id} organizerId={user.uid} canRegenerate={canRegenerateFixtures} onSuccess={onSuccess} />
+
+            {process.env.NODE_ENV !== 'production' && (
+                <details className="rounded-md border p-3 bg-muted/30">
+                    <summary className="cursor-pointer font-medium">Dev Tools (testing)</summary>
+                    <div className="mt-3 space-y-2">
+                        <Button
+                            variant="secondary"
+                            size="sm"
+                            className="w-full justify-start"
+                            onClick={async () => {
+                                try {
+                                    await devSeedDummyTeams(tournament.id, user.uid, 8);
+                                    toast({ title: 'Done', description: 'Seeded 8 dummy teams (approved).' });
+                                    onSuccess();
+                                } catch (e: any) {
+                                    toast({ variant: 'destructive', title: 'Dev seed failed', description: e.message });
+                                }
+                            }}
+                        >
+                            Seed 8 Dummy Teams
+                        </Button>
+
+                        <Button
+                            variant="secondary"
+                            size="sm"
+                            className="w-full justify-start"
+                            onClick={async () => {
+                                try {
+                                    const res = await devAutoApproveCurrentStageMatches(tournament.id, user.uid);
+                                    toast({ title: 'Done', description: `Auto-approved ${res.approved} match(es) in the current stage.` });
+                                    onSuccess();
+                                } catch (e: any) {
+                                    toast({ variant: 'destructive', title: 'Auto-approve failed', description: e.message });
+                                }
+                            }}
+                        >
+                            Auto-Approve Current Stage Matches
+                        </Button>
+
+                        <Button
+                            variant="secondary"
+                            size="sm"
+                            className="w-full justify-start"
+                            onClick={async () => {
+                                try {
+                                    const res = await devAutoApproveAndProgress(tournament.id, user.uid);
+                                    toast({
+                                        title: 'Done',
+                                        description: res.progressed
+                                            ? `Approved ${res.approved}. Advanced to next stage.`
+                                            : `Approved ${res.approved}. ${res.status === 'completed' ? 'Tournament completed.' : 'Nothing to advance yet.'}`,
+                                    });
+                                    onSuccess();
+                                } catch (e: any) {
+                                    toast({ variant: 'destructive', title: 'Auto-advance failed', description: e.message });
+                                }
+                            }}
+                        >
+                            Auto-Approve + Progress
+                        </Button>
+
+                        {tournament.format === 'cup' && (
+                            <Button
+                                variant="secondary"
+                                size="sm"
+                                className="w-full justify-start"
+                                onClick={async () => {
+                                    try {
+                                        const res = await devAutoRunCupToCompletion(tournament.id, user.uid);
+                                        toast({ title: 'Done', description: `Auto-run finished in ${res.steps} step(s). Status: ${res.status}` });
+                                        onSuccess();
+                                    } catch (e: any) {
+                                        toast({ variant: 'destructive', title: 'Auto-run failed', description: e.message });
+                                    }
+                                }}
+                            >
+                                Auto-Run Cup To Completion
+                            </Button>
+                        )}
+
+                        <p className="text-xs text-muted-foreground">
+                            Tip: after auto-approve, click “Progress to Next Stage” to generate the next round/bracket.
+                        </p>
+                    </div>
+                </details>
+            )}
         </div>
     );
 }
@@ -560,7 +664,7 @@ export default function TournamentPage() {
             className="absolute inset-0 z-[-1] opacity-10"
         />
         <div className="container py-10 relative z-10">
-            {tournament.status === 'completed' && <TournamentPodium standings={standings} teams={teams} />}
+            {tournament.status === 'completed' && <TournamentPodium tournament={tournament} matches={allMatches} standings={standings} teams={teams} />}
             <div className="flex flex-col md:flex-row gap-8 mt-8">
                 <div className="w-full md:w-1/3 lg:w-1/4 space-y-6">
                 <div className="space-y-4">
@@ -687,7 +791,7 @@ export default function TournamentPage() {
                             <FixturesTab tournament={tournament} isOrganizer={isOrganizer} />
                         </TabsContent>
                         <TabsContent value="standings" className="mt-4">
-                        <StandingsTab tournamentId={tournament.id} />
+                        <StandingsTab tournament={tournament} />
                         </TabsContent>
                         <TabsContent value="rewards" className="mt-4">
                         <RewardsTab tournament={tournament} />

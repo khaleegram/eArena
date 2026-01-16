@@ -8,6 +8,11 @@ const withPWA = require('next-pwa')({
   sw: 'sw.js',
 });
 
+// Fix EventEmitter MaxListeners warning in development
+if (process.env.NODE_ENV === 'development') {
+  require('events').EventEmitter.defaultMaxListeners = 20;
+}
+
 const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,

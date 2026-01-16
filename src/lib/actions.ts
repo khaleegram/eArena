@@ -17,6 +17,9 @@ import { allAchievements } from './achievements';
 import { sendEmail } from './email';
 import webpush from 'web-push';
 import { toDate } from './utils';
+import { getRoundName, generateCupRound } from './cup-tournament';
+import { getCurrentCupRound, assertRoundCompleted, getWinnersForRound } from './cup-progression';
+import { createWorldCupGroups, generateGroupStageFixtures, computeAllGroupStandings, seedKnockoutFromGroups, isGroupRound, isKnockoutRound } from './group-stage';
 
 if (process.env.VAPID_PRIVATE_KEY && process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) {
     webpush.setVapidDetails(
@@ -153,12 +156,13 @@ async function awardBadges(tournamentId: string) {
         const team = teamDoc.data() as Team;
         const newBadge: Omit<Badge, 'id'> = {
             tournamentName: tournament.name,
-            tournamentId: tournament.id,
+            tournamentId: tournamentId,
             rank: standing.ranking,
             date: Timestamp.now(),
         };
 
         for (const player of team.players) {
+            if (!player || !player.uid) continue;
             const userRef = adminDb.collection('users').doc(player.uid);
             
             const updateData: { badges: FieldValue, tournamentsWon?: FieldValue } = {
@@ -167,7 +171,12 @@ async function awardBadges(tournamentId: string) {
             if (standing.ranking === 1) {
                 updateData.tournamentsWon = FieldValue.increment(1);
             }
-            await userRef.update(updateData);
+            try {
+                await userRef.update(updateData);
+            } catch (error) {
+                console.error(`Failed to update badges for player ${player.uid}:`, error);
+                continue;
+            }
 
             await sendNotification(player.uid, {
                 userId: player.uid,
@@ -424,6 +433,9 @@ export async function createTournament(data: Omit<Tournament, 'id' | 'organizerU
 
     const newTournamentData: Omit<Tournament, 'id'> = {
       ...data,
+      // Set defaults if game/platform not provided
+      game: data.game || 'eFootball',
+      platform: data.platform || 'Multi-Platform',
       organizerUsername: userRecord.displayName || userRecord.email,
       createdAt: FieldValue.serverTimestamp() as UnifiedTimestamp,
       status: data.rewardType === 'money' ? 'pending' : 'open_for_registration',
@@ -446,9 +458,22 @@ export async function createTournament(data: Omit<Tournament, 'id' | 'organizerU
     
     revalidatePath('/dashboard');
 
+    // Handle payment initialization for money tournaments
+    let paymentUrl = null;
+    if (data.rewardType === 'money' && data.prizePool && data.prizePool > 0) {
+        try {
+            const paymentResult = await initializeTournamentPayment(tournamentRef.id, data.prizePool, userRecord.email || '', data.organizerId);
+            paymentUrl = paymentResult.paymentUrl;
+        } catch (paymentError: any) {
+            console.error("Payment initialization failed:", paymentError);
+            // Don't fail tournament creation if payment fails, but log it
+            // The tournament will remain in 'pending' status until payment is completed
+        }
+    }
+
     return { 
         tournamentId: tournamentRef.id,
-        paymentUrl: null, // This will be handled by a separate initialization step
+        paymentUrl,
     };
 
   } catch (error: any) {
@@ -709,6 +734,7 @@ export async function getJoinedTournamentIdsForUser(userId: string): Promise<str
 }
 
 
+
 // Fixture & Match Actions
 function generateFixtures(teamIds: string[], format: TournamentFormat, homeAndAway: boolean): Omit<Match, 'id' | 'tournamentId' | 'matchDay' | 'status'>[] {
     if (teamIds.length < 2) return [];
@@ -739,24 +765,10 @@ function generateFixtures(teamIds: string[], format: TournamentFormat, homeAndAw
             }));
             fixtures.push(...secondLegFixtures);
         }
-    } else if (format === 'cup' || format === 'champions-league' || format === 'double-elimination') {
+    } else if (format === 'double-elimination') {
         // Simple seeded single elimination for now
-        let shuffledTeams = [...teamIds].sort(() => Math.random() - 0.5); // Random seeding
-        const roundOf = shuffledTeams.length;
-        
-        for (let i = 0; i < shuffledTeams.length / 2; i++) {
-            const homeTeamId = shuffledTeams[i];
-            const awayTeamId = shuffledTeams[shuffledTeams.length - 1 - i];
-            fixtures.push({
-                homeTeamId: homeTeamId,
-                awayTeamId: awayTeamId,
-                round: `Round of ${roundOf}`,
-                hostId: homeTeamId,
-                homeScore: null,
-                awayScore: null,
-                hostTransferRequested: false,
-            });
-        }
+        const roundName = getRoundName(teamIds.length);
+        fixtures = generateCupRound(teamIds, roundName);
     }
     // Swiss format logic would be much more complex and state-dependent per round, handled separately.
 
@@ -786,7 +798,15 @@ export async function startTournamentAndGenerateFixtures(tournamentId: string, o
     revalidatePath(`/tournaments/${tournamentId}`);
     
     const teams = teamsSnapshot.docs.map(team => team.id);
-    const fixtures = generateFixtures(teams, tournament.format, tournament.homeAndAway);
+
+    let fixtures: Omit<Match, 'id' | 'tournamentId' | 'matchDay' | 'status'>[] = [];
+    if (tournament.format === 'cup') {
+        // World Cup style: group stage first, then knockout via Progress to Next Stage
+        const groups = createWorldCupGroups(teams, 4);
+        fixtures = generateGroupStageFixtures(groups);
+    } else {
+        fixtures = generateFixtures(teams, tournament.format, tournament.homeAndAway);
+    }
     
     if (!fixtures || fixtures.length === 0) {
         await tournamentRef.update({ status: 'open_for_registration' }); // Revert status
@@ -846,6 +866,186 @@ export async function startTournamentAndGenerateFixtures(tournamentId: string, o
     }
 
     revalidatePath(`/tournaments/${tournamentId}`);
+}
+
+/**
+ * DEV ONLY: Seed dummy approved teams so you can test flows with a single account.
+ * This should never be used in production.
+ */
+export async function devSeedDummyTeams(tournamentId: string, organizerId: string, count: number = 8) {
+    if (process.env.NODE_ENV === 'production') {
+        throw new Error('Dev tools are disabled in production.');
+    }
+
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    const tournamentDoc = await tournamentRef.get();
+    if (!tournamentDoc.exists) throw new Error('Tournament not found');
+
+    const tournament = tournamentDoc.data() as Tournament;
+    if (tournament.organizerId !== organizerId) throw new Error('You are not authorized to perform this action.');
+
+    if (count < 4) throw new Error('Minimum is 4 teams.');
+    if (count % 2 !== 0) throw new Error('Team count must be even.');
+    if (tournament.format === 'cup' && count % 8 !== 0) {
+        throw new Error('Cup (World Cup rules) requires 8 / 16 / 32 / ... teams.');
+    }
+
+    const batch = adminDb.batch();
+    for (let i = 0; i < count; i++) {
+        const teamRef = tournamentRef.collection('teams').doc();
+        const captainId = `dev_${tournamentId}_captain_${i + 1}`;
+
+        const captain: Player = {
+            uid: captainId,
+            role: 'captain',
+            username: `Dev Captain ${i + 1}`,
+            photoURL: '',
+        };
+
+        batch.set(teamRef, {
+            id: teamRef.id,
+            tournamentId,
+            name: `Dev Team ${i + 1}`,
+            logoUrl: '',
+            captainId,
+            captain,
+            players: [captain],
+            playerIds: [], // keep empty to avoid pushing notifications to fake users
+            isApproved: true,
+        } as Partial<Team>);
+    }
+
+    // Keep teamCount roughly accurate for organizer UI
+    batch.update(tournamentRef, { teamCount: FieldValue.increment(count) });
+
+    await batch.commit();
+    revalidatePath(`/tournaments/${tournamentId}`);
+    return { created: count };
+}
+
+/**
+ * DEV ONLY: Auto-approve all matches in the current stage (group/swiss/knockout).
+ * This should never be used in production.
+ */
+export async function devAutoApproveCurrentStageMatches(tournamentId: string, organizerId: string) {
+    if (process.env.NODE_ENV === 'production') {
+        throw new Error('Dev tools are disabled in production.');
+    }
+
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    const tournamentDoc = await tournamentRef.get();
+    if (!tournamentDoc.exists) throw new Error('Tournament not found');
+
+    const tournament = tournamentDoc.data() as Tournament;
+    if (tournament.organizerId !== organizerId) throw new Error('You are not authorized to perform this action.');
+
+    const matchesSnapshot = await tournamentRef.collection('matches').get();
+    const matches = matchesSnapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Match));
+
+    const groupMatches = matches.filter(m => isGroupRound(m.round));
+    const knockoutMatches = matches.filter(m => isKnockoutRound(m.round));
+
+    let target: Match[] = [];
+
+    if (tournament.format === 'cup') {
+        if (knockoutMatches.length === 0 && groupMatches.length > 0) {
+            target = groupMatches;
+        } else if (knockoutMatches.length > 0) {
+            const currentRound = getCurrentCupRound(knockoutMatches);
+            target = knockoutMatches.filter(m => (m.round || '') === currentRound);
+        }
+    } else {
+        throw new Error('Dev auto-approve is only implemented for Cup format.');
+    }
+
+    if (target.length === 0) {
+        console.warn(`No matches found for tournament ${tournamentId} at current stage. This may be normal if matches have already been approved or the tournament stage hasn't started.`);
+        return { approved: 0 };
+    }
+
+    let approved = 0;
+
+    for (const m of target) {
+        if (m.status === 'approved') continue;
+
+        let home = Math.floor(Math.random() * 4);
+        let away = Math.floor(Math.random() * 4);
+
+        // Avoid draws in knockout (otherwise progression can fail without penalties data)
+        if (isKnockoutRound(m.round) && home === away) {
+            away = (away + 1) % 4;
+        }
+
+        await approveMatchResult(tournamentId, m.id, home, away, 'DEV: auto-approved', false);
+        approved++;
+    }
+
+    revalidatePath(`/tournaments/${tournamentId}`);
+    return { approved };
+}
+
+/**
+ * DEV ONLY: One-click "approve current stage AND advance".
+ * - Approves all matches in the current stage
+ * - Advances to next stage (or seeds knockout) when applicable
+ */
+export async function devAutoApproveAndProgress(tournamentId: string, organizerId: string) {
+    if (process.env.NODE_ENV === 'production') {
+        throw new Error('Dev tools are disabled in production.');
+    }
+
+    const approvedRes = await devAutoApproveCurrentStageMatches(tournamentId, organizerId);
+
+    // If approving the final completed the tournament, no need to progress.
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    const tournamentDoc = await tournamentRef.get();
+    const tournament = tournamentDoc.exists ? (tournamentDoc.data() as Tournament) : null;
+    if (!tournament) throw new Error('Tournament not found');
+    if (tournament.status === 'completed') {
+        revalidatePath(`/tournaments/${tournamentId}`);
+        return { approved: approvedRes.approved, progressed: false, status: 'completed' as const };
+    }
+
+    try {
+        await progressTournamentStage(tournamentId, organizerId);
+        return { approved: approvedRes.approved, progressed: true, status: 'in_progress' as const };
+    } catch (e: any) {
+        // It's okay if there's nothing to progress yet (e.g., Swiss awaiting next round).
+        return { approved: approvedRes.approved, progressed: false, error: e?.message || String(e) };
+    } finally {
+        revalidatePath(`/tournaments/${tournamentId}`);
+    }
+}
+
+/**
+ * DEV ONLY: Auto-run a Cup tournament to completion.
+ * Seeds teams/fixtures are not created here; it assumes fixtures already exist.
+ */
+export async function devAutoRunCupToCompletion(tournamentId: string, organizerId: string, maxSteps: number = 10) {
+    if (process.env.NODE_ENV === 'production') {
+        throw new Error('Dev tools are disabled in production.');
+    }
+
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    const tournamentDoc = await tournamentRef.get();
+    if (!tournamentDoc.exists) throw new Error('Tournament not found');
+    const tournament = tournamentDoc.data() as Tournament;
+    if (tournament.organizerId !== organizerId) throw new Error('You are not authorized to perform this action.');
+    if (tournament.format !== 'cup') throw new Error('Auto-run is currently only available for Cup.');
+
+    let steps = 0;
+    while (steps < maxSteps) {
+        const fresh = (await tournamentRef.get()).data() as Tournament | undefined;
+        if (!fresh) throw new Error('Tournament not found');
+        if (fresh.status === 'completed') break;
+
+        await devAutoApproveAndProgress(tournamentId, organizerId);
+        steps++;
+    }
+
+    const finalState = (await tournamentRef.get()).data() as Tournament | undefined;
+    revalidatePath(`/tournaments/${tournamentId}`);
+    return { steps, status: finalState?.status };
 }
 
 async function rescheduleFixtures(tournamentId: string, newStartDate: Date, newEndDate: Date) {
@@ -929,44 +1129,102 @@ export async function progressTournamentStage(tournamentId: string, organizerId:
     if (tournament.status !== 'in_progress') throw new Error("Tournament is not in progress.");
     if (tournament.format === 'league') throw new Error("Leagues do not have stages to progress.");
 
-    // Check if all matches in the current stage are completed
-    const currentRoundsSnapshot = await tournamentRef.collection('matches')
-        .where('status', '!=', 'approved')
-        .get();
+    // Get all matches
+    const allMatchesSnapshot = await tournamentRef.collection('matches').get();
+    const allMatches = allMatchesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Match));
     
-    // Filter to only check rounds that are part of the current stage (e.g. Group stages)
-    const uncompletedMatches = currentRoundsSnapshot.docs.filter(doc => doc.data().round?.toLowerCase().includes('group'));
-
-    if (uncompletedMatches.length > 0) {
-        throw new Error(`Cannot progress: ${uncompletedMatches.length} group stage match(es) are still not approved.`);
+    if (allMatches.length === 0) {
+        throw new Error("No matches found. Cannot progress tournament.");
     }
-    
-    // Find the current stage and determine the next one
-    const matchesSnapshot = await tournamentRef.collection('matches').orderBy('matchDay', 'desc').limit(1).get();
-    let lastMatchDay = new Date();
-    if(!matchesSnapshot.empty) {
-        lastMatchDay = toAdminDate(matchesSnapshot.docs[0].data().matchDay);
-    }
-    
-    // Placeholder for advancing logic
-    const standingsSnapshot = await adminDb.collection('standings').where('tournamentId', '==', tournamentId).orderBy('ranking', 'asc').limit(8).get();
-    if (standingsSnapshot.docs.length < 2) throw new Error("Not enough ranked teams to progress.");
-    
-    const advancingTeamIds = standingsSnapshot.docs.map(doc => doc.data().teamId);
-    
-    const fixtures = generateFixtures(advancingTeamIds, 'double-elimination', false).map((f, i) => ({ ...f, round: `Round of ${advancingTeamIds.length}`})); // Simplified knockout
 
+    // Cup: group stage -> knockout -> final
+    if (tournament.format === 'cup') {
+        const groupMatches = allMatches.filter(m => isGroupRound(m.round));
+        const knockoutMatches = allMatches.filter(m => isKnockoutRound(m.round));
+
+        // If we have group matches but no knockout yet, this click should advance to the first knockout round.
+        if (groupMatches.length > 0 && knockoutMatches.length === 0) {
+            const unapprovedGroupMatches = groupMatches.filter(m => m.status !== 'approved');
+            if (unapprovedGroupMatches.length > 0) {
+                throw new Error(`Cannot progress: ${unapprovedGroupMatches.length} group stage match(es) are still not approved.`);
+            }
+
+            const standingsByGroup = computeAllGroupStandings(groupMatches);
+            const nextRoundFixtures = seedKnockoutFromGroups(standingsByGroup);
+
+            const latestGroupMatch = groupMatches.reduce((latest, match) => {
+                const matchDate = toDate(match.matchDay);
+                const latestDate = toDate(latest.matchDay);
+                return matchDate > latestDate ? match : latest;
+            }, groupMatches[0]);
+            const lastMatchDay = toDate(latestGroupMatch.matchDay);
+            const nextMatchDay = addDays(lastMatchDay, 1);
+
+            const batch = adminDb.batch();
+            nextRoundFixtures.forEach((fixture, index) => {
+                const matchRef = tournamentRef.collection('matches').doc();
+                const matchDay = addDays(nextMatchDay, Math.floor(index / 2));
+                batch.set(matchRef, {
+                    ...fixture,
+                    id: matchRef.id,
+                    tournamentId,
+                    status: 'scheduled',
+                    matchDay: Timestamp.fromDate(matchDay),
+                });
+            });
+
+            await batch.commit();
+            revalidatePath(`/tournaments/${tournamentId}`);
+            return;
+        }
+    }
+
+    // Knockout progression (ignore group matches)
+    const knockoutMatchesOnly = allMatches.filter(m => isKnockoutRound(m.round));
+    if (knockoutMatchesOnly.length === 0) {
+        throw new Error("No knockout matches found.");
+    }
+
+    const currentRound = getCurrentCupRound(knockoutMatchesOnly);
+    assertRoundCompleted(currentRound, knockoutMatchesOnly);
+    const winners = getWinnersForRound(knockoutMatchesOnly, currentRound, { penalties: tournament.penalties });
+
+    if (winners.length < 2) {
+        throw new Error(`Not enough winners to progress. Need at least 2 teams, got ${winners.length}.`);
+    }
+
+    // Determine next round name
+    const nextRoundName = getRoundName(winners.length);
+    
+    // Check if this is the final (only 2 teams left)
+    if (winners.length === 2 && currentRound === 'Semi-finals') {
+        // This is the final - tournament will complete after this
+    } else if (winners.length === 1) {
+        throw new Error("Tournament already has a winner. Cannot progress further.");
+    }
+
+    // Generate fixtures for next round
+    const nextRoundFixtures = generateCupRound(winners, nextRoundName);
+
+    // Find the latest match day to schedule next round after it
+    const latestMatch = allMatches.reduce((latest, match) => {
+        const matchDate = toDate(match.matchDay);
+        const latestDate = toDate(latest.matchDay);
+        return matchDate > latestDate ? match : latest;
+    }, allMatches[0]);
+    
+    const lastMatchDay = toDate(latestMatch.matchDay);
+    const nextMatchDay = addDays(lastMatchDay, 1); // Schedule next round 1 day after last match
+
+    // Create matches for next round
     const batch = adminDb.batch();
     
-    fixtures.forEach((fixture, index) => {
+    nextRoundFixtures.forEach((fixture, index) => {
         const matchRef = tournamentRef.collection('matches').doc();
         
-        // Schedule knockout matches with a one day interval
-        const matchDay = new Date(lastMatchDay.getTime());
-        const dayOffset = Math.floor(index / (fixtures.length / 2)) + 1; // Simplified logic for day intervals
-        matchDay.setDate(matchDay.getDate() + dayOffset);
-
-
+        // Schedule matches on the same day or spread across days if multiple matches
+        const matchDay = addDays(nextMatchDay, Math.floor(index / 2)); // 2 matches per day max
+        
         batch.set(matchRef, {
             ...fixture,
             id: matchRef.id,
@@ -1349,22 +1607,34 @@ export async function approveMatchResult(tournamentId: string, matchId: string, 
     
     await updateStandings(tournamentId);
 
-    // Finalize tournament if all matches are approved
-    const allMatchesSnapshot = await adminDb.collection('tournaments').doc(tournamentId).collection('matches').get();
+    // Finalize tournament
+    // IMPORTANT:
+    // - League can complete when all matches are approved
+    // - Bracket formats (Cup, Champions League Swiss->Knockout, Double-elimination) should complete ONLY when the Final is approved.
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    const tournamentData = (await tournamentRef.get()).data() as Tournament | undefined;
+
+    const allMatchesSnapshot = await tournamentRef.collection('matches').get();
     const allMatchesApproved = allMatchesSnapshot.docs.every(doc => doc.data().status === 'approved');
 
-    if (allMatchesApproved) {
-        const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    const finalMatchDoc = allMatchesSnapshot.docs.find(doc => (doc.data().round || '').toLowerCase() === 'final');
+    const finalApproved = !!finalMatchDoc && finalMatchDoc.data().status === 'approved';
+
+    const shouldComplete =
+        tournamentData?.format === 'league'
+            ? allMatchesApproved
+            : finalApproved;
+
+    if (shouldComplete) {
         await tournamentRef.update({ status: 'completed' });
         await awardBadges(tournamentId);
-        
-        const tournamentData = (await tournamentRef.get()).data() as Tournament;
-        if(tournamentData) {
-             const organizerNotification: Omit<Notification, 'id' | 'createdAt' | 'isRead'> = {
+
+        if (tournamentData) {
+            const organizerNotification: Omit<Notification, 'id' | 'createdAt' | 'isRead'> = {
                 userId: tournamentData.organizerId,
                 tournamentId,
                 title: `"${tournamentData.name}" has concluded!`,
-                body: "All matches are complete. Check out the final standings and rewards.",
+                body: "The tournament is complete. Check out the results and rewards.",
                 href: `/tournaments/${tournamentId}?tab=standings`,
             };
             await sendNotification(tournamentData.organizerId, organizerNotification);
@@ -1406,7 +1676,7 @@ export async function scheduleRematch(tournamentId: string, matchId: string, not
 
     let newMatchDay: Date;
 
-    if (tournamentData.format === 'cup' || tournamentData.format === 'champions-league') {
+    if (tournamentData.format === 'cup') {
         newMatchDay = toAdminDate(matchData.matchDay); // Replay on the same day for cups
     } else { // League format
         const allMatchesSnapshot = await tournamentRef.collection('matches').orderBy('matchDay', 'desc').get();
@@ -1608,6 +1878,8 @@ export async function organizerForceReplay(tournamentId: string, matchId: string
 }
 
 export async function updateStandings(tournamentId: string) {
+    const tournamentDoc = await adminDb.collection('tournaments').doc(tournamentId).get();
+    const tournament = tournamentDoc.exists ? (tournamentDoc.data() as Tournament) : null;
     const teamsSnapshot = await adminDb.collection('tournaments').doc(tournamentId).collection('teams').get();
     if (teamsSnapshot.empty) return;
 
@@ -1623,8 +1895,10 @@ export async function updateStandings(tournamentId: string) {
         cleanSheets: 0
     }));
 
-    const matchesSnapshot = await adminDb.collection('tournaments').doc(tournamentId).collection('matches')
-        .where('status', '==', 'approved').get();
+    let matchesQuery = adminDb.collection('tournaments').doc(tournamentId).collection('matches')
+        .where('status', '==', 'approved');
+
+    const matchesSnapshot = await matchesQuery.get();
     
     matchesSnapshot.docs.forEach(doc => {
         const match = doc.data() as Match;
@@ -1721,7 +1995,7 @@ async function resolveOverdueMatches(tournamentId: string) {
         resolvedCount++;
         try {
             // CUP REPLAY FORFEIT LOGIC
-            if (match.isReplay && (tournament.format === 'cup' || tournament.format === 'champions-league')) {
+            if (match.isReplay && tournament.format === 'cup') {
                 await approveMatchResult(tournamentId, doc.id, 0, 0, 'Double forfeit. Replay was not completed by the match day deadline.', true, undefined, undefined, undefined, true);
                 continue;
             }
@@ -3598,6 +3872,15 @@ export async function getTeamsForTournament(tournamentId: string): Promise<Team[
 export async function getStandingsForTournament(tournamentId: string): Promise<Standing[]> {
     const snapshot = await adminDb.collection('standings').where('tournamentId', '==', tournamentId).orderBy('ranking', 'asc').get();
     return snapshot.docs.map(doc => serializeData(doc.data()) as Standing);
+}
+
+export async function getGroupTablesForTournament(tournamentId: string) {
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    const matchesSnapshot = await tournamentRef.collection('matches').get();
+    const matches = matchesSnapshot.docs.map(doc => ({ id: doc.id, ...serializeData(doc.data()) } as Match));
+    const groupMatches = matches.filter(m => isGroupRound(m.round));
+    const tables = computeAllGroupStandings(groupMatches);
+    return serializeData(tables);
 }
 
 export async function getLiveMatches(): Promise<{ match: Match; homeTeam: Team; awayTeam: Team; }[]> {

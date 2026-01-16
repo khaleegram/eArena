@@ -1,6 +1,6 @@
 
 import { getTournamentById } from "@/lib/actions";
-import { getTeamsForTournament, getStandingsForTournament } from "@/lib/actions";
+import { getTeamsForTournament, getStandingsForTournament, getGroupTablesForTournament } from "@/lib/actions";
 import { notFound } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -16,9 +16,12 @@ export default async function StandingsPage({ params }: { params: { id: string }
         notFound();
     }
 
-    const [standings, teams] = await Promise.all([
-        getStandingsForTournament(params.id),
+    const isCupStyle = tournament.format === 'cup';
+
+    const [standings, teams, groupTables] = await Promise.all([
+        isCupStyle ? Promise.resolve([]) : getStandingsForTournament(params.id),
         getTeamsForTournament(params.id),
+        isCupStyle ? getGroupTablesForTournament(params.id) : Promise.resolve({}),
     ]);
 
     const getTeamInfo = (teamId: string) => {
@@ -31,12 +34,70 @@ export default async function StandingsPage({ params }: { params: { id: string }
                 <CardHeader className="flex flex-row items-center justify-between">
                     <div>
                         <CardTitle className="font-headline flex items-center gap-2"><Trophy className="w-5 h-5" /> {tournament.name} Standings</CardTitle>
-                        <CardDescription>Live rankings based on approved match results.</CardDescription>
+                        <CardDescription>
+                            {isCupStyle ? 'Group stage tables (top 2 advance to knockout).' : 'Live rankings based on approved match results.'}
+                        </CardDescription>
                     </div>
-                    <ExportStandingsButton tournamentId={params.id} />
+                    {!isCupStyle && <ExportStandingsButton tournamentId={params.id} />}
                 </CardHeader>
                 <CardContent>
-                    {standings.length === 0 ? (
+                    {isCupStyle ? (
+                        Object.keys(groupTables as any).length === 0 ? (
+                            <p className="text-muted-foreground text-center py-8">Group tables will appear once group matches are played and results are approved.</p>
+                        ) : (
+                            <div className="space-y-10">
+                                {Object.entries(groupTables as any).map(([groupName, rows]: any) => (
+                                    <div key={groupName} className="space-y-3">
+                                        <div>
+                                            <h3 className="text-lg font-semibold font-headline">{groupName}</h3>
+                                            <p className="text-sm text-muted-foreground">Top 2 teams advance to the knockout stage.</p>
+                                        </div>
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead className="w-[50px]">Pos</TableHead>
+                                                    <TableHead>Team</TableHead>
+                                                    <TableHead className="text-center">MP</TableHead>
+                                                    <TableHead className="text-center">W</TableHead>
+                                                    <TableHead className="text-center">D</TableHead>
+                                                    <TableHead className="text-center">L</TableHead>
+                                                    <TableHead className="text-center">GF</TableHead>
+                                                    <TableHead className="text-center">GA</TableHead>
+                                                    <TableHead className="text-center">GD</TableHead>
+                                                    <TableHead className="text-center">Pts</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {rows.map((row: any, idx: number) => {
+                                                    const teamInfo = getTeamInfo(row.teamId);
+                                                    const highlight = idx < 2 ? 'bg-primary/5' : '';
+                                                    return (
+                                                        <TableRow key={row.teamId} className={highlight}>
+                                                            <TableCell className="font-bold text-lg">{idx + 1}</TableCell>
+                                                            <TableCell>
+                                                                <Link href={`/profile/${teamInfo.captainId}`} className="flex items-center gap-2 hover:underline">
+                                                                    <ReputationAvatar profile={teamInfo} className="h-8 w-8" />
+                                                                    <span className="font-medium">{teamInfo.name}</span>
+                                                                </Link>
+                                                            </TableCell>
+                                                            <TableCell className="text-center font-semibold">{row.matchesPlayed}</TableCell>
+                                                            <TableCell className="text-center">{row.wins}</TableCell>
+                                                            <TableCell className="text-center">{row.draws}</TableCell>
+                                                            <TableCell className="text-center">{row.losses}</TableCell>
+                                                            <TableCell className="text-center">{row.goalsFor}</TableCell>
+                                                            <TableCell className="text-center">{row.goalsAgainst}</TableCell>
+                                                            <TableCell className="text-center">{row.goalDifference > 0 ? `+${row.goalDifference}` : row.goalDifference}</TableCell>
+                                                            <TableCell className="text-center font-bold">{row.points}</TableCell>
+                                                        </TableRow>
+                                                    );
+                                                })}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                ))}
+                            </div>
+                        )
+                    ) : standings.length === 0 ? (
                         <p className="text-muted-foreground text-center py-8">Standings will appear here once matches are played and results are approved.</p>
                     ) : (
                         <Table>

@@ -5,6 +5,7 @@ import { Inter } from 'next/font/google';
 import { Orbitron } from 'next/font/google';
 import './globals.css';
 import { Providers } from '@/components/providers';
+import { ThemeProvider } from '@/components/theme-provider';
 import { cn } from '@/lib/utils';
 import { getPlatformSettings } from '@/lib/actions';
 import { HardHat } from 'lucide-react';
@@ -27,8 +28,8 @@ export const metadata: Metadata = {
 };
 
 const MaintenancePage = () => (
-    <html lang="en" className="dark">
-      <body className={cn("font-body antialiased", inter.variable, orbitron.variable)}>
+    <html lang="en">
+      <body className={cn("font-body antialiased dark", inter.variable, orbitron.variable)}>
         <div className="flex flex-col items-center justify-center h-screen text-center bg-background text-foreground">
           <HardHat className="w-20 h-20 mb-6 text-primary" />
           <h1 className="text-4xl font-bold font-headline">Under Maintenance</h1>
@@ -45,7 +46,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const settings = await getPlatformSettings();
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const isAdminCookie = cookieStore.get('isAdmin')?.value === 'true';
 
   if (settings.isMaintenanceMode && !isAdminCookie) {
@@ -53,7 +54,7 @@ export default async function RootLayout({
   }
   
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <head>
         <meta name="application-name" content="eArena" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -61,7 +62,7 @@ export default async function RootLayout({
         <meta name="apple-mobile-web-app-title" content="eArena" />
         <meta name="format-detection" content="telephone=no" />
         <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="theme-color" content="#172554" />
+        <meta name="theme-color" content="#A67C52" />
         <meta name="google-site-verification" content="kYYbHnFaEuBUE0-jEPI-67wyMbbq842E2FSIRzm2dD0" />
       </head>
       <body className={cn(
@@ -69,9 +70,11 @@ export default async function RootLayout({
           inter.variable,
           orbitron.variable
         )}>
-        <Providers settings={settings}>
-          {children}
-        </Providers>
+        <ThemeProvider>
+          <Providers settings={settings}>
+            {children}
+          </Providers>
+        </ThemeProvider>
       </body>
     </html>
   );

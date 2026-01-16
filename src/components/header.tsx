@@ -21,6 +21,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { auth } from '@/lib/firebase';
 import { NotificationBell } from './notification-bell';
 import { ReputationAvatar } from './reputation-avatar';
+import { ThemeToggle } from './theme-provider';
 
 export function Header() {
   const { user, userProfile, loading, isAdmin } = useAuth();
@@ -66,6 +67,7 @@ export function Header() {
           </Link>
         </nav>
         <div className="flex items-center justify-end space-x-2">
+          <ThemeToggle />
           {loading ? (
              <Skeleton className="h-8 w-20" />
           ) : user ? (

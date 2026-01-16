@@ -1,0 +1,74 @@
+import type { Match, Tournament } from './types';
+
+export type CupRoundKey = string;
+
+function parseRoundOf(round: string): number | null {
+  const m = round.match(/Round of (\d+)/i);
+  if (!m) return null;
+  const n = Number.parseInt(m[1]!, 10);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * Higher value = later stage in tournament.
+ * Used to determine the current/latest round in a cup bracket.
+ */
+export function getCupRoundRank(round: CupRoundKey): number {
+  const normalized = round.trim();
+  if (/^final$/i.test(normalized)) return 1000;
+  if (/^semi-finals?$/i.test(normalized)) return 900;
+  if (/^quarter-finals?$/i.test(normalized)) return 800;
+
+  const roundOf = parseRoundOf(normalized);
+  if (roundOf != null) {
+    // Earlier rounds have bigger team counts, so they should rank LOWER than later rounds.
+    // Example: Round of 16 (16) < Round of 8 (8) < Quarter-finals (8 but named)
+    return 100 - roundOf; // Round of 8 => 92, Round of 16 => 84
+  }
+  return -Infinity;
+}
+
+export function getCurrentCupRound(matches: Match[]): string {
+  const rounds = [...new Set(matches.map(m => m.round).filter(Boolean))] as string[];
+  if (rounds.length === 0) throw new Error('No rounds found in tournament.');
+  rounds.sort((a, b) => getCupRoundRank(b) - getCupRoundRank(a));
+  return rounds[0]!;
+}
+
+export function assertRoundCompleted(round: string, matches: Match[]): void {
+  const roundMatches = matches.filter(m => (m.round || '') === round);
+  const unapproved = roundMatches.filter(m => m.status !== 'approved');
+  if (unapproved.length > 0) {
+    throw new Error(`Cannot progress: ${unapproved.length} match(es) in ${round} are still not approved.`);
+  }
+}
+
+export function getMatchWinnerTeamId(match: Match, tournament: Pick<Tournament, 'penalties'>): string {
+  if (match.status !== 'approved' || match.homeScore === null || match.awayScore === null) {
+    throw new Error(`Match ${match.id} is not completed.`);
+  }
+
+  if (match.homeScore > match.awayScore) return match.homeTeamId;
+  if (match.awayScore > match.homeScore) return match.awayTeamId;
+
+  // Draw
+  if (tournament.penalties && match.pkHomeScore != null && match.pkAwayScore != null) {
+    return match.pkHomeScore > match.pkAwayScore ? match.homeTeamId : match.awayTeamId;
+  }
+
+  throw new Error(`Match ${match.id} ended in a draw without penalties. Cup matches must have a winner.`);
+}
+
+export function getWinnersForRound(matches: Match[], round: string, tournament: Pick<Tournament, 'penalties'>): string[] {
+  const roundMatches = matches.filter(m => (m.round || '') === round);
+  return roundMatches.map(m => getMatchWinnerTeamId(m, tournament));
+}
+
+export function getChampionIfFinalComplete(matches: Match[], tournament: Pick<Tournament, 'penalties'>): string | null {
+  const finals = matches.filter(m => (m.round || '').toLowerCase() === 'final');
+  if (finals.length !== 1) return null;
+  const finalMatch = finals[0]!;
+  if (finalMatch.status !== 'approved') return null;
+  return getMatchWinnerTeamId(finalMatch, tournament);
+}
+
