@@ -49,6 +49,11 @@ const nextConfig = {
     };
     return config;
   },
+  devIndicators: {
+    allowedDevOrigins: [
+      'https://3000-firebase-earena-1768586820469.cluster-cbeiita7rbe7iuwhvjs5zww2i4.cloudworkstations.dev',
+    ],
+  },
 };
 
 module.exports = withPWA(nextConfig);
