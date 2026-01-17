@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { Trophy } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { SocialIcons } from './social-icons';
-import { BackgroundMusicPlayer } from './background-music-player';
 
 export function Footer() {
   const { settings } = useAuth();
@@ -31,7 +30,6 @@ export function Footer() {
           </p>
         </div>
         <div className="flex items-center gap-4">
-            <BackgroundMusicPlayer musicTracks={settings?.backgroundMusic || []} />
             <div className="hidden md:flex items-center gap-4">
                 {hasSocialLinks && <SocialIcons links={socialLinks} />}
                 {supportEmail && (

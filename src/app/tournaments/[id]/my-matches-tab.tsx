@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
+import { collection, onSnapshot, query } from "firebase/firestore";
 import type {
   Match,
   Team,
@@ -27,7 +27,6 @@ import {
   deleteMatchReport,
   submitSecondaryEvidence,
   getMatchPrediction,
-  submitPlayerStreamUrl,
   requestPlayerReplay,
   respondToPlayerReplay,
   deleteMatchMessage,
@@ -50,8 +49,6 @@ import {
   Timer,
   Sparkles,
   History,
-  Tv,
-  Video,
   BarChartHorizontal,
   MessageCircle,
   Calendar,
@@ -71,7 +68,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
@@ -361,7 +357,7 @@ function MatchChatDialog({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
 
   useEffect(() => {
-    const q = query(collection(db, `tournaments/${match.tournamentId}/matches/${match.id}/messages`), orderBy("timestamp", "asc"));
+    const q = query(collection(db, `tournaments/${match.tournamentId}/matches/${match.id}/messages`));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setMessages(snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as ChatMessage)));
     });
@@ -456,7 +452,6 @@ function RoomCodeManager({ match, isMatchDay }: { match: Match; isMatchDay: bool
     setTimeout(() => setHasCopied(false), 1500);
   };
 
-  // Preserve original logic: host can set on match day
   if (isHost) {
     return (
       <Dialog open={open} onOpenChange={setOpen}>
@@ -539,7 +534,7 @@ function TransferHostButton({ matchId, tournamentId }: { matchId: string; tourna
   );
 }
 
-/* ----------------------------- Dialogs (logic preserved) ----------------------------- */
+/* ----------------------------- Dialogs ----------------------------- */
 
 function ReportScoreDialog({
   match,
@@ -616,11 +611,6 @@ function ReportScoreDialog({
             <Label htmlFor="evidence">Screenshot Evidence (Match Stats)</Label>
             <Input id="evidence" name="evidence" type="file" accept="image/*" required />
             <p className="text-xs text-muted-foreground">Screenshot of the final match stats screen is required.</p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="highlightUrl">Highlight URL (Optional)</Label>
-            <Input id="highlightUrl" name="highlightUrl" type="url" placeholder="https://youtube.com/watch?v=..." />
           </div>
 
           <DialogFooter>
@@ -933,60 +923,6 @@ function MatchStatsDialog({ match, homeTeam, awayTeam }: { match: Match; homeTea
   );
 }
 
-function SetPlayerStreamUrlDialog({ match, userTeam }: { match: Match; userTeam: Team | null }) {
-  const { user, userProfile } = useAuth();
-  const { toast } = useToast();
-  const [open, setOpen] = useState(false);
-  const [url, setUrl] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-
-  if (!user || !userTeam) return null;
-  const isInMatch = match.homeTeamId === userTeam.id || match.awayTeamId === userTeam.id;
-  if (!isInMatch) return null;
-
-  const handleSave = async () => {
-    if (!user || !userProfile) return;
-    setIsLoading(true);
-    try {
-      await submitPlayerStreamUrl(match.tournamentId, match.id, user.uid, userProfile.username || "Player", url);
-      toast({ title: "Stream added ✅", description: "Others can now watch you." });
-      setOpen(false);
-      setUrl("");
-    } catch (error: any) {
-      toast({ variant: "destructive", title: "Error", description: error.message });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8">
-          <Tv className="mr-2 h-4 w-4" />
-          Add Stream 🎥
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Add your live stream 🎥</DialogTitle>
-          <DialogDescription>Paste your Twitch/YouTube link.</DialogDescription>
-        </DialogHeader>
-        <div className="py-4 space-y-2">
-          <Label htmlFor="stream-url">Stream URL</Label>
-          <Input id="stream-url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://twitch.tv/..." />
-        </div>
-        <DialogFooter>
-          <Button onClick={handleSave} disabled={isLoading || !url}>
-            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Save
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 /* ----------------------------- Main Card ----------------------------- */
 
 function MatchCard({
@@ -1163,43 +1099,8 @@ function MatchCard({
           </div>
         )}
 
-        {/* Streams */}
-        <div className="rounded-xl border bg-muted/10 p-3 space-y-2">
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="flex items-center gap-2">
-              <Tv className="h-4 w-4 text-primary" />
-              <span className="font-bold">Live Streams 🎥</span>
-            </div>
-            <SetPlayerStreamUrlDialog match={match} userTeam={userTeam} />
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {match.streamLinks &&
-              Object.entries(match.streamLinks).map(([key, link]) => (
-                <Button asChild size="sm" key={key} variant={key === "organizer" ? "default" : "secondary"} className="h-8">
-                  <a href={link.url} target="_blank" rel="noopener noreferrer">
-                    <Tv className="h-4 w-4 mr-2" />
-                    Watch {link.username}
-                  </a>
-                </Button>
-              ))}
-
-            {!match.streamLinks || Object.keys(match.streamLinks).length === 0 ? (
-              <p className="text-xs text-muted-foreground italic">No streams yet.</p>
-            ) : null}
-          </div>
-        </div>
-
-        {/* Highlights + stats + chat */}
+        {/* Stats + chat */}
         <div className="flex flex-wrap gap-2 justify-end">
-          {match.highlightUrl ? (
-            <a href={match.highlightUrl} target="_blank" rel="noopener noreferrer">
-              <Button variant="outline" size="sm" className="h-8">
-                <Video className="h-4 w-4 mr-2" />
-                Highlight 🎬
-              </Button>
-            </a>
-          ) : null}
           {match.status === "approved" ? <MatchStatsDialog match={match} homeTeam={homeTeam} awayTeam={awayTeam} /> : null}
           <MatchChatDialog
             match={match}
@@ -1275,13 +1176,20 @@ function MatchCard({
 }
 
 function HandshakeIcon() {
-  // Lucide doesn't have handshake in your reduced imports here, keep it lightweight.
   return <History className="h-4 w-4" />;
 }
 
 /* ----------------------------- Main Tab ----------------------------- */
 
-export function MyMatchesTab({ tournament, isOrganizer, userTeam }: { tournament: Tournament; isOrganizer: boolean; userTeam: Team | null }) {
+export function MyMatchesTab({
+  tournament,
+  isOrganizer,
+  userTeam,
+}: {
+  tournament: Tournament;
+  isOrganizer: boolean;
+  userTeam: Team | null;
+}) {
   const [matches, setMatches] = useState<Match[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1432,7 +1340,7 @@ export function MyMatchesTab({ tournament, isOrganizer, userTeam }: { tournament
                 <Zap className="h-5 w-5 text-primary" />
                 {showAllMatches ? "📅 All Your Matches" : "🧾 Recent Matches"}
               </CardTitle>
-              <CardDescription>Manage reporting, chats, streams, replays and evidence.</CardDescription>
+              <CardDescription>Manage reporting, chats, replays and evidence.</CardDescription>
             </div>
 
             {matches.length > 3 && (
