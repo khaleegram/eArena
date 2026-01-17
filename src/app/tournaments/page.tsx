@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -102,8 +103,6 @@ function TournamentCard({
   tournament: Tournament;
   hasJoined: boolean;
 }) {
-  const [expanded, setExpanded] = useState(false);
-
   const now = new Date();
 
   const regOpen =
@@ -112,14 +111,11 @@ function TournamentCard({
     isAfter(now, toDate(tournament.registrationStartDate)) &&
     isBefore(now, endOfDay(toDate(tournament.registrationEndDate)));
 
-  const canJoin = tournament.status === "open_for_registration" && regOpen;
   const cta = hasJoined ? "Manage" : tournament.status === "open_for_registration" ? "Join" : "View";
 
-  // Mobile: remove paragraphs, show only essentials, expand for details
   return (
-    <Card className="overflow-hidden border bg-card/50 hover:bg-card transition-colors rounded-2xl">
-      {/* Header strip */}
-      <div className={cn("px-4 py-2 border-b flex items-center justify-between", hasJoined ? "bg-primary/5" : "bg-muted/20")}>
+    <Card className="overflow-hidden border bg-card/50 hover:bg-card transition-colors rounded-2xl flex flex-col h-full">
+      <div className={cn("px-3 sm:px-4 py-2 border-b flex items-center justify-between", hasJoined ? "bg-primary/5" : "bg-muted/20")}>
         <div className="flex items-center gap-2">
           <StatusPill status={tournament.status} />
           {hasJoined && (
@@ -132,90 +128,30 @@ function TournamentCard({
         {regOpen && tournament.registrationEndDate ? <RegistrationCountdownBadge endDate={tournament.registrationEndDate} /> : null}
       </div>
 
-      <CardContent className="p-4 space-y-3">
-        {/* Title + game */}
-        <div className="space-y-1">
-          <div className="flex items-start justify-between gap-2">
-            <h3 className="font-headline text-base font-black leading-tight line-clamp-1">
-              {tournament.name}
-            </h3>
-
-            {/* Tiny expand toggle (mobile friendly) */}
-            <button
-              type="button"
-              onClick={() => setExpanded(v => !v)}
-              className="md:hidden shrink-0 p-2 -m-2 rounded-lg hover:bg-muted/40"
-              aria-label={expanded ? "Hide details" : "Show details"}
-            >
-              {expanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-            </button>
-          </div>
-
+      <CardContent className="p-3 sm:p-4 space-y-3 flex-grow flex flex-col">
+        <div className="space-y-1 flex-grow">
+          <h3 className="font-headline text-base font-black leading-tight line-clamp-2">
+            {tournament.name}
+          </h3>
           <p className="text-xs text-muted-foreground line-clamp-1">
             🎮 {tournament.game} • 🖥 {tournament.platform}
           </p>
+          <p className="text-xs text-muted-foreground pt-2 line-clamp-2">{tournament.description}</p>
         </div>
-
-        {/* Teams bar */}
-        <TeamsMiniBar current={tournament.teamCount} max={tournament.maxTeams} />
-
-        {/* Desktop details always visible */}
-        <div className="hidden md:block space-y-3">
-          <p className="text-sm text-muted-foreground line-clamp-3">{tournament.description}</p>
-
-          {tournament.tournamentStartDate && tournament.tournamentEndDate ? (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Calendar className="h-4 w-4" />
-              <span className="font-semibold">
-                {format(toDate(tournament.tournamentStartDate), "PPP")} – {format(toDate(tournament.tournamentEndDate), "PPP")}
-              </span>
-            </div>
-          ) : null}
-
-          {tournament.status === "open_for_registration" ? (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Sparkles className="h-4 w-4" />
-              <span className="font-semibold">{canJoin ? "Registration is open" : "Registration window not active"}</span>
-            </div>
-          ) : null}
+        
+        <div className="pt-2">
+            <TeamsMiniBar current={tournament.teamCount} max={tournament.maxTeams} />
         </div>
+      </CardContent>
 
-        {/* Mobile expanded details */}
-        {expanded ? (
-          <div className="md:hidden space-y-3 pt-2 border-t">
-            <p className="text-sm text-muted-foreground line-clamp-4">{tournament.description}</p>
-
-            {tournament.tournamentStartDate && tournament.tournamentEndDate ? (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Calendar className="h-4 w-4" />
-                <span className="font-semibold">
-                  {format(toDate(tournament.tournamentStartDate), "PPP")} – {format(toDate(tournament.tournamentEndDate), "PPP")}
-                </span>
-              </div>
-            ) : null}
-
-            {tournament.status === "open_for_registration" ? (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Sparkles className="h-4 w-4" />
-                <span className="font-semibold">{canJoin ? "Registration is open" : "Registration window not active"}</span>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-
-        {/* CTA */}
-        <Link href={`/tournaments/${tournament.id}`} className="block">
+      <CardFooter className="p-3 sm:p-4 border-t">
+        <Link href={`/tournaments/${tournament.id}`} className="w-full">
           <Button variant={hasJoined ? "default" : "secondary"} className="w-full rounded-xl">
             {cta}
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </Link>
-
-        {/* Micro hint for mobile */}
-        <p className="md:hidden text-[11px] text-muted-foreground text-center">
-          Tap the arrow to see details.
-        </p>
-      </CardContent>
+      </CardFooter>
     </Card>
   );
 }
