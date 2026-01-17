@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -8,7 +7,7 @@ import Link from 'next/link';
 import { db } from '@/lib/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 
-import type { Match, Team, Tournament, TeamMatchStats, UnifiedTimestamp } from '@/lib/types';
+import type { Match, Team, Tournament, TeamMatchStats, UnifiedTimestamp, ReplayRequest, UserProfile } from '@/lib/types';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,6 +15,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Textarea } from '@/components/ui/textarea';
 
 import {
   Loader2,
@@ -26,15 +26,19 @@ import {
   Calendar,
   BarChartHorizontal,
   Bot,
+  AlertTriangle,
+  History,
+  ShieldCheck
 } from 'lucide-react';
 
-import { format, isFuture, isPast, isToday, endOfDay } from 'date-fns';
+import { format, isToday, isPast, endOfDay } from 'date-fns';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import { getMatchPrediction, setOrganizerStreamUrl } from '@/lib/actions';
+import { getMatchPrediction, setOrganizerStreamUrl, requestPlayerReplay, respondToPlayerReplay, forfeitMatch } from '@/lib/actions';
 import { MatchStatusBadge } from '@/components/match-status-badge';
 import { toDate } from '@/lib/utils';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tv } from 'lucide-react';
@@ -179,6 +183,136 @@ function SetOrganizerStreamUrlDialog({ matchId, tournamentId, organizerId }: { m
   );
 }
 
+function ForfeitMatchDialog({ match, forfeitingTeamName }: { match: Match; forfeitingTeamName: string }) {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleForfeit = async () => {
+    if (!user) return;
+    setIsLoading(true);
+    try {
+      await forfeitMatch(match.tournamentId, match.id, user.uid);
+      toast({ title: "Match forfeited ✅", description: "Result recorded as 3-0 loss." });
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button variant="destructive" size="sm" className="h-8">
+          Forfeit 🏳️
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Forfeit match?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This records a 3-0 loss for <strong>{forfeitingTeamName}</strong>. Cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={handleForfeit} disabled={isLoading} className="bg-destructive hover:bg-destructive/90">
+            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Confirm
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+function RequestReplayDialog({ match }: { match: Match }) {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleFormAction = async (formData: FormData) => {
+    if (!user) return;
+    const reason = formData.get("reason") as string;
+    if (!reason) {
+      toast({ variant: "destructive", title: "A reason is required." });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await requestPlayerReplay(match.tournamentId, match.id, user.uid, reason);
+      toast({ title: "Replay requested ✅", description: "Opponent has been notified." });
+      setOpen(false);
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" className="h-8">
+          <History className="mr-2 h-4 w-4" />
+          Request Replay 🔁
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Request a Replay 🔁</DialogTitle>
+          <DialogDescription>If there was a disconnect or issue, request a replay. Opponent must respond.</DialogDescription>
+        </DialogHeader>
+        <form action={handleFormAction} className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="reason">Reason</Label>
+            <Textarea id="reason" name="reason" placeholder="e.g., Internet disconnected in the 80th minute." required />
+          </div>
+          <DialogFooter>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Send Request
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function RespondToReplayDialog({ match }: { match: Match }) {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleResponse = async (accepted: boolean) => {
+    if (!user) return;
+    setIsLoading(true);
+    try {
+      await respondToPlayerReplay(match.tournamentId, match.id, user.uid, accepted);
+      toast({ title: "Response sent ✅", description: "Organizer has been notified." });
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex gap-2">
+      <Button size="sm" variant="secondary" onClick={() => handleResponse(true)} disabled={isLoading} className="h-8">
+        {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Accept ✅"}
+      </Button>
+      <Button size="sm" variant="destructive" onClick={() => handleResponse(false)} disabled={isLoading} className="h-8">
+        Reject ❌
+      </Button>
+    </div>
+  );
+}
+
 
 /* ----------------------------- Page ----------------------------- */
 
@@ -187,7 +321,7 @@ export default function MatchDetailsPage() {
   const tournamentId = params.id as string;
   const matchId = params.matchId as string;
 
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
   
   const [match, setMatch] = useState<Match | null>(null);
   const [tournament, setTournament] = useState<Tournament | null>(null);
@@ -217,7 +351,7 @@ export default function MatchDetailsPage() {
     const run = async () => {
       setLoading(true);
       try {
-        const tournamentDoc = await doc(db, 'tournaments', tournamentId).get();
+        const tournamentDoc = await getDoc(doc(db, 'tournaments', tournamentId));
         if (tournamentDoc.exists()) setTournament(tournamentDoc.data() as Tournament);
         else setTournament(null);
 
@@ -277,6 +411,16 @@ export default function MatchDetailsPage() {
   }
   
   const statsAvailable = match.status === 'approved' && match.homeTeamStats && Object.keys(match.homeTeamStats).length > 0;
+  
+  const replayRequest: ReplayRequest | undefined = (match as any).replayRequest;
+  const isHomeCaptain = user?.uid === homeTeam.captainId;
+  const isAwayCaptain = user?.uid === awayTeam.captainId;
+  const isMyTeam = isHomeCaptain || isAwayCaptain;
+  const opponentCaptainId = isHomeCaptain ? awayTeam.captainId : homeTeam.captainId;
+  
+  const canRequestReplay = isMyTeam && !replayRequest && match.status === 'scheduled';
+  const canRespondToReplay = user?.uid === opponentCaptainId && replayRequest?.status === 'pending';
+  const canForfeit = (isHomeCaptain || isAwayCaptain) && isToday(toDate(match.matchDay)) && match.status === "scheduled";
 
   return (
     <div className="max-w-5xl mx-auto p-4 md:p-6 space-y-5">
@@ -347,9 +491,39 @@ export default function MatchDetailsPage() {
       )}
 
       <AIPrediction match={match} tournamentId={tournamentId} />
-      
-       {isOrganizer && user && <SetOrganizerStreamUrlDialog matchId={match.id} tournamentId={tournamentId} organizerId={user.uid} />}
 
+      <Card>
+        <CardHeader>
+            <CardTitle>Match Actions</CardTitle>
+            <CardDescription>Request replays or forfeit if necessary.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+            {canForfeit ? <ForfeitMatchDialog match={match} forfeitingTeamName={isHomeCaptain ? homeTeam.name : awayTeam.name} /> : null}
+            {canRequestReplay ? <RequestReplayDialog match={match} /> : null}
+            {isOrganizer && user && <SetOrganizerStreamUrlDialog matchId={match.id} tournamentId={tournamentId} organizerId={user.uid} />}
+        </CardContent>
+      </Card>
+      
+       {replayRequest && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><History className="h-5 w-5" />Replay Request</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+              <Alert variant={replayRequest.status === 'accepted' ? 'default' : 'destructive'} className="text-sm">
+                <AlertCircle className="h-4 w-4"/>
+                <AlertTitle>Status: {replayRequest.status}</AlertTitle>
+                <AlertDescription>Reason: "{replayRequest.reason}"</AlertDescription>
+              </Alert>
+              {canRespondToReplay && (
+                <div>
+                  <p className="text-sm font-semibold mb-2">Do you agree to a replay?</p>
+                  <RespondToReplayDialog match={match} />
+                </div>
+              )}
+          </CardContent>
+        </Card>
+       )}
     </div>
   );
 }
