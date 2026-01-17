@@ -1,15 +1,16 @@
-
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Tournament, UnifiedTimestamp } from "@/lib/types";
-import { FileText, ClipboardCopy, Check, Info, Crown, Globe, Lock, Gamepad2, Users, Trophy, Calendar } from "lucide-react";
+import { FileText, ClipboardCopy, Check, Info, Crown, Globe, Lock, Gamepad2, Users, Trophy, Calendar, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { toDate } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 const RuleItem = ({ label, value }: { label: string; value: string | number | boolean }) => {
     const displayValue = typeof value === 'boolean' ? (value ? 'Yes' : 'No') : value;
@@ -23,14 +24,24 @@ const RuleItem = ({ label, value }: { label: string; value: string | number | bo
 
 export function OverviewTab({ tournament }: { tournament: Tournament }) {
     const { toast } = useToast();
-    const [copied, setCopied] = useState(false);
+    const [copiedCode, setCopiedCode] = useState(false);
+    const [copiedLink, setCopiedLink] = useState(false);
 
-    const handleCopy = () => {
+    const handleCopyCode = () => {
         if (!tournament.code) return;
         navigator.clipboard.writeText(tournament.code);
-        setCopied(true);
+        setCopiedCode(true);
         toast({ title: "Copied!", description: "Tournament code copied to clipboard." });
-        setTimeout(() => setCopied(false), 2000);
+        setTimeout(() => setCopiedCode(false), 2000);
+    };
+
+    const handleCopyLink = () => {
+        if (typeof window === 'undefined') return;
+        const url = window.location.href.split('?')[0];
+        navigator.clipboard.writeText(url);
+        setCopiedLink(true);
+        toast({ title: "Copied!", description: "Tournament link copied to clipboard." });
+        setTimeout(() => setCopiedLink(false), 2000);
     };
 
     return (
@@ -55,18 +66,29 @@ export function OverviewTab({ tournament }: { tournament: Tournament }) {
                 </Card>
                  <Card>
                     <CardHeader>
-                        <CardTitle className="font-headline flex items-center gap-2"><Info className="w-5 h-5"/> Tournament Info</CardTitle>
-                        <CardDescription>Unique code for this tournament.</CardDescription>
+                        <CardTitle className="font-headline flex items-center gap-2"><Info className="w-5 h-5"/> Share Tournament</CardTitle>
+                        <CardDescription>Share with others using a direct link or the unique code.</CardDescription>
                     </CardHeader>
-                    <CardContent>
-                        <p className="text-sm text-muted-foreground">
-                            Share this code with players to allow them to join this tournament if it's private.
-                        </p>
-                        <div className="flex items-center gap-2 mt-2">
-                            <span className="font-mono text-lg font-bold tracking-widest bg-muted text-accent-foreground px-3 py-1 rounded-md">{tournament.code}</span>
-                            <Button variant="outline" size="sm" onClick={handleCopy}>
-                                {copied ? <Check className="w-4 h-4 text-green-500" /> : <ClipboardCopy className="w-4 h-4" />}
-                            </Button>
+                    <CardContent className="space-y-4">
+                        <div>
+                            <Label htmlFor="join-code" className="text-xs font-semibold">Join Code (for private tournaments)</Label>
+                            <div className="flex items-center gap-2 mt-1">
+                                <Input id="join-code" readOnly value={tournament.code} className="font-mono tracking-widest text-lg h-10 text-center bg-muted" />
+                                <Button variant="outline" size="icon" onClick={handleCopyCode} className="h-10 w-10">
+                                    <span className="sr-only">Copy Code</span>
+                                    {copiedCode ? <Check className="w-4 h-4 text-green-500" /> : <ClipboardCopy className="w-4 h-4" />}
+                                </Button>
+                            </div>
+                        </div>
+                        <div>
+                            <Label htmlFor="share-link" className="text-xs font-semibold">Shareable Link</Label>
+                            <div className="flex items-center gap-2 mt-1">
+                                <Input id="share-link" readOnly value={typeof window !== 'undefined' ? window.location.href.split('?')[0] : ''} className="bg-muted"/>
+                                <Button variant="outline" size="icon" onClick={handleCopyLink} className="h-10 w-10">
+                                    <span className="sr-only">Copy Link</span>
+                                    {copiedLink ? <Check className="w-4 h-4 text-green-500" /> : <Share2 className="w-4 h-4" />}
+                                </Button>
+                            </div>
                         </div>
                     </CardContent>
                 </Card>
