@@ -730,7 +730,7 @@ export default function TournamentPage() {
                                     <TabsTrigger value="overview"><Info className="w-4 h-4 mr-2 sm:hidden md:inline-block"/>Overview</TabsTrigger>
                                     {userTeam && <TabsTrigger value="my-matches"><Swords className="w-4 h-4 mr-2 sm:hidden md:inline-block"/>My Matches</TabsTrigger>}
                                     <TabsTrigger value="teams"><Users className="w-4 h-4 mr-2 sm:hidden md:inline-block"/>Teams</TabsTrigger>
-                                    <TabsTrigger value="schedule"><BookOpenCheck className="w-4 h-4 mr-2 sm:hidden md:inline-block"/>Fixtures</TabsTrigger>
+                                    <TabsTrigger value="fixtures"><BookOpenCheck className="w-4 h-4 mr-2 sm:hidden md:inline-block"/>Fixtures</TabsTrigger>
                                     <TabsTrigger value="standings"><Trophy className="w-4 h-4 mr-2 sm:hidden md:inline-block"/>Standings</TabsTrigger>
                                     <TabsTrigger value="rewards"><Award className="w-4 h-4 mr-2 sm:hidden md:inline-block"/>Rewards</TabsTrigger>
                                     <TabsTrigger value="chat"><Rss className="w-4 h-4 mr-2 sm:hidden md:inline-block"/>Chat</TabsTrigger>
@@ -749,7 +749,7 @@ export default function TournamentPage() {
                         <TabsContent value="teams" className="mt-4">
                         <TeamsTab tournament={tournament} isOrganizer={isOrganizer} />
                         </TabsContent>
-                        <TabsContent value="schedule" className="mt-4">
+                        <TabsContent value="fixtures" className="mt-4">
                             <FixturesTab tournament={tournament} isOrganizer={isOrganizer} />
                         </TabsContent>
                         <TabsContent value="standings" className="mt-4">

@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -18,7 +17,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
@@ -26,7 +26,6 @@ import {
   Loader2,
   User,
   Video,
-  Sparkles,
   Calendar,
 } from "lucide-react";
 
@@ -92,10 +91,9 @@ function MatchCard({
           </div>
           
            {/* Footer: Indicators */}
-           {(match.streamLinks && Object.keys(match.streamLinks).length > 0) || match.summary ? (
+           {match.streamLinks && Object.keys(match.streamLinks).length > 0 ? (
             <div className="flex items-center justify-end gap-2 pt-1">
-              {match.streamLinks && Object.keys(match.streamLinks).length > 0 && <Video className="h-4 w-4 text-primary" />}
-              {match.summary && <Sparkles className="h-4 w-4 text-yellow-400" />}
+              <Video className="h-4 w-4 text-primary" />
             </div>
            ) : null}
 
@@ -116,7 +114,7 @@ export function FixturesTab({ tournament, isOrganizer }: { tournament: Tournamen
   useEffect(() => {
     let active = true;
 
-    const matchQuery = query(collection(db, `tournaments/${tournament.id}/matches`), orderBy("round", "asc"));
+    const matchQuery = query(collection(db, `tournaments/${tournament.id}/matches`), orderBy("round", "asc"), orderBy("matchDay", "asc"));
     const teamQuery = query(collection(db, `tournaments/${tournament.id}/teams`));
 
     let teamsLoaded = false;
@@ -151,21 +149,12 @@ export function FixturesTab({ tournament, isOrganizer }: { tournament: Tournamen
 
   const getTeam = (teamId: string) => teams.find((t) => t.id === teamId);
 
-  const isGroupRound = (round?: string) => typeof round === "string" && /^group\s+[a-z]$/i.test(round.trim());
+  const isGroupRound = (round?: string) => typeof round === 'string' && /^group\s+[a-z]$/i.test(round.trim());
   const isKnockoutRound = (round?: string) => {
-    if (typeof round !== "string") return false;
+    if (typeof round !== 'string') return false;
     const r = round.trim().toLowerCase();
-    return r === "final" || r === "semi-finals" || r === "quarter-finals" || /^round of \d+$/i.test(r.trim());
+    return r === 'final' || r === 'semi-finals' || r === 'quarter-finals' || /^round of \d+$/i.test(r.trim());
   };
-
-  const groupMatches = matches.filter((m) => isGroupRound(m.round));
-  const knockoutMatches = matches.filter((m) => isKnockoutRound(m.round));
-
-  const hasGroupStage = groupMatches.length > 0;
-  const hasKnockout = knockoutMatches.length > 0;
-
-  const isCupStyle = tournament.format === "cup";
-  const showBracket = tournament.format === "double-elimination" || (isCupStyle && hasKnockout);
 
   const groupedMatches = matches.reduce((acc, match) => {
     const round = match.round || "Uncategorized";
@@ -174,6 +163,13 @@ export function FixturesTab({ tournament, isOrganizer }: { tournament: Tournamen
     return acc;
   }, {} as Record<string, Match[]>);
 
+  const groupRounds = Object.keys(groupedMatches).filter(isGroupRound).sort();
+  const knockoutMatches = matches.filter(m => isKnockoutRound(m.round));
+  const otherRounds = Object.keys(groupedMatches).filter(r => !isGroupRound(r) && !isKnockoutRound(r)).sort();
+  
+  const hasKnockout = knockoutMatches.length > 0;
+  const defaultTabValue = groupRounds[0] || otherRounds[0] || (hasKnockout ? 'knockout' : 'all');
+
   return (
     <Card className="rounded-2xl">
       <CardHeader>
@@ -181,70 +177,45 @@ export function FixturesTab({ tournament, isOrganizer }: { tournament: Tournamen
         <CardDescription>The complete list of all matches in the tournament.</CardDescription>
       </CardHeader>
 
-      <CardContent className="space-y-6">
+      <CardContent>
         {loading ? (
           <div className="flex justify-center items-center h-40">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : matches.length === 0 ? (
           <p className="text-muted-foreground text-center py-8">Fixtures have not been generated yet.</p>
-        ) : showBracket ? (
-          <div className="space-y-8">
-            {isCupStyle && hasGroupStage && (
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-lg font-semibold font-headline">Group Stage</h3>
-                  <p className="text-sm text-muted-foreground">Group matches and results.</p>
-                </div>
-
-                <div className="space-y-6">
-                  {Object.entries(groupedMatches)
-                    .filter(([round]) => isGroupRound(round))
-                    .map(([round, roundMatches]) => (
-                      <div key={round} className="space-y-2">
-                        <h4 className="text-base font-semibold font-headline">{round}</h4>
-                        <div className="grid gap-3">
-                          {roundMatches.map((match) => (
-                            <MatchCard
-                              key={match.id}
-                              match={match}
-                              getTeam={getTeam}
-                              tournament={tournament}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-3">
-              <div>
-                <h3 className="text-lg font-semibold font-headline">{isCupStyle ? "Knockout Bracket" : "Bracket"}</h3>
-                <p className="text-sm text-muted-foreground">Knockout progression to the final.</p>
-              </div>
-              <Bracket matches={isCupStyle ? knockoutMatches : matches} teams={teams} />
-            </div>
-          </div>
         ) : (
-          <div className="space-y-6">
+          <Tabs defaultValue={defaultTabValue} className="w-full">
+            <ScrollArea>
+              <TabsList>
+                {groupRounds.map(round => <TabsTrigger key={round} value={round}>{round}</TabsTrigger>)}
+                {otherRounds.map(round => <TabsTrigger key={round} value={round}>{round}</TabsTrigger>)}
+                {hasKnockout && <TabsTrigger value="knockout">Knockout Bracket</TabsTrigger>}
+              </TabsList>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
+            
             {Object.entries(groupedMatches).map(([round, roundMatches]) => (
-              <div key={round} className="space-y-2">
-                <h3 className="text-lg font-semibold font-headline">{round}</h3>
-                <div className="grid gap-3">
-                  {roundMatches.map((match) => (
-                    <MatchCard
-                      key={match.id}
-                      match={match}
-                      getTeam={getTeam}
-                      tournament={tournament}
-                    />
-                  ))}
-                </div>
-              </div>
+                <TabsContent key={round} value={round} className="mt-4">
+                  <div className="grid gap-3">
+                    {roundMatches.map((match) => (
+                      <MatchCard
+                        key={match.id}
+                        match={match}
+                        getTeam={getTeam}
+                        tournament={tournament}
+                      />
+                    ))}
+                  </div>
+                </TabsContent>
             ))}
-          </div>
+
+            {hasKnockout && (
+              <TabsContent value="knockout" className="mt-4">
+                <Bracket matches={knockoutMatches} teams={teams} />
+              </TabsContent>
+            )}
+          </Tabs>
         )}
       </CardContent>
     </Card>
