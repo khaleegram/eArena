@@ -27,7 +27,7 @@ export function Bracket({ matches, teams }: BracketProps) {
         // Extract number from "Round of X"
         const match = round.match(/Round of (\d+)/);
         if (match) {
-            return parseInt(match[1], 10); // Higher number = earlier round
+            return parseInt(match[1]!, 10); // Higher number = earlier round
         }
         // Check for named rounds
         const index = roundOrder.indexOf(round);
