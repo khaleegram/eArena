@@ -21,7 +21,6 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
 
 import {
   Loader2,
@@ -58,8 +57,17 @@ function MatchCard({
 
   return (
     <Link href={`/tournaments/${tournament.id}/matches/${match.id}`}>
-      <Card className="rounded-2xl overflow-hidden bg-card/60 hover:bg-card hover:shadow-lg transition-all cursor-pointer">
-        <CardContent className="p-4 space-y-3">
+      <Card className="rounded-xl overflow-hidden bg-card/60 hover:bg-card hover:shadow-md transition-all cursor-pointer">
+        <CardContent className="p-3 space-y-3">
+          {/* Header: Status and Date */}
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <MatchStatusBadge status={match.status} />
+            <Badge variant="outline" className="text-[10px] py-0.5">
+              <Calendar className="h-3 w-3 mr-1" />
+              {format(toDate(match.matchDay), "MMM d, HH:mm")}
+            </Badge>
+          </div>
+
           {/* Team vs Team */}
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 min-w-0">
@@ -70,7 +78,7 @@ function MatchCard({
               <span className="text-sm font-semibold truncate">{homeTeam.name}</span>
             </div>
 
-            <div className="text-sm font-black">
+            <div className="text-lg font-black tabular-nums shrink-0">
               {match.status === "approved" ? `${match.homeScore} - ${match.awayScore}` : "vs"}
             </div>
 
@@ -82,27 +90,15 @@ function MatchCard({
               </Avatar>
             </div>
           </div>
-
-          {/* Status, Date, Indicators */}
-          <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-            <div className="flex items-center gap-2 flex-wrap">
-              <MatchStatusBadge status={match.status} />
-              <Badge variant="outline">
-                <Calendar className="h-3 w-3 mr-1" />
-                {format(toDate(match.matchDay), "MMM d, HH:mm")}
-              </Badge>
-            </div>
-
-            <div className="flex items-center gap-1">
+          
+           {/* Footer: Indicators */}
+           {(match.streamLinks && Object.keys(match.streamLinks).length > 0) || match.summary ? (
+            <div className="flex items-center justify-end gap-2 pt-1">
               {match.streamLinks && Object.keys(match.streamLinks).length > 0 && <Video className="h-4 w-4 text-primary" />}
               {match.summary && <Sparkles className="h-4 w-4 text-yellow-400" />}
             </div>
-          </div>
+           ) : null}
 
-          {/* View Button */}
-          <Button size="sm" variant="secondary" className="w-full" asChild>
-             <span className="w-full">→ View Match Details</span>
-          </Button>
         </CardContent>
       </Card>
     </Link>
