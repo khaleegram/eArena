@@ -45,9 +45,10 @@ import {
   Hourglass,
   Crown,
   Zap,
+  Lock,
 } from "lucide-react";
 
-import { format, isToday } from "date-fns";
+import { format, isToday, isFuture } from "date-fns";
 
 import Link from "next/link";
 import { toDate, cn } from "@/lib/utils";
@@ -386,7 +387,6 @@ function TransferHostButton({ matchId, tournamentId }: { matchId: string, tourna
     );
 }
 
-
 const ChatInput = ({ onSendMessage }: { onSendMessage: (message: string) => Promise<void> }) => {
     const [message, setMessage] = useState("");
     const [isSending, setIsSending] = useState(false);
@@ -439,7 +439,9 @@ function MatchCard({
 
   if (!homeTeam || !awayTeam || !user) return null;
 
-  const isMatchDay = isToday(toDate(match.matchDay));
+  const matchDay = toDate(match.matchDay);
+  const isMatchDay = isToday(matchDay);
+  const isMatchLocked = isFuture(matchDay) && !isToday(matchDay);
 
   const isHomeCaptain = user.uid === homeTeam.captainId;
   const isAwayCaptain = user.uid === awayTeam.captainId;
@@ -458,6 +460,12 @@ function MatchCard({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <MatchStatusBadge status={match.status} />
+              {isMatchLocked && (
+                <Badge variant="outline" className="text-xs">
+                  <Lock className="h-3 w-3 mr-1" />
+                  Locked
+                </Badge>
+              )}
               <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-wider">
                 <Calendar className="h-3 w-3 mr-1" />
                 {format(toDate(match.matchDay), "MMM d, HH:mm")}

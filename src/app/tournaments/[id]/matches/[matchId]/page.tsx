@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useEffect, useMemo, useState, useRef } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -337,12 +337,6 @@ export default function MatchDetailsPage() {
     return (tournament as any).organizerId === user.uid;
   }, [tournament, user]);
   
-  const isMatchLocked = useMemo(() => {
-      if(!match) return true;
-      const matchDay = toDate(match.matchDay);
-      return !isToday(matchDay) && !isPast(matchDay);
-  }, [match]);
-
   // Combined real-time listener for match and one-time fetch for static data
   useEffect(() => {
     if (!tournamentId || !matchId) return;
@@ -465,10 +459,6 @@ export default function MatchDetailsPage() {
         </CardContent>
       </Card>
       
-      {isMatchLocked && (
-        <Alert variant="default"><AlertTriangle className="h-4 w-4" /><AlertTitle>Match Locked</AlertTitle><AlertDescription>Match actions will be available on match day.</AlertDescription></Alert>
-      )}
-
       {match.summary && (
         <Alert className="border-2 border-yellow-500/30 bg-yellow-500/5"><Sparkles className="h-5 w-5 text-yellow-500" /><AlertTitle className="font-black">AI Summary</AlertTitle><AlertDescription className="mt-2 text-sm leading-relaxed">{match.summary}</AlertDescription></Alert>
       )}
