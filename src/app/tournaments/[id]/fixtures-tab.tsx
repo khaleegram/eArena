@@ -197,30 +197,32 @@ export function FixturesTab({ tournament, isOrganizer }: { tournament: Tournamen
             </ScrollArea>
             
             {Object.entries(groupedMatches).map(([round, roundMatches]) => {
-                const matchesByDay = roundMatches.reduce((acc, match) => {
-                    const day = format(toDate(match.matchDay), 'yyyy-MM-dd');
-                    if (!acc[day]) {
-                    acc[day] = [];
+                const isGroup = isGroupRound(round);
+                
+                const matchdays: Match[][] = [];
+                if (isGroup) {
+                    const chunkSize = 2; // Assuming 2 matches per matchday for a 4-team group
+                    for (let i = 0; i < roundMatches.length; i += chunkSize) {
+                        matchdays.push(roundMatches.slice(i, i + chunkSize));
                     }
-                    acc[day].push(match);
-                    return acc;
-                }, {} as Record<string, Match[]>);
-
-                const sortedDays = Object.keys(matchesByDay).sort();
-                const isGroupStage = isGroupRound(round);
+                } else {
+                    if(roundMatches.length > 0) {
+                        matchdays.push(roundMatches);
+                    }
+                }
 
                 return (
                     <TabsContent key={round} value={round} className="mt-4">
                       <div className="space-y-6">
-                        {sortedDays.map((day, index) => (
-                          <div key={day} className="space-y-3">
-                            {isGroupStage && sortedDays.length > 1 && (
+                        {matchdays.map((dayMatches, index) => (
+                          <div key={index} className="space-y-3">
+                            {isGroup && matchdays.length > 1 && (
                                 <div className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">
                                   Matchday {index + 1}
                                 </div>
                             )}
                             <div className="grid gap-3">
-                                {matchesByDay[day]!.map((match) => (
+                                {dayMatches.map((match) => (
                                     <MatchCard
                                         key={match.id}
                                         match={match}
