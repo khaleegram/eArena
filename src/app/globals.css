@@ -53,20 +53,20 @@
 
   .dark {
     /* Dark theme colors */
-    --background: 222 39% 11%; /* #141B2E */
+    --background: 222 84% 5%; /* #030822 */
     --foreground: 0 0% 98%; /* #FAFAFA */
     --card: 222 39% 11%; /* #141B2E */
     --card-foreground: 0 0% 98%; /* #FAFAFA */
     --popover: 222 39% 11%; /* #141B2E */
     --popover-foreground: 0 0% 98%; /* #FAFAFA */
     --primary: 35 33% 55%; /* #A67C52 - Brand color */
-    --primary-foreground: 222 39% 11%; /* #141B2E */
+    --primary-foreground: 222 84% 5%; /* #030822 */
     --secondary: 240 3.7% 15.9%; /* #28282F */
     --secondary-foreground: 0 0% 98%; /* #FAFAFA */
     --muted: 240 3.7% 15.9%; /* #28282F */
     --muted-foreground: 0 0% 75%; /* #BFBFBF */
     --accent: 35 33% 55%; /* #A67C52 - Brand accent */
-    --accent-foreground: 222 39% 11%; /* #141B2E */
+    --accent-foreground: 222 84% 5%; /* #030822 */
     --destructive: 0 84.2% 60.2%; /* #EF4444 */
     --destructive-foreground: 0 0% 98%; /* #FAFAFA */
     --border: 240 3.7% 15.9%; /* #28282F */
@@ -80,9 +80,9 @@
     --sidebar-background: 222 39% 11%;
     --sidebar-foreground: 0 0% 98%;
     --sidebar-primary: 35 33% 55%;
-    --sidebar-primary-foreground: 222 39% 11%;
+    --sidebar-primary-foreground: 222 84% 5%;
     --sidebar-accent: 35 33% 55%;
-    --sidebar-accent-foreground: 222 39% 11%;
+    --sidebar-accent-foreground: 222 84% 5%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 35 33% 55%;
   }
