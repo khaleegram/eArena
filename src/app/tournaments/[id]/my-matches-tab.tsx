@@ -18,6 +18,7 @@ import {
   submitMatchResult,
   setMatchRoomCode,
   postMatchMessage,
+  transferHost,
 } from "@/lib/actions";
 
 import {
@@ -55,6 +56,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 
 import Link from "next/link";
@@ -239,13 +241,11 @@ function MatchChatDialog({
   homeTeamName,
   awayTeamName,
   isMatchDay,
-  isOrganizer,
 }: {
   match: Match;
   homeTeamName: string;
   awayTeamName: string;
   isMatchDay: boolean;
-  isOrganizer: boolean;
 }) {
   const { user, userProfile } = useAuth();
   const { toast } = useToast();
@@ -331,6 +331,51 @@ function MatchChatDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+function TransferHostButton({ matchId, tournamentId }: { matchId: string, tournamentId: string }) {
+    const { user } = useAuth();
+    const { toast } = useToast();
+    const [isLoading, setIsLoading] = useState(false);
+
+    const handleTransfer = async () => {
+        if (!user) return;
+        setIsLoading(true);
+        try {
+            await transferHost(tournamentId, matchId, user.uid);
+            toast({ title: "Host duties transferred." });
+        } catch (error: any) {
+            toast({ variant: "destructive", title: "Error", description: error.message });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <AlertDialog>
+            <AlertDialogTrigger asChild>
+                <Button variant="outline" size="sm" className="h-8 flex-1">
+                    <ArrowRightLeft className="h-4 w-4 mr-2" />
+                    Transfer Host
+                </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Transfer Host?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        This will make your opponent the host for this match. They will be responsible for setting the room code.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleTransfer} disabled={isLoading}>
+                        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                        Confirm
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    );
 }
 
 const ChatInput = ({ onSendMessage }: { onSendMessage: (message: string) => Promise<void> }) => {
@@ -435,7 +480,7 @@ function MatchCard({
 
         {/* Action Bar */}
         <div className="p-2 border-t bg-muted/20 flex flex-wrap gap-2 justify-end">
-          <MatchChatDialog match={match} homeTeamName={homeTeam.name} awayTeamName={awayTeam.name} isMatchDay={isMatchDay} isOrganizer={isOrganizer}/>
+          <MatchChatDialog match={match} homeTeamName={homeTeam.name} awayTeamName={awayTeam.name} isMatchDay={isMatchDay} />
           {isHostCaptain && <TransferHostButton matchId={match.id} tournamentId={match.tournamentId} />}
           <RoomCodeManager match={{ ...match, host: getTeam(match.hostId) } as any} isMatchDay={isMatchDay} />
           {canReport && <ReportScoreDialog match={match} teamToReportFor={isHomeCaptain ? homeTeam : awayTeam} homeTeamName={homeTeam.name} awayTeamName={awayTeam.name} />}
@@ -592,3 +637,5 @@ export function MyMatchesTab({
     </div>
   );
 }
+
+    
