@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -195,20 +196,45 @@ export function FixturesTab({ tournament, isOrganizer }: { tournament: Tournamen
               <ScrollBar orientation="horizontal" />
             </ScrollArea>
             
-            {Object.entries(groupedMatches).map(([round, roundMatches]) => (
-                <TabsContent key={round} value={round} className="mt-4">
-                  <div className="grid gap-3">
-                    {roundMatches.map((match) => (
-                      <MatchCard
-                        key={match.id}
-                        match={match}
-                        getTeam={getTeam}
-                        tournament={tournament}
-                      />
-                    ))}
-                  </div>
-                </TabsContent>
-            ))}
+            {Object.entries(groupedMatches).map(([round, roundMatches]) => {
+                const matchesByDay = roundMatches.reduce((acc, match) => {
+                    const day = format(toDate(match.matchDay), 'yyyy-MM-dd');
+                    if (!acc[day]) {
+                    acc[day] = [];
+                    }
+                    acc[day].push(match);
+                    return acc;
+                }, {} as Record<string, Match[]>);
+
+                const sortedDays = Object.keys(matchesByDay).sort();
+                const isGroupStage = isGroupRound(round);
+
+                return (
+                    <TabsContent key={round} value={round} className="mt-4">
+                      <div className="space-y-6">
+                        {sortedDays.map((day, index) => (
+                          <div key={day} className="space-y-3">
+                            {isGroupStage && sortedDays.length > 1 && (
+                                <div className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">
+                                  Matchday {index + 1}
+                                </div>
+                            )}
+                            <div className="grid gap-3">
+                                {matchesByDay[day]!.map((match) => (
+                                    <MatchCard
+                                        key={match.id}
+                                        match={match}
+                                        getTeam={getTeam}
+                                        tournament={tournament}
+                                    />
+                                ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </TabsContent>
+                );
+            })}
 
             {hasKnockout && (
               <TabsContent value="knockout" className="mt-4">
