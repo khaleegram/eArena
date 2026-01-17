@@ -1,12 +1,12 @@
 
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 import { db } from '@/lib/firebase';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc } from 'firebase/firestore';
 
 import type { Match, Team, Tournament, TeamMatchStats, UnifiedTimestamp, ReplayRequest, UserProfile } from '@/lib/types';
 
@@ -29,7 +29,9 @@ import {
   Bot,
   AlertTriangle,
   History,
-  ShieldCheck
+  ShieldCheck,
+  Tv,
+  User
 } from 'lucide-react';
 
 import { format, isToday, isPast, endOfDay } from 'date-fns';
@@ -42,7 +44,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Tv } from 'lucide-react';
 
 
 function StatRow({
