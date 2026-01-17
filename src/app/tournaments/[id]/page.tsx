@@ -1,16 +1,17 @@
 
+
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getTournamentById, getUserTeamForTournament, leaveTournament, addTeam, organizerResolveOverdueMatches, extendRegistration, progressTournamentStage, rescheduleTournamentAndStart, findUserByEmail, regenerateTournamentFixtures, devSeedDummyTeams, devAutoApproveCurrentStageMatches, devAutoApproveAndProgress, devAutoRunCupToCompletion } from '@/lib/actions';
+import { getTournamentById, getUserTeamForTournament, leaveTournament, addTeam, organizerResolveOverdueMatches, extendRegistration, progressTournamentStage, rescheduleTournamentAndStart, findUserByEmail, regenerateTournamentFixtures, devSeedDummyTeams, devAutoApproveCurrentStageMatches, devAutoApproveAndProgress, devAutoRunCupToCompletion, retryTournamentPayment } from '@/lib/actions';
 import { useAuth } from "@/hooks/use-auth";
 import type { Tournament, TournamentStatus, Team, Player, UserProfile, UnifiedTimestamp, Match, Standing } from "@/lib/types";
 import { format, isBefore, isAfter, isToday, isFuture, addDays, differenceInDays, endOfDay, isPast } from "date-fns";
 import { collection, onSnapshot, query, where, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Calendar, Gamepad2, Info, List, Trophy, Users, Loader2, Lock, Globe, Crown, PlusCircle, BookOpenCheck, Rss, Award, Swords, Timer, Hourglass, Bot, Sparkles, ShieldCheck, History, RefreshCw, AlertCircle } from "lucide-react";
+import { Calendar, Gamepad2, Info, List, Trophy, Users, Loader2, Lock, Globe, Crown, PlusCircle, BookOpenCheck, Rss, Award, Swords, Timer, Hourglass, Bot, Sparkles, ShieldCheck, History, RefreshCw, AlertCircle, CreditCard } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OverviewTab } from "./overview-tab";
@@ -545,6 +546,52 @@ function OrganizerTools({ tournament, user, allMatches, onSuccess }: { tournamen
     );
 }
 
+function PaymentPrompt({ tournament }: { tournament: Tournament }) {
+  const { user } = useAuth();
+  const router = useRouter();
+  const { toast } = useToast();
+  const [isPaying, setIsPaying] = useState(false);
+
+  if (tournament.status !== 'pending' || !user || tournament.organizerId !== user.uid) {
+    return null;
+  }
+
+  const handlePay = async () => {
+    setIsPaying(true);
+    try {
+      const { paymentUrl } = await retryTournamentPayment(tournament.id, user.uid);
+      if (paymentUrl) {
+        router.push(paymentUrl);
+      } else {
+        throw new Error("Could not retrieve payment link.");
+      }
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+      setIsPaying(false);
+    }
+  };
+
+  return (
+    <Card className="mb-6 bg-yellow-500/10 border-yellow-500/30">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-yellow-400">
+          <Hourglass className="h-5 w-5" />
+          Action Required: Complete Payment
+        </CardTitle>
+        <CardDescription className="text-yellow-200/80">
+          This tournament is pending payment for the prize pool. Your tournament will become public and open for registration once the payment is successfully completed.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Button onClick={handlePay} disabled={isPaying} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
+          {isPaying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
+          Complete Payment (₦{tournament.rewardDetails.prizePool.toLocaleString()})
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function TournamentPage() {
   const { id } = useParams() as { id: string };
   const searchParams = useSearchParams();
@@ -649,7 +696,8 @@ export default function TournamentPage() {
   
   const isOrganizer = user?.uid === tournament.organizerId;
   const isRegistrationOpen = tournament.registrationStartDate && tournament.registrationEndDate && isAfter(new Date(), toDate(tournament.registrationStartDate)) && isBefore(new Date(), endOfDay(toDate(tournament.registrationEndDate)));
-  const canJoin = isRegistrationOpen && !userTeam && !isOrganizer && tournament.teamCount < tournament.maxTeams && tournament.status === 'open_for_registration';
+  const isPendingPayment = tournament.status === 'pending';
+  const canJoin = isRegistrationOpen && !userTeam && !isOrganizer && tournament.status === 'open_for_registration';
 
   return (
     <div className="relative min-h-[calc(100vh-3.5rem)]">
@@ -664,6 +712,9 @@ export default function TournamentPage() {
         />
         <div className="container py-10 relative z-10">
             {tournament.status === 'completed' && <TournamentPodium tournament={tournament} matches={allMatches} standings={standings} teams={teams} />}
+            
+            {isPendingPayment && <PaymentPrompt tournament={tournament} />}
+
             <div className="flex flex-col md:flex-row gap-8 mt-8">
                 <div className="w-full md:w-1/3 lg:w-1/4 space-y-6">
                     <div className="space-y-4">
@@ -714,7 +765,7 @@ export default function TournamentPage() {
                             />
                         ) : (
                             <Button className="w-full" disabled>
-                                {tournament.status === 'open_for_registration' ? 'Tournament is Full' : 'Registration Closed'}
+                                {isPendingPayment ? 'Awaiting Organizer Payment' : (tournament.status === 'open_for_registration' ? 'Tournament is Full' : 'Registration Closed')}
                             </Button>
                         )}
                         </div>

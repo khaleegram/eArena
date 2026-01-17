@@ -3408,6 +3408,36 @@ export async function verifyAndActivateTournament(reference: string) {
     return { tournamentId };
 }
 
+export async function retryTournamentPayment(tournamentId: string, userId: string) {
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    const tournamentDoc = await tournamentRef.get();
+
+    if (!tournamentDoc.exists) {
+        throw new Error("Tournament not found.");
+    }
+    const tournament = tournamentDoc.data() as Tournament;
+
+    if (tournament.organizerId !== userId) {
+        throw new Error("You are not authorized to make this payment.");
+    }
+    if (tournament.status !== 'pending') {
+        throw new Error("This tournament is not awaiting payment.");
+    }
+    if (tournament.rewardDetails.type !== 'money' || !tournament.rewardDetails.prizePool) {
+        throw new Error("This is not a cash prize tournament.");
+    }
+
+    const organizerDoc = await adminAuth.getUser(userId);
+
+    const paymentResult = await initializeTournamentPayment(
+        tournamentId,
+        tournament.rewardDetails.prizePool,
+        organizerDoc.email || '',
+        userId
+    );
+    
+    return { paymentUrl: paymentResult.paymentUrl };
+}
 
 export async function getNigerianBanks(): Promise<{ name: string; code: string }[]> {
     const paystackSecret = process.env.PAYSTACK_SECRET_KEY;
