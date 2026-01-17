@@ -7,7 +7,7 @@ import './globals.css';
 import { Providers } from '@/components/providers';
 import { ThemeProvider } from '@/components/theme-provider';
 import { cn } from '@/lib/utils';
-import { getPlatformSettings } from '@/lib/actions';
+import { getPlatformSettings } from '@/lib/settings';
 import { HardHat } from 'lucide-react';
 import { cookies } from 'next/headers';
 

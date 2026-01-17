@@ -1,6 +1,6 @@
 
 import { SettingsForm } from './settings-form';
-import { getPlatformSettings } from '@/lib/actions';
+import { getPlatformSettings } from '@/lib/settings';
 
 export default async function AdminSettingsPage() {
     const settings = await getPlatformSettings();

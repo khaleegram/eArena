@@ -14,7 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { ArrowUpDown, MoreHorizontal, ShieldCheck, Trash2, Coins } from "lucide-react"
+import { ArrowUpDown, MoreHorizontal, ShieldCheck, Trash2, Coins, Loader2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { useTransition } from "react";
@@ -49,21 +49,26 @@ const ActionsCell = ({ row }: { row: { original: Tournament }}) => {
     }
     
     const handlePayout = () => {
-        if (!confirm(`This will initiate payouts for "${tournament.name}". This action cannot be undone. Continue?`)) {
+        const confirmMessage = tournament.payoutInitiated 
+            ? `This will process any remaining payouts for "${tournament.name}". Continue?`
+            : `This will initiate payouts for "${tournament.name}". This action cannot be undone. Continue?`;
+
+        if (!confirm(confirmMessage)) {
             return;
         }
 
         startTransition(async () => {
             try {
-                await initiatePayouts(tournament.id);
-                toast({ title: "Payouts Initiated", description: "The payout process has started." });
+                const result = await initiatePayouts(tournament.id);
+                toast({ title: "Payouts In Progress", description: result.message });
             } catch (error: any) {
                 toast({ variant: 'destructive', title: "Error", description: error.message });
             }
         });
     }
 
-    const canInitiatePayout = tournament.status === 'completed' && tournament.rewardDetails.type === 'money' && !tournament.payoutInitiated;
+    // Payout button should be visible as long as the tournament is complete and for money.
+    const canProcessPayouts = tournament.status === 'completed' && tournament.rewardDetails.type === 'money';
 
     return (
         <DropdownMenu>
@@ -78,9 +83,10 @@ const ActionsCell = ({ row }: { row: { original: Tournament }}) => {
                 <DropdownMenuItem asChild>
                     <Link href={`/tournaments/${tournament.id}`}>View Tournament</Link>
                 </DropdownMenuItem>
-                {canInitiatePayout && (
+                {canProcessPayouts && (
                      <DropdownMenuItem onClick={handlePayout} disabled={isPending}>
-                        <Coins className="mr-2 h-4 w-4" /> Initiate Payouts
+                        {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Coins className="mr-2 h-4 w-4" />} 
+                        {tournament.payoutInitiated ? 'Process Remaining Payouts' : 'Initiate Payouts'}
                     </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
