@@ -19,7 +19,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
@@ -193,7 +193,6 @@ export function FixturesTab({ tournament, isOrganizer }: { tournament: Tournamen
                 {otherRounds.map(round => <TabsTrigger key={round} value={round}>{round}</TabsTrigger>)}
                 {hasKnockout && <TabsTrigger value="knockout">Knockout Bracket</TabsTrigger>}
               </TabsList>
-              <ScrollBar orientation="horizontal" />
             </ScrollArea>
             
             {Object.entries(groupedMatches).map(([round, roundMatches]) => {

@@ -42,7 +42,7 @@ export function Bracket({ matches, teams }: BracketProps) {
     });
 
     return (
-        <div className="flex gap-8 overflow-x-auto p-4 bg-muted/20 rounded-lg">
+        <div className="flex gap-8 overflow-x-auto p-4 bg-muted/20 rounded-lg no-scrollbar">
             {roundKeys.map((roundKey) => (
                 <div key={roundKey} className="flex flex-col gap-8 justify-around">
                     <h3 className="text-lg font-bold text-center font-headline">{roundKey}</h3>
