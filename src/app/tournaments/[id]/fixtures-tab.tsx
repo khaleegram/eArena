@@ -11,9 +11,6 @@ import type {
   Tournament,
 } from "@/lib/types";
 
-
-import { useAuth } from "@/hooks/use-auth";
-
 import {
   Card,
   CardContent,
@@ -25,8 +22,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-
-import Image from "next/image";
 
 import {
   Loader2,
@@ -186,7 +181,7 @@ export function FixturesTab({ tournament, isOrganizer }: { tournament: Tournamen
   return (
     <Card className="rounded-2xl">
       <CardHeader>
-        <CardTitle className="font-headline">Full Schedule</CardTitle>
+        <CardTitle className="font-headline">Fixtures</CardTitle>
         <CardDescription>The complete list of all matches in the tournament.</CardDescription>
       </CardHeader>
 

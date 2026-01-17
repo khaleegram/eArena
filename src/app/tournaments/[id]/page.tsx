@@ -730,7 +730,7 @@ export default function TournamentPage() {
                                     <TabsTrigger value="overview"><Info className="w-4 h-4 mr-2 sm:hidden md:inline-block"/>Overview</TabsTrigger>
                                     {userTeam && <TabsTrigger value="my-matches"><Swords className="w-4 h-4 mr-2 sm:hidden md:inline-block"/>My Matches</TabsTrigger>}
                                     <TabsTrigger value="teams"><Users className="w-4 h-4 mr-2 sm:hidden md:inline-block"/>Teams</TabsTrigger>
-                                    <TabsTrigger value="schedule"><BookOpenCheck className="w-4 h-4 mr-2 sm:hidden md:inline-block"/>Schedule</TabsTrigger>
+                                    <TabsTrigger value="schedule"><BookOpenCheck className="w-4 h-4 mr-2 sm:hidden md:inline-block"/>Fixtures</TabsTrigger>
                                     <TabsTrigger value="standings"><Trophy className="w-4 h-4 mr-2 sm:hidden md:inline-block"/>Standings</TabsTrigger>
                                     <TabsTrigger value="rewards"><Award className="w-4 h-4 mr-2 sm:hidden md:inline-block"/>Rewards</TabsTrigger>
                                     <TabsTrigger value="chat"><Rss className="w-4 h-4 mr-2 sm:hidden md:inline-block"/>Chat</TabsTrigger>
