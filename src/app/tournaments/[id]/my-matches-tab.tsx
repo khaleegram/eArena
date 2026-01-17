@@ -1,28 +1,39 @@
 
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot, query } from "firebase/firestore";
+import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 import type {
   Match,
   Team,
   Tournament,
   UserProfile,
 } from "@/lib/types";
+
+
 import { useAuth } from "@/hooks/use-auth";
-import { cn, toDate } from "@/lib/utils";
-import { useToast } from "@/hooks/use-toast";
 
 import {
-  submitMatchResult,
-  setMatchRoomCode,
-  postMatchMessage,
-  transferHost,
-} from "@/lib/actions";
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+
+import Image from "next/image";
 
 import {
   Loader2,
+  User,
+  Video,
+  Sparkles,
+  Calendar,
   Send,
   Upload,
   Copy,
@@ -31,7 +42,6 @@ import {
   Swords,
   Timer,
   MessageCircle,
-  Calendar,
   Hourglass,
   Crown,
   Zap,
@@ -39,14 +49,9 @@ import {
 
 import { format, isToday } from "date-fns";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-
+import Link from "next/link";
+import { toDate, cn } from "@/lib/utils";
+import { MatchStatusBadge } from "@/components/match-status-badge";
 import {
   Dialog,
   DialogContent,
@@ -57,10 +62,11 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-
-
-import Link from "next/link";
-import { MatchStatusBadge } from "@/components/match-status-badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { submitMatchResult, transferHost, setMatchRoomCode, postMatchMessage } from "@/lib/actions";
 
 
 /* ----------------------------- Dialogs & Buttons ----------------------------- */
@@ -241,11 +247,13 @@ function MatchChatDialog({
   homeTeamName,
   awayTeamName,
   isMatchDay,
+  isOrganizer,
 }: {
   match: Match;
   homeTeamName: string;
   awayTeamName: string;
   isMatchDay: boolean;
+  isOrganizer: boolean;
 }) {
   const { user, userProfile } = useAuth();
   const { toast } = useToast();
@@ -378,6 +386,7 @@ function TransferHostButton({ matchId, tournamentId }: { matchId: string, tourna
     );
 }
 
+
 const ChatInput = ({ onSendMessage }: { onSendMessage: (message: string) => Promise<void> }) => {
     const [message, setMessage] = useState("");
     const [isSending, setIsSending] = useState(false);
@@ -480,7 +489,7 @@ function MatchCard({
 
         {/* Action Bar */}
         <div className="p-2 border-t bg-muted/20 flex flex-wrap gap-2 justify-end">
-          <MatchChatDialog match={match} homeTeamName={homeTeam.name} awayTeamName={awayTeam.name} isMatchDay={isMatchDay} />
+          <MatchChatDialog match={match} homeTeamName={homeTeam.name} awayTeamName={awayTeam.name} isMatchDay={isMatchDay} isOrganizer={isOrganizer}/>
           {isHostCaptain && <TransferHostButton matchId={match.id} tournamentId={match.tournamentId} />}
           <RoomCodeManager match={{ ...match, host: getTeam(match.hostId) } as any} isMatchDay={isMatchDay} />
           {canReport && <ReportScoreDialog match={match} teamToReportFor={isHomeCaptain ? homeTeam : awayTeam} homeTeamName={homeTeam.name} awayTeamName={awayTeam.name} />}
@@ -541,6 +550,9 @@ export function MyMatchesTab({
       setTeams(teamsData);
       teamsLoaded = true;
       checkDone();
+    }, () => {
+        teamsLoaded = true;
+        checkDone();
     });
 
     return () => {
@@ -637,5 +649,3 @@ export function MyMatchesTab({
     </div>
   );
 }
-
-    
