@@ -39,6 +39,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Textarea } from '@/components/ui/textarea';
 import { TournamentPodium } from '@/components/tournament-podium';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { PrizeAllocationEditor } from './prize-allocation';
 
 const toDate = (timestamp: UnifiedTimestamp): Date => {
     if (typeof timestamp === 'string') {
@@ -720,7 +721,6 @@ export default function TournamentPage() {
                     <div className="space-y-4">
                         <div className="space-y-1">{getStatusBadge(tournament.status)}</div>
                         <h1 className="font-headline text-4xl font-bold">{tournament.name}</h1>
-                        <p className="text-lg text-muted-foreground">{tournament.description}</p>
                     </div>
                     
                     <div className="space-y-3">
@@ -770,7 +770,7 @@ export default function TournamentPage() {
                         )}
                         </div>
                     )}
-
+                     {isOrganizer && <PrizeAllocationEditor tournament={tournament} />}
                 </div>
 
                 <div className="w-full md:w-2/3 lg:w-3/4">
