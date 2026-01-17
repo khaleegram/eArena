@@ -3,11 +3,13 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import type { Tournament } from "@/lib/types";
-import { FileText, ClipboardCopy, Check, Info } from "lucide-react";
+import type { Tournament, UnifiedTimestamp } from "@/lib/types";
+import { FileText, ClipboardCopy, Check, Info, Crown, Globe, Lock, Gamepad2, Users, Trophy, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { format } from "date-fns";
+import { toDate } from "@/lib/utils";
 
 const RuleItem = ({ label, value }: { label: string; value: string | number | boolean }) => {
     const displayValue = typeof value === 'boolean' ? (value ? 'Yes' : 'No') : value;
@@ -36,8 +38,25 @@ export function OverviewTab({ tournament }: { tournament: Tournament }) {
             <div className="space-y-8">
                  <Card>
                     <CardHeader>
+                        <CardTitle className="font-headline flex items-center gap-2"><Trophy className="w-5 h-5"/> At a Glance</CardTitle>
+                        <CardDescription>Key details about the tournament structure and schedule.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <ul className="space-y-3 text-sm">
+                            <li className="flex justify-between items-center"><span className="text-muted-foreground flex items-center gap-2"><Crown className="h-4 w-4" />Organizer</span> <strong className="text-right">{tournament.organizerUsername}</strong></li>
+                            <li className="flex justify-between items-center"><span className="text-muted-foreground flex items-center gap-2">{tournament.isPublic ? <Globe className="h-4 w-4" /> : <Lock className="h-4 w-4" />}Access</span> <strong className="text-right">{tournament.isPublic ? 'Public' : 'Private'}</strong></li>
+                            <li className="flex justify-between items-center"><span className="text-muted-foreground flex items-center gap-2"><Gamepad2 className="h-4 w-4" />Game</span> <strong className="text-right">{tournament.game} on {tournament.platform}</strong></li>
+                            <li className="flex justify-between items-center"><span className="text-muted-foreground flex items-center gap-2"><Trophy className="h-4 w-4" />Format</span> <strong className="text-right capitalize">{tournament.format?.replace('-', ' ')}</strong></li>
+                            <li className="flex justify-between items-center"><span className="text-muted-foreground flex items-center gap-2"><Users className="h-4 w-4" />Teams</span> <strong className="text-right">{tournament.teamCount} / {tournament.maxTeams}</strong></li>
+                            <li className="flex justify-between items-center"><span className="text-muted-foreground flex items-center gap-2"><Calendar className="h-4 w-4" />Registration</span> <strong className="text-right">{format(toDate(tournament.registrationStartDate), 'PP')} - {format(toDate(tournament.registrationEndDate), 'PP')}</strong></li>
+                            <li className="flex justify-between items-center"><span className="text-muted-foreground flex items-center gap-2"><Calendar className="h-4 w-4" />Play Period</span> <strong className="text-right">{format(toDate(tournament.tournamentStartDate), 'PP')} - {format(toDate(tournament.tournamentEndDate), 'PP')}</strong></li>
+                        </ul>
+                    </CardContent>
+                </Card>
+                 <Card>
+                    <CardHeader>
                         <CardTitle className="font-headline flex items-center gap-2"><Info className="w-5 h-5"/> Tournament Info</CardTitle>
-                        <CardDescription>Key details and unique code for this tournament.</CardDescription>
+                        <CardDescription>Unique code for this tournament.</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <p className="text-sm text-muted-foreground">
@@ -51,7 +70,30 @@ export function OverviewTab({ tournament }: { tournament: Tournament }) {
                         </div>
                     </CardContent>
                 </Card>
-
+            </div>
+            <div className="space-y-8">
+                 <Card>
+                    <CardHeader>
+                        <CardTitle className="font-headline">Match Rules</CardTitle>
+                        <CardDescription>Specific settings for every match played.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <ul className="space-y-1">
+                            <RuleItem label="Match Length" value={`${tournament.matchLength} min`} />
+                            <RuleItem label="Substitutions" value={tournament.substitutions} />
+                            <RuleItem label="Home & Away Legs" value={tournament.homeAndAway} />
+                            <RuleItem label="Extra Time" value={tournament.extraTime} />
+                            <RuleItem label="Penalties" value={tournament.penalties} />
+                            <RuleItem label="Injuries" value={tournament.injuries} />
+                        </ul>
+                        <div className="mt-4">
+                            <h4 className="font-semibold text-sm mb-2">Squad Restrictions</h4>
+                            <p className="text-sm text-muted-foreground p-3 bg-muted/50 rounded-md">
+                                {tournament.squadRestrictions || "None specified."}
+                            </p>
+                        </div>
+                    </CardContent>
+                </Card>
                 <Card>
                     <CardHeader>
                         <CardTitle className="font-headline flex items-center gap-2"><FileText className="w-5 h-5"/> General Rules</CardTitle>
@@ -68,29 +110,6 @@ export function OverviewTab({ tournament }: { tournament: Tournament }) {
                     </CardContent>
                 </Card>
             </div>
-            <Card>
-                <CardHeader>
-                    <CardTitle className="font-headline">Match Rules</CardTitle>
-                    <CardDescription>Specific settings for every match played.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <ul className="space-y-1">
-                        <RuleItem label="Match Length" value={`${tournament.matchLength} min`} />
-                        <RuleItem label="Substitutions" value={tournament.substitutions} />
-                        <RuleItem label="Home & Away Legs" value={tournament.homeAndAway} />
-                        <RuleItem label="Extra Time" value={tournament.extraTime} />
-                        <RuleItem label="Penalties" value={tournament.penalties} />
-                        <RuleItem label="Injuries" value={tournament.injuries} />
-                    </ul>
-                    <div className="mt-4">
-                        <h4 className="font-semibold text-sm mb-2">Squad Restrictions</h4>
-                        <p className="text-sm text-muted-foreground p-3 bg-muted/50 rounded-md">
-                            {tournament.squadRestrictions || "None specified."}
-                        </p>
-                    </div>
-                </CardContent>
-            </Card>
         </div>
     )
 }
-

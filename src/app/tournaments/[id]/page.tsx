@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -667,96 +666,59 @@ export default function TournamentPage() {
             {tournament.status === 'completed' && <TournamentPodium tournament={tournament} matches={allMatches} standings={standings} teams={teams} />}
             <div className="flex flex-col md:flex-row gap-8 mt-8">
                 <div className="w-full md:w-1/3 lg:w-1/4 space-y-6">
-                <div className="space-y-4">
-                    <div className="space-y-1">{getStatusBadge(tournament.status)}</div>
-                    <h1 className="font-headline text-4xl font-bold">{tournament.name}</h1>
-                    <p className="text-lg text-muted-foreground">{tournament.description}</p>
-                </div>
+                    <div className="space-y-4">
+                        <div className="space-y-1">{getStatusBadge(tournament.status)}</div>
+                        <h1 className="font-headline text-4xl font-bold">{tournament.name}</h1>
+                        <p className="text-lg text-muted-foreground">{tournament.description}</p>
+                    </div>
+                    
+                    <div className="space-y-3">
+                        <TournamentStatusTimers tournament={tournament} />
+                        {isOrganizer && user && <OrganizerTools tournament={tournament} user={user} allMatches={allMatches} onSuccess={fetchTournament} />}
+                    </div>
 
-                <div className="space-y-3 text-sm">
-                    <div className="flex items-center gap-2">
-                    <Crown className="h-4 w-4 text-muted-foreground" />
-                    <span>Organized by <strong>{tournament.organizerUsername}</strong></span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                    {tournament.isPublic ? <Globe className="h-4 w-4 text-muted-foreground" /> : <Lock className="h-4 w-4 text-muted-foreground" />}
-                    <span>{tournament.isPublic ? 'Public' : 'Private'} Tournament</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                    <Gamepad2 className="h-4 w-4 text-muted-foreground" />
-                    <span>{tournament.game} on <strong>{tournament.platform}</strong></span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-muted-foreground" />
-                        <div className='flex flex-col'>
-                            {tournament.registrationStartDate && tournament.registrationEndDate && (
-                                <span>Registration: {format(toDate(tournament.registrationStartDate), 'PP')} - {format(toDate(tournament.registrationEndDate), 'PP')}</span>
-                            )}
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                     {tournament.tournamentStartDate && tournament.tournamentEndDate && (
-                        <span>Play Period: {format(toDate(tournament.tournamentStartDate), 'PP')} - {format(toDate(tournament.tournamentEndDate), 'PP')}</span>
-                     )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4 text-muted-foreground" />
-                    <span>{tournament.teamCount} / {tournament.maxTeams} teams</span>
-                    </div>
-                    <div className="flex items-center gap-2 capitalize">
-                        <Trophy className="h-4 w-4 text-muted-foreground" />
-                        <span>Format: <strong>{tournament.format?.replace('-', ' ')}</strong></span>
-                    </div>
-                </div>
-                
-                <div className="space-y-3">
-                    <TournamentStatusTimers tournament={tournament} />
-                    {isOrganizer && user && <OrganizerTools tournament={tournament} user={user} allMatches={allMatches} onSuccess={fetchTournament} />}
-                </div>
-
-                 {isOrganizer && user && tournament.status === 'ready_to_start' && (
-                    <RescheduleDialog tournament={tournament} organizerId={user.uid} onSuccess={fetchTournament} />
-                )}
-                
-                {user && userProfile && userTeam !== undefined && !isOrganizer && (
-                    <div className="pt-4 border-t">
-                    {userTeam ? (
-                        tournament.status === 'open_for_registration' && (
-                            <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                                <Button variant="destructive" className="w-full" disabled={isActionLoading}>
-                                {isActionLoading ? <Loader2 className="animate-spin" /> : "Leave Tournament"}
-                                </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                                <AlertDialogHeader>
-                                <AlertDialogTitle>Are you sure you want to leave?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                    This will remove your team ({userTeam.name}) from the tournament. This action cannot be undone.
-                                </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={handleLeave}>Confirm &amp; Leave</AlertDialogAction>
-                                </AlertDialogFooter>
-                            </AlertDialogContent>
-                            </AlertDialog>
-                        )
-                    ) : canJoin ? (
-                        <JoinTournamentDialog 
-                        tournament={tournament}
-                        user={user} 
-                        userProfile={userProfile}
-                        onTeamJoined={(team) => setUserTeam(team)}
-                        />
-                    ) : (
-                        <Button className="w-full" disabled>
-                            {tournament.status === 'open_for_registration' ? 'Tournament is Full' : 'Registration Closed'}
-                        </Button>
+                    {isOrganizer && user && tournament.status === 'ready_to_start' && (
+                        <RescheduleDialog tournament={tournament} organizerId={user.uid} onSuccess={fetchTournament} />
                     )}
-                    </div>
-                )}
+                    
+                    {user && userProfile && userTeam !== undefined && !isOrganizer && (
+                        <div className="pt-4 border-t">
+                        {userTeam ? (
+                            tournament.status === 'open_for_registration' && (
+                                <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="destructive" className="w-full" disabled={isActionLoading}>
+                                    {isActionLoading ? <Loader2 className="animate-spin" /> : "Leave Tournament"}
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                    <AlertDialogTitle>Are you sure you want to leave?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        This will remove your team ({userTeam.name}) from the tournament. This action cannot be undone.
+                                    </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleLeave}>Confirm &amp; Leave</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                                </AlertDialog>
+                            )
+                        ) : canJoin ? (
+                            <JoinTournamentDialog 
+                            tournament={tournament}
+                            user={user} 
+                            userProfile={userProfile}
+                            onTeamJoined={(team) => setUserTeam(team)}
+                            />
+                        ) : (
+                            <Button className="w-full" disabled>
+                                {tournament.status === 'open_for_registration' ? 'Tournament is Full' : 'Registration Closed'}
+                            </Button>
+                        )}
+                        </div>
+                    )}
 
                 </div>
 
