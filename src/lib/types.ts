@@ -79,7 +79,7 @@ export interface RewardDetails {
 }
 
 
-export type TournamentFormat = 'league' | 'cup';
+export type TournamentFormat = 'league' | 'cup' | 'double-elimination' | 'swiss';
 export type TournamentStatus = 'pending' | 'open_for_registration' | 'generating_fixtures' | 'in_progress' | 'completed' | 'ready_to_start';
 
 export interface Tournament {
