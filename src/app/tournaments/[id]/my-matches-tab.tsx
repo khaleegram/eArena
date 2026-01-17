@@ -449,47 +449,48 @@ function MatchCard({
   const hasReported = isHomeCaptain ? !!match.homeTeamReport : !!match.awayTeamReport;
   const canReport = (isHomeCaptain || isAwayCaptain) && !hasReported && isMatchDay && match.status === 'scheduled';
   
-  const hostTeamName = getTeam(match.hostId)?.name || "N/A";
-  const isHostCaptain = user.uid === getTeam(match.hostId)?.captainId;
+  const hostTeam = getTeam(match.hostId);
+  const hostTeamName = hostTeam?.name || "N/A";
+  const isHostCaptain = user.uid === hostTeam?.captainId;
 
   return (
     <Card className={cn("relative overflow-hidden", "hover:border-primary/20 transition-colors")}>
       <CardContent className="p-0">
-        <Link href={`/tournaments/${match.tournamentId}/matches/${match.id}`} className="block hover:bg-muted/30 p-4 space-y-3">
+        <Link href={`/tournaments/${match.tournamentId}/matches/${match.id}`} className="block hover:bg-muted/30 p-3 sm:p-4 space-y-3">
           {/* Header strip */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <MatchStatusBadge status={match.status} />
-              {isMatchLocked && (
-                <Badge variant="outline" className="text-xs">
-                  <Lock className="h-3 w-3 mr-1" />
-                  Locked
+                <MatchStatusBadge status={match.status} />
+                {isMatchLocked && (
+                  <Badge variant="outline" className="text-xs">
+                    <Lock className="h-3 w-3 mr-1" />
+                    Locked
+                  </Badge>
+                )}
+                <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-wider">
+                  <Calendar className="h-3 w-3 mr-1" />
+                  {format(toDate(match.matchDay), "MMM d, HH:mm")}
                 </Badge>
-              )}
-              <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-wider">
-                <Calendar className="h-3 w-3 mr-1" />
-                {format(toDate(match.matchDay), "MMM d, HH:mm")}
-              </Badge>
-            </div>
+              </div>
             <span className="text-xs text-muted-foreground font-semibold">{match.round}</span>
           </div>
 
           {/* Scoreboard */}
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-2 items-center">
-            <div className="flex items-center gap-3">
-              <Avatar className="h-10 w-10"><AvatarImage src={homeTeam.logoUrl} alt={homeTeam.name} /><AvatarFallback>{homeTeam.name?.[0]?.toUpperCase()}</AvatarFallback></Avatar>
-              <div className="min-w-0"><p className="font-bold truncate">{homeTeam.name}</p></div>
+          <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center">
+            <div className="flex items-center gap-2 min-w-0">
+              <Avatar className="h-8 w-8 sm:h-10 sm:w-10"><AvatarImage src={homeTeam.logoUrl} alt={homeTeam.name} /><AvatarFallback>{homeTeam.name?.[0]?.toUpperCase()}</AvatarFallback></Avatar>
+              <div className="min-w-0"><p className="text-sm sm:text-base font-semibold truncate">{homeTeam.name}</p></div>
             </div>
             <div className="text-center">
               {match.status === "approved" ? (
-                <div className="text-3xl font-black tabular-nums">{match.homeScore} <span className="opacity-30">-</span> {match.awayScore}</div>
+                <div className="text-2xl sm:text-3xl font-black tabular-nums">{match.homeScore} <span className="opacity-30">-</span> {match.awayScore}</div>
               ) : (
-                <div className="text-xl font-black text-muted-foreground uppercase tracking-widest">VS</div>
+                <div className="text-lg sm:text-xl font-black text-muted-foreground uppercase tracking-widest">VS</div>
               )}
             </div>
-            <div className="flex items-center gap-3 sm:flex-row-reverse">
-              <Avatar className="h-10 w-10"><AvatarImage src={awayTeam.logoUrl} alt={awayTeam.name} /><AvatarFallback>{awayTeam.name?.[0]?.toUpperCase()}</AvatarFallback></Avatar>
-              <div className="min-w-0 sm:text-right"><p className="font-bold truncate">{awayTeam.name}</p></div>
+            <div className="flex items-center gap-2 min-w-0 flex-row-reverse sm:flex-row">
+                <Avatar className="h-8 w-8 sm:h-10 sm:w-10"><AvatarImage src={awayTeam.logoUrl} alt={awayTeam.name} /><AvatarFallback>{awayTeam.name?.[0]?.toUpperCase()}</AvatarFallback></Avatar>
+                <div className="min-w-0 text-right sm:text-left"><p className="text-sm sm:text-base font-semibold truncate">{awayTeam.name}</p></div>
             </div>
           </div>
           <div className="text-xs text-muted-foreground text-center pt-2">Host: <strong>{hostTeamName}</strong></div>
