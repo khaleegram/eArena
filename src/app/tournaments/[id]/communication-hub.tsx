@@ -12,7 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { postTournamentMessage, postTeamMessage, postAnnouncement, deleteTournamentMessage } from "@/lib/actions";
+import { postTournamentMessage, postTeamMessage, postAnnouncement } from "@/lib/actions/community";
+import { adminDeleteTournamentMessage } from "@/lib/actions/admin";
 import { Loader2, Send, Megaphone, MessageSquare, Users, Rss, Trash2 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -41,7 +42,7 @@ const ChatMessageDisplay = ({ messages, participantProfiles, isOrganizer, tourna
         if (!user) return;
         setIsDeleting(messageId);
         try {
-            await deleteTournamentMessage(tournamentId, messageId, user.uid);
+            await adminDeleteTournamentMessage(tournamentId, messageId, user.uid);
             toast({ title: "Message Deleted" });
         } catch (error: any) {
             toast({ variant: 'destructive', title: "Error", description: error.message });

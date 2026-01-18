@@ -1,14 +1,15 @@
 
+
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 import { db } from '@/lib/firebase';
-import { doc, onSnapshot, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc, collection, query, orderBy } from 'firebase/firestore';
 
-import type { Match, Team, Tournament, TeamMatchStats, UnifiedTimestamp, ReplayRequest, UserProfile } from '@/lib/types';
+import type { Match, Team, Tournament, TeamMatchStats, UnifiedTimestamp, ReplayRequest, UserProfile, ChatMessage } from '@/lib/types';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -31,19 +32,23 @@ import {
   History,
   ShieldCheck,
   Tv,
-  User
+  User,
+  MessageSquare,
+  Send
 } from 'lucide-react';
 
-import { format, isToday, isPast, endOfDay } from 'date-fns';
+import { format, isToday, isPast, endOfDay, formatDistanceToNow } from 'date-fns';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import { getMatchPrediction, setOrganizerStreamUrl, requestPlayerReplay, respondToPlayerReplay, forfeitMatch } from '@/lib/actions';
+import { getMatchPrediction, setOrganizerStreamUrl, requestPlayerReplay, respondToPlayerReplay, forfeitMatch, postMatchMessage } from '@/lib/actions';
 import { MatchStatusBadge } from '@/components/match-status-badge';
-import { toDate } from '@/lib/utils';
+import { toDate, cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ReputationAvatar } from '@/components/reputation-avatar';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 
 function StatRow({
