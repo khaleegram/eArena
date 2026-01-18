@@ -1,3 +1,4 @@
+
 import type { Match } from './types';
 import { getRoundName } from './cup-tournament';
 
@@ -20,17 +21,6 @@ export interface GroupStandingRow {
 
 export function isGroupRound(round?: string): boolean {
   return typeof round === 'string' && /^group\s+[a-z]$/i.test(round.trim());
-}
-
-export function isKnockoutRound(round?: string): boolean {
-  if (typeof round !== 'string') return false;
-  const r = round.trim().toLowerCase();
-  return (
-    r === 'final' ||
-    r === 'semi-finals' ||
-    r === 'quarter-finals' ||
-    /^round of \d+$/i.test(round.trim())
-  );
 }
 
 function groupName(idx: number): string {
@@ -241,4 +231,3 @@ export function seedKnockoutFromGroups(groupStandings: Record<string, GroupStand
 
   return fixtures;
 }
-

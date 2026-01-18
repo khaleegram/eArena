@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { adminDb } from '@/lib/firebase-admin';
@@ -15,9 +16,9 @@ import { sendNotification } from './notifications';
 import { addDays, differenceInDays, isBefore, isPast } from 'date-fns';
 
 import { generateRoundRobinFixtures } from '../round-robin';
-import { createWorldCupGroups, generateGroupStageFixtures, computeAllGroupStandings, seedKnockoutFromGroups } from '../group-stage';
+import { createWorldCupGroups, generateGroupStageFixtures, computeAllGroupStandings, seedKnockoutFromGroups, isGroupRound } from '../group-stage';
 import { generateSwissRoundFixtures, getMaxSwissRounds, isSwissRound, getSwissRoundNumber } from '../swiss';
-import { getCurrentCupRound, assertRoundCompleted, getWinnersForRound, getChampionIfFinalComplete } from '../cup-progression';
+import { getCurrentCupRound, assertRoundCompleted, getWinnersForRound, getChampionIfFinalComplete, getCupRoundRank, isKnockoutRound } from '../cup-progression';
 import { predictMatchWinner as predictMatchWinnerFlow, PredictWinnerInput } from '@/ai/flows/predict-match-winner';
 
 
@@ -51,14 +52,13 @@ export async function createTournament(formData: FormData) {
       const bucket = getStorage().bucket(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
       const fileName = `tournaments/flyers/${Date.now()}_${flyerFile.name}`;
       const file = bucket.file(fileName);
-
+      
+      const buffer = Buffer.from(await flyerFile.arrayBuffer());
       const stream = file.createWriteStream({
           metadata: {
               contentType: flyerFile.type,
           },
       });
-
-      const buffer = Buffer.from(await flyerFile.arrayBuffer());
 
       await new Promise((resolve, reject) => {
           stream.on('error', reject);
@@ -305,6 +305,7 @@ export async function startTournamentAndGenerateFixtures(tournamentId: string, o
           matchDay.setMinutes(0);
           
           (fixture as any).matchDay = Timestamp.fromDate(matchDay);
+          (fixture as any).status = 'scheduled';
       });
   
       const batch = adminDb.batch();
@@ -495,6 +496,79 @@ export async function verifyAndActivateTournament(reference: string) {
 }
 
 // DEV-ONLY FUNCTIONS
+
+async function autoApproveMatches(matches: Match[], tournamentRef: FirebaseFirestore.DocumentReference<FirebaseFirestore.DocumentData>) {
+    const batch = adminDb.batch();
+    let approvedCount = 0;
+    for (const match of matches) {
+        if (match.status === 'scheduled') {
+            const homeScore = Math.floor(Math.random() * 4);
+            const awayScore = Math.floor(Math.random() * 4);
+            const matchRef = tournamentRef.collection('matches').doc(match.id);
+            const homeTeamStats = { possession: Math.floor(40 + Math.random() * 20), shots: Math.floor(5 + Math.random() * 10), shotsOnTarget: Math.floor(1 + Math.random() * 5), fouls: Math.floor(Math.random() * 5), offsides: Math.floor(Math.random() * 3), cornerKicks: Math.floor(Math.random() * 8), freeKicks: Math.floor(Math.random() * 5), passes: Math.floor(150 + Math.random() * 100), successfulPasses: Math.floor(120 + Math.random() * 80), crosses: Math.floor(Math.random() * 10), interceptions: Math.floor(5 + Math.random() * 10), tackles: Math.floor(5 + Math.random() * 15), saves: Math.floor(Math.random() * 6)};
+            const awayTeamStats = { possession: 100 - homeTeamStats.possession, shots: Math.floor(5 + Math.random() * 10), shotsOnTarget: Math.floor(1 + Math.random() * 5), fouls: Math.floor(Math.random() * 5), offsides: Math.floor(Math.random() * 3), cornerKicks: Math.floor(Math.random() * 8), freeKicks: Math.floor(Math.random() * 5), passes: Math.floor(150 + Math.random() * 100), successfulPasses: Math.floor(120 + Math.random() * 80), crosses: Math.floor(Math.random() * 10), interceptions: Math.floor(5 + Math.random() * 10), tackles: Math.floor(5 + Math.random() * 15), saves: Math.floor(Math.random() * 6)};
+            
+            batch.update(matchRef, {
+                status: 'approved',
+                homeScore,
+                awayScore,
+                homeTeamStats,
+                awayTeamStats,
+            });
+            approvedCount++;
+        }
+    }
+    if (approvedCount > 0) {
+        await batch.commit();
+        await tournamentRef.update({ needsStandingsUpdate: true });
+    }
+    return approvedCount;
+}
+
+export async function devAutoApproveCurrentStageMatches(tournamentId: string, organizerId: string) {
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    const tournamentDoc = await tournamentRef.get();
+    if (!tournamentDoc.exists || tournamentDoc.data()?.organizerId !== organizerId) {
+        throw new Error("Unauthorized or tournament not found.");
+    }
+    
+    const matchesSnapshot = await tournamentRef.collection('matches').get();
+    const allMatches = matchesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Match));
+    
+    const scheduledMatches = allMatches.filter(m => m.status === 'scheduled');
+    if (scheduledMatches.length === 0) {
+      return { approved: 0 }; // Nothing to approve
+    }
+
+    const getRoundSortValue = (round: string | undefined): number => {
+        if (!round) return 999;
+        if (isSwissRound(round)) return (getSwissRoundNumber(round) || 0) + 100;
+        if (isKnockoutRound(round)) return getCupRoundRank(round);
+        const leagueMatch = round.match(/Round (\d+)/);
+        if (leagueMatch) return Number(leagueMatch[1]);
+        if (isGroupRound(round)) return 0; // Group stages come first
+        return 998;
+    };
+
+    const scheduledRounds = [...new Set(scheduledMatches.map(m => m.round))];
+    scheduledRounds.sort((a,b) => getRoundSortValue(a) - getRoundSortValue(b));
+
+    const currentRoundToApprove = scheduledRounds[0];
+
+    if (!currentRoundToApprove) {
+        throw new Error("Could not determine current round to approve.");
+    }
+
+    const matchesToApprove = scheduledMatches.filter(m => m.round === currentRoundToApprove);
+    const approved = await autoApproveMatches(matchesToApprove, tournamentRef);
+
+    // This is a dev tool, so we can trigger the update immediately.
+    await updateStandings(tournamentId);
+
+    return { approved };
+}
+
+
 export async function devSeedDummyTeams(tournamentId: string, organizerId: string, count: number): Promise<void> {
     const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
     const tournamentDoc = await tournamentRef.get();
@@ -530,76 +604,6 @@ export async function devSeedDummyTeams(tournamentId: string, organizerId: strin
     await batch.commit();
 }
 
-
-async function autoApproveMatches(matches: Match[], tournamentRef: FirebaseFirestore.DocumentReference<FirebaseFirestore.DocumentData>) {
-    const batch = adminDb.batch();
-    let approvedCount = 0;
-    for (const match of matches) {
-        if (match.status === 'scheduled') {
-            const homeScore = Math.floor(Math.random() * 4);
-            const awayScore = Math.floor(Math.random() * 4);
-            const matchRef = tournamentRef.collection('matches').doc(match.id);
-            const homeTeamStats = { possession: Math.floor(40 + Math.random() * 20), shots: Math.floor(5 + Math.random() * 10), shotsOnTarget: Math.floor(1 + Math.random() * 5), fouls: Math.floor(Math.random() * 5), offsides: Math.floor(Math.random() * 3), cornerKicks: Math.floor(Math.random() * 8), freeKicks: Math.floor(Math.random() * 5), passes: Math.floor(150 + Math.random() * 100), successfulPasses: Math.floor(120 + Math.random() * 80), crosses: Math.floor(Math.random() * 10), interceptions: Math.floor(5 + Math.random() * 10), tackles: Math.floor(5 + Math.random() * 15), saves: Math.floor(Math.random() * 6)};
-            const awayTeamStats = { possession: 100 - homeTeamStats.possession, shots: Math.floor(5 + Math.random() * 10), shotsOnTarget: Math.floor(1 + Math.random() * 5), fouls: Math.floor(Math.random() * 5), offsides: Math.floor(Math.random() * 3), cornerKicks: Math.floor(Math.random() * 8), freeKicks: Math.floor(Math.random() * 5), passes: Math.floor(150 + Math.random() * 100), successfulPasses: Math.floor(120 + Math.random() * 80), crosses: Math.floor(Math.random() * 10), interceptions: Math.floor(5 + Math.random() * 10), tackles: Math.floor(5 + Math.random() * 15), saves: Math.floor(Math.random() * 6)};
-            
-            batch.update(matchRef, {
-                status: 'approved',
-                homeScore,
-                awayScore,
-                homeTeamStats,
-                awayTeamStats,
-            });
-            approvedCount++;
-        }
-    }
-    await batch.commit();
-    if(approvedCount > 0) {
-        await tournamentRef.update({ needsStandingsUpdate: true });
-    }
-    return approvedCount;
-}
-
-
-export async function devAutoApproveCurrentStageMatches(tournamentId: string, organizerId: string) {
-    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
-    const tournamentDoc = await tournamentRef.get();
-    if (!tournamentDoc.exists || tournamentDoc.data()?.organizerId !== organizerId) {
-        throw new Error("Unauthorized or tournament not found.");
-    }
-    const tournament = tournamentDoc.data() as Tournament;
-    
-    const matchesSnapshot = await tournamentRef.collection('matches').get();
-    const allMatches = matchesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Match));
-    
-    let currentRound: string | undefined;
-
-    if(tournament.format === 'cup') {
-        currentRound = getCurrentCupRound(allMatches);
-    } else if (tournament.format === 'swiss') {
-        const roundNumbers = allMatches.map(m => getSwissRoundNumber(m.round)).filter(n => n !== null) as number[];
-        const currentRoundNumber = roundNumbers.length > 0 ? Math.max(...roundNumbers) : 0;
-        if(currentRoundNumber === 0) throw new Error("No swiss rounds found");
-        currentRound = `Swiss Round ${currentRoundNumber}`;
-    } else { // league
-        const roundNumbers = allMatches.map(m => parseInt((m.round || 'Round 0').replace('Round ', ''))).filter(n => !isNaN(n));
-        const maxRound = roundNumbers.length > 0 ? Math.max(...roundNumbers) : 0;
-        if(maxRound === 0) throw new Error("No league rounds found");
-        currentRound = `Round ${maxRound}`;
-    }
-
-    if (!currentRound) {
-        throw new Error("Could not determine current round.");
-    }
-
-    const matchesToApprove = allMatches.filter(m => m.round === currentRound && m.status === 'scheduled');
-    const approved = await autoApproveMatches(matchesToApprove, tournamentRef);
-    
-    // Manually trigger standings update for dev purposes
-    await updateStandings(tournamentId);
-
-    return { approved };
-}
-
 export async function devAutoApproveAndProgress(tournamentId: string, organizerId: string) {
     const { approved } = await devAutoApproveCurrentStageMatches(tournamentId, organizerId);
     const { status, progressed } = await progressTournamentStage(tournamentId, organizerId);
@@ -613,7 +617,7 @@ export async function devAutoRunCupToCompletion(tournamentId: string, organizerI
 
     while(tournamentStatus !== 'completed' && steps < MAX_STEPS) {
         const tournamentDoc = await adminDb.collection('tournaments').doc(tournamentId).get();
-        tournamentStatus = tournamentDoc.data()?.status;
+        tournamentStatus = tournamentDoc.data()?.status || '';
 
         if (tournamentStatus === 'completed') break;
 

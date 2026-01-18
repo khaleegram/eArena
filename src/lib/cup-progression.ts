@@ -1,3 +1,4 @@
+
 import type { Match, Tournament } from './types';
 
 export type CupRoundKey = string;
@@ -7,6 +8,17 @@ function parseRoundOf(round: string): number | null {
   if (!m) return null;
   const n = Number.parseInt(m[1]!, 10);
   return Number.isFinite(n) ? n : null;
+}
+
+export function isKnockoutRound(round?: string): boolean {
+  if (typeof round !== 'string') return false;
+  const r = round.trim().toLowerCase();
+  return (
+    r === 'final' ||
+    r === 'semi-finals' ||
+    r === 'quarter-finals' ||
+    /^round of \d+$/i.test(round.trim())
+  );
 }
 
 /**

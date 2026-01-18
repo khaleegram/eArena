@@ -6,8 +6,8 @@ import {
   computeAllGroupStandings,
   seedKnockoutFromGroups,
   isGroupRound,
-  isKnockoutRound,
 } from './group-stage';
+import { isKnockoutRound } from './cup-progression';
 
 function approvedGroupMatch(group: string, home: string, away: string, homeScore: number, awayScore: number): Match {
   return {
@@ -83,4 +83,3 @@ describe('group-stage (World Cup style)', () => {
     expect(pairs).toEqual(['A1vB1', 'B2vA2'].sort());
   });
 });
-
