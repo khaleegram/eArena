@@ -26,15 +26,15 @@ export function isKnockoutRound(round?: string): boolean {
  * Used to determine the current/latest round in a cup bracket.
  */
 export function getCupRoundRank(round: CupRoundKey): number {
-  const normalized = round.trim();
-  if (/^final$/i.test(normalized)) return 1000;
-  if (/^semi-finals?$/i.test(normalized)) return 900;
-  if (/^quarter-finals?$/i.test(normalized)) return 800;
+  const normalized = round.trim().toLowerCase();
+  if (normalized === 'final') return 1000;
+  if (normalized === 'semi-finals') return 900;
+  if (normalized === 'quarter-finals') return 800;
 
   const roundOf = parseRoundOf(normalized);
   if (roundOf != null) {
     // Earlier rounds have bigger team counts, so they should rank LOWER than later rounds.
-    // Example: Round of 16 (16) < Round of 8 (8) < Quarter-finals (8 but named)
+    // Example: Round of 16 (16) < Round of 8 (8 but named)
     return 100 - roundOf; // Round of 8 => 92, Round of 16 => 84
   }
   return -Infinity;

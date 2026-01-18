@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { adminDb } from '@/lib/firebase-admin';
@@ -18,7 +17,7 @@ import { addDays, differenceInDays, isBefore, isPast } from 'date-fns';
 import { generateRoundRobinFixtures } from '../round-robin';
 import { createWorldCupGroups, generateGroupStageFixtures, computeAllGroupStandings, seedKnockoutFromGroups, isGroupRound } from '../group-stage';
 import { generateSwissRoundFixtures, getMaxSwissRounds, isSwissRound, getSwissRoundNumber } from '../swiss';
-import { getCurrentCupRound, assertRoundCompleted, getWinnersForRound, getChampionIfFinalComplete, getCupRoundRank, isKnockoutRound } from '../cup-progression';
+import { getCurrentCupRound, assertRoundCompleted, getWinnersForRound, getChampionIfFinalComplete, isKnockoutRound, getCupRoundRank } from '../cup-progression';
 import { predictMatchWinner as predictMatchWinnerFlow, PredictWinnerInput } from '@/ai/flows/predict-match-winner';
 
 
@@ -399,6 +398,26 @@ export async function progressTournamentStage(tournamentId: string, organizerId:
     }
 
     if (progressed && newFixtures.length > 0) {
+        const { tournamentStartDate, tournamentEndDate } = tournament;
+        const startDate = new Date(tournamentStartDate.toMillis());
+        const endDate = new Date(tournamentEndDate.toMillis());
+        const totalDays = Math.max(1, differenceInDays(endDate, startDate) + 1);
+        
+        const matchesPerDay = Math.ceil(newFixtures.length / totalDays);
+        const timeSlots = [19, 20, 21, 22];
+
+        newFixtures.forEach((fixture, index) => {
+            const dayIndex = Math.floor(index / matchesPerDay);
+            // For subsequent rounds, schedule them starting from today to keep momentum.
+            const matchDay = addDays(new Date(), dayIndex);
+            const timeIndex = index % timeSlots.length;
+            matchDay.setHours(timeSlots[timeIndex]!);
+            matchDay.setMinutes(0);
+            
+            (fixture as any).matchDay = Timestamp.fromDate(matchDay);
+            (fixture as any).status = 'scheduled';
+        });
+
         const batch = adminDb.batch();
         for (const fixture of newFixtures) {
             const matchRef = tournamentRef.collection('matches').doc();
@@ -536,31 +555,14 @@ export async function devAutoApproveCurrentStageMatches(tournamentId: string, or
     const allMatches = matchesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Match));
     
     const scheduledMatches = allMatches.filter(m => m.status === 'scheduled');
+    
     if (scheduledMatches.length === 0) {
       return { approved: 0 }; // Nothing to approve
     }
-
-    const getRoundSortValue = (round: string | undefined): number => {
-        if (!round) return 999;
-        if (isSwissRound(round)) return (getSwissRoundNumber(round) || 0) + 100;
-        if (isKnockoutRound(round)) return getCupRoundRank(round);
-        const leagueMatch = round.match(/Round (\d+)/);
-        if (leagueMatch) return Number(leagueMatch[1]);
-        if (isGroupRound(round)) return 0; // Group stages come first
-        return 998;
-    };
-
-    const scheduledRounds = [...new Set(scheduledMatches.map(m => m.round))];
-    scheduledRounds.sort((a,b) => getRoundSortValue(a) - getRoundSortValue(b));
-
-    const currentRoundToApprove = scheduledRounds[0];
-
-    if (!currentRoundToApprove) {
-        throw new Error("Could not determine current round to approve.");
-    }
-
-    const matchesToApprove = scheduledMatches.filter(m => m.round === currentRoundToApprove);
-    const approved = await autoApproveMatches(matchesToApprove, tournamentRef);
+    
+    // Simplified logic: Approve all currently scheduled matches.
+    // This is more robust for a dev tool than trying to be too clever about rounds.
+    const approved = await autoApproveMatches(scheduledMatches, tournamentRef);
 
     // This is a dev tool, so we can trigger the update immediately.
     await updateStandings(tournamentId);
@@ -629,4 +631,11 @@ export async function devAutoRunCupToCompletion(tournamentId: string, organizerI
     
     const finalDoc = await adminDb.collection('tournaments').doc(tournamentId).get();
     return { status: finalDoc.data()?.status, steps };
+}
+
+function getRoundName(numTeams: number): string {
+    if (numTeams === 2) return 'Final';
+    if (numTeams === 4) return 'Semi-finals';
+    if (numTeams === 8) return 'Quarter-finals';
+    return `Round of ${numTeams}`;
 }
