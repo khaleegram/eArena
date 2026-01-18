@@ -15,8 +15,10 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 const nextConfig = {
-  serverActions: {
-    bodySizeLimit: '10mb',
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '10mb',
+    },
   },
   typescript: {
     ignoreBuildErrors: true,
