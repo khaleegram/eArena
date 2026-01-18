@@ -3,7 +3,7 @@
 
 import { adminDb } from '@/lib/firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import type { Tournament } from '@/lib/types';
+import type { Tournament, Player, Match } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
 import { serializeData } from '@/lib/utils';
 import { getTournamentAwards } from './payouts';
@@ -12,6 +12,10 @@ import { customAlphabet } from 'nanoid';
 import { getStorage } from 'firebase-admin/storage';
 import { getUserProfileById } from './user';
 import { sendNotification } from './notifications';
+import { getCurrentCupRound } from '../cup-progression';
+import { getSwissRoundNumber } from '../swiss';
+import { isGroupRound } from '../group-stage';
+import { progressTournamentStage } from './team';
 
 
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
@@ -259,4 +263,150 @@ export async function getTournamentsByIds(ids: string[]): Promise<Tournament[]> 
         }
     }
     return tournaments;
+}
+
+// DEV-ONLY FUNCTIONS FOR TESTING
+
+export async function devSeedDummyTeams(tournamentId: string, organizerId: string, count: number) {
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    const tournamentDoc = await tournamentRef.get();
+    if (!tournamentDoc.exists || tournamentDoc.data()?.organizerId !== organizerId) {
+        throw new Error("Unauthorized or tournament not found.");
+    }
+    const tournament = tournamentDoc.data() as Tournament;
+
+    const teamsToAdd = Math.min(count, tournament.maxTeams - tournament.teamCount);
+    if (teamsToAdd <= 0) {
+        throw new Error("No space for new teams or count is zero.");
+    }
+
+    const batch = adminDb.batch();
+    for (let i = 0; i < teamsToAdd; i++) {
+        const teamRef = tournamentRef.collection('teams').doc();
+        const captainId = `dummy_captain_${teamRef.id}`;
+        
+        batch.set(teamRef, {
+            name: `Dummy Team ${i + 1}`,
+            logoUrl: '',
+            captainId: captainId,
+            players: [{ uid: captainId, role: 'captain', username: `Captain ${i+1}` }],
+            playerIds: [captainId],
+            isApproved: true,
+            tournamentId: tournamentId,
+        });
+
+        const membershipRef = adminDb.collection('userMemberships').doc(`${tournamentId}_${captainId}`);
+        batch.set(membershipRef, { userId: captainId, teamId: teamRef.id, tournamentId });
+    }
+
+    batch.update(tournamentRef, { teamCount: FieldValue.increment(teamsToAdd) });
+    await batch.commit();
+
+    revalidatePath(`/tournaments/${tournamentId}`);
+    return { created: teamsToAdd };
+}
+
+export async function devAutoApproveCurrentStageMatches(tournamentId: string, organizerId: string) {
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    const tournamentDoc = await tournamentRef.get();
+    if (!tournamentDoc.exists || tournamentDoc.data()?.organizerId !== organizerId) {
+        throw new Error("Unauthorized or tournament not found.");
+    }
+    const tournament = tournamentDoc.data() as Tournament;
+
+    const matchesSnapshot = await tournamentRef.collection('matches').get();
+    const allMatches = matchesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Match);
+
+    let currentRound: string | undefined;
+    if (tournament.format === 'cup') {
+        currentRound = getCurrentCupRound(allMatches);
+    } else if (tournament.format === 'swiss') {
+        const roundNumbers = allMatches.map(m => getSwissRoundNumber(m.round)).filter(n => n !== null) as number[];
+        const maxRound = Math.max(0, ...roundNumbers);
+        if (maxRound > 0) {
+            currentRound = `Swiss Round ${maxRound}`;
+        }
+    }
+
+    const matchesToApprove = allMatches.filter(m => {
+        if (m.status !== 'scheduled') return false;
+        if (currentRound) return m.round === currentRound;
+        return true; // league format
+    });
+
+    if (matchesToApprove.length === 0) {
+        return { approved: 0, message: "No scheduled matches found in the current stage." };
+    }
+
+    const batch = adminDb.batch();
+    for (const match of matchesToApprove) {
+        const matchRef = tournamentRef.collection('matches').doc(match.id);
+        const homeScore = Math.floor(Math.random() * 4);
+        let awayScore = Math.floor(Math.random() * 4);
+        
+        const isKnockout = tournament.format === 'cup' && !isGroupRound(match.round);
+        if (isKnockout && homeScore === awayScore) {
+            awayScore += 1;
+        }
+
+        batch.update(matchRef, {
+            status: 'approved',
+            homeScore: homeScore,
+            awayScore: awayScore,
+        });
+    }
+
+    batch.update(tournamentRef, { needsStandingsUpdate: true });
+    await batch.commit();
+
+    revalidatePath(`/tournaments/${tournamentId}`);
+    return { approved: matchesToApprove.length };
+}
+
+
+export async function devAutoApproveAndProgress(tournamentId: string, organizerId: string) {
+    const approveResult = await devAutoApproveCurrentStageMatches(tournamentId, organizerId);
+
+    // Add a small delay to allow Firestore to process the first write batch
+    await new Promise(res => setTimeout(res, 500));
+
+    const tournamentDoc = await adminDb.collection('tournaments').doc(tournamentId).get();
+    const tournament = tournamentDoc.data() as Tournament;
+    
+    if (tournament.status === 'in_progress' && (tournament.format === 'cup' || tournament.format === 'swiss')) {
+        try {
+            await progressTournamentStage(tournamentId, organizerId);
+            const updatedTournamentDoc = await adminDb.collection('tournaments').doc(tournamentId).get();
+            return { approved: approveResult.approved, progressed: true, status: updatedTournamentDoc.data()?.status };
+        } catch (e: any) {
+            return { approved: approveResult.approved, progressed: false, status: tournament.status, error: e.message };
+        }
+    }
+    
+    return { approved: approveResult.approved, progressed: false, status: tournament.status };
+}
+
+
+export async function devAutoRunCupToCompletion(tournamentId: string, organizerId: string) {
+    let steps = 0;
+    let tournamentDoc = await adminDb.collection('tournaments').doc(tournamentId).get();
+    let status = tournamentDoc.data()?.status;
+
+    while (status === 'in_progress' && steps < 10) { // safety break
+        steps++;
+        await devAutoApproveCurrentStageMatches(tournamentId, organizerId);
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        try {
+             await progressTournamentStage(tournamentId, organizerId);
+        } catch(e) {
+            // Fails when tournament is complete, which is expected.
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, 500));
+        tournamentDoc = await adminDb.collection('tournaments').doc(tournamentId).get();
+        status = tournamentDoc.data()?.status;
+    }
+    
+    return { steps, status };
 }
