@@ -1,3 +1,4 @@
+
 'use server';
 
 import { adminDb } from '@/lib/firebase-admin';
@@ -39,43 +40,55 @@ export async function runUpdateStandingsJob() {
 
 export async function runStartTournamentsJob() {
     const now = new Date();
-    const tournamentsToProcessSnapshot = await adminDb.collection('tournaments')
+    
+    // --- Step 1: Transition tournaments from 'open' to 'ready' ---
+    const openTournamentsSnapshot = await adminDb.collection('tournaments')
       .where('status', '==', 'open_for_registration')
       .get();
       
-    if (tournamentsToProcessSnapshot.empty) {
-      return { message: 'No tournaments are currently open for registration.' };
-    }
-
-    let processedCount = 0;
-    const errors: { tournamentId: string; error: string }[] = [];
-
-    for (const doc of tournamentsToProcessSnapshot.docs) {
-      const tournament = { id: doc.id, ...doc.data() } as Tournament;
-      
-      if (toDate(tournament.registrationEndDate) < now) {
-        try {
-          console.log(`Registration ended for tournament ${tournament.id}. Attempting to start...`);
-          await startTournamentAndGenerateFixtures(tournament.id, tournament.organizerId);
-          processedCount++;
-        } catch (error: any) {
-          console.error(`Failed to automatically start tournament ${doc.id}:`, error.message);
-          errors.push({ tournamentId: doc.id, error: error.message });
+    let newlyReadyCount = 0;
+    const readyErrors: { tournamentId: string; error: string }[] = [];
+    for (const doc of openTournamentsSnapshot.docs) {
+        const tournament = doc.data() as Tournament;
+        if (toDate(tournament.registrationEndDate) < now) {
+            try {
+                await doc.ref.update({ status: 'ready_to_start' });
+                newlyReadyCount++;
+            } catch (error: any) {
+                readyErrors.push({ tournamentId: doc.id, error: error.message });
+            }
         }
-      }
     }
 
-    if (processedCount === 0 && errors.length === 0) {
-      return { message: 'No tournaments were due to be started.' };
+    // --- Step 2: Start tournaments that are 'ready' and whose start date has passed ---
+    const readyTournamentsSnapshot = await adminDb.collection('tournaments')
+      .where('status', '==', 'ready_to_start')
+      .get();
+
+    let startedCount = 0;
+    const startErrors: { tournamentId: string; error: string }[] = [];
+    for (const doc of readyTournamentsSnapshot.docs) {
+        const tournament = { id: doc.id, ...doc.data() } as Tournament;
+        if (toDate(tournament.tournamentStartDate) <= now) {
+            try {
+                console.log(`Tournament ${tournament.id} is due. Attempting to start...`);
+                await startTournamentAndGenerateFixtures(tournament.id, tournament.organizerId);
+                startedCount++;
+            } catch (error: any) {
+                console.error(`Failed to automatically start tournament ${doc.id}:`, error.message);
+                startErrors.push({ tournamentId: doc.id, error: error.message });
+            }
+        }
     }
 
     return { 
         message: `Tournament start job finished.`,
-        processed: processedCount,
-        failed: errors.length,
-        errors: errors,
+        transitionedToReady: newlyReadyCount,
+        started: startedCount,
+        errors: { readyErrors, startErrors },
     };
 }
+
 
 export async function runTriggerPayoutsJob() {
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);

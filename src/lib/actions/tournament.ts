@@ -299,7 +299,6 @@ export async function startTournamentAndGenerateFixtures(tournamentId: string, o
   
       fixtures.forEach((fixture, index) => {
           const dayIndex = Math.floor(index / matchesPerDay);
-          const timeIndex = index % timeSlots.length;
           const matchDay = addDays(startDate, dayIndex);
           matchDay.setHours(timeSlots[timeIndex]!);
           matchDay.setMinutes(0);
@@ -470,13 +469,6 @@ export async function extendRegistration(tournamentId: string, hours: number, or
     const currentEndDate = (doc.data()?.registrationEndDate as Timestamp).toDate();
     const newEndDate = new Date(currentEndDate.getTime() + hours * 60 * 60 * 1000);
     await tournamentRef.update({ registrationEndDate: Timestamp.fromDate(newEndDate) });
-    revalidatePath(`/tournaments/${tournamentId}`);
-}
-
-
-
-export async function rescheduleTournamentAndStart(tournamentId: string, organizerId: string, startDate: string) {
-    // Logic to update tournament dates and start it
     revalidatePath(`/tournaments/${tournamentId}`);
 }
 

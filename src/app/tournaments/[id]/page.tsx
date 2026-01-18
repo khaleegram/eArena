@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getTournamentById, organizerResolveOverdueMatches, extendRegistration, progressTournamentStage, rescheduleTournamentAndStart, regenerateTournamentFixtures, devSeedDummyTeams, devAutoApproveCurrentStageMatches, devAutoApproveAndProgress, devAutoRunCupToCompletion, retryTournamentPayment } from '@/lib/actions/tournament';
+import { getTournamentById, organizerResolveOverdueMatches, extendRegistration, startTournamentAndGenerateFixtures, regenerateTournamentFixtures, devSeedDummyTeams, devAutoApproveCurrentStageMatches, devAutoApproveAndProgress, devAutoRunCupToCompletion, retryTournamentPayment } from '@/lib/actions/tournament';
 import { getUserTeamForTournament, leaveTournament, addTeam } from '@/lib/actions/team';
 import { findUserByEmail } from '@/lib/actions/user';
 import { useAuth } from "@/hooks/use-auth";
@@ -98,7 +98,7 @@ function ExtendRegistrationDialog({ tournament, organizerId, onSuccess }: { tour
     const [hours, setHours] = useState(2);
     const [isSubmitting, setIsSubmitting] = useState(false);
     
-    const canExtend = tournament.status === 'open_for_registration' || (tournament.status === 'ready_to_start' && isBefore(new Date(), toDate(tournament.tournamentStartDate)));
+    const canExtend = tournament.status === 'open_for_registration';
 
     if (!canExtend) return null;
 
@@ -369,7 +369,7 @@ function JoinTournamentDialog({ tournament, user, userProfile, onTeamJoined }: {
                     <DialogFooter>
                         <Button type="submit" className="w-full" disabled={isSubmitting}>
                             {isSubmitting ? <Loader2 className="animate-spin mr-2" /> : <PlusCircle className="mr-2" />}
-                            Create Team &amp; Join
+                            Create Team & Join
                         </Button>
                     </DialogFooter>
                 </form>
@@ -378,17 +378,15 @@ function JoinTournamentDialog({ tournament, user, userProfile, onTeamJoined }: {
     )
 }
 
-function RescheduleDialog({ tournament, organizerId, onSuccess }: { tournament: Tournament; organizerId: string; onSuccess: () => void }) {
+function StartTournamentDialog({ tournament, organizerId, onSuccess }: { tournament: Tournament; organizerId: string; onSuccess: () => void }) {
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(false);
-    const [customStartDate, setCustomStartDate] = useState<Date | undefined>(new Date());
 
-    const handleReschedule = async (newStartDate?: Date) => {
+    const handleStart = async () => {
         setIsLoading(true);
         try {
-            const startDateString = (newStartDate || new Date()).toISOString();
-            await rescheduleTournamentAndStart(tournament.id, organizerId, startDateString);
-            toast({ title: "Tournament Rescheduled!", description: "The schedule has been updated and participants notified." });
+            await startTournamentAndGenerateFixtures(tournament.id, organizerId);
+            toast({ title: "Tournament Started!", description: "Fixtures have been generated and participants notified." });
             onSuccess();
         } catch (error: any) {
             toast({ variant: "destructive", title: "Error", description: error.message });
@@ -396,37 +394,20 @@ function RescheduleDialog({ tournament, organizerId, onSuccess }: { tournament: 
             setIsLoading(false);
         }
     };
+    
+    if (tournament.status !== 'ready_to_start') return null;
 
     return (
         <Card className="bg-primary/5 border-primary/20">
             <CardHeader>
                 <CardTitle className="font-headline flex items-center gap-2"><Sparkles className="w-5 h-5 text-primary"/>Ready to Start!</CardTitle>
-                <CardDescription>Fixtures are generated. You can start the tournament now or reschedule it.</CardDescription>
+                <CardDescription>All teams are in and registration is closed. You can start the tournament now, or it will start automatically on its scheduled date.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-                <Button className="w-full" onClick={() => handleReschedule()} disabled={isLoading}>
+            <CardContent>
+                <Button className="w-full" onClick={handleStart} disabled={isLoading}>
                     {isLoading ? <Loader2 className="animate-spin mr-2"/> : null}
-                    Start Immediately
+                    Start Tournament Now
                 </Button>
-                 <div className="space-y-2">
-                    <p className="text-sm font-medium">Or choose a new start date:</p>
-                    <div className="flex gap-2">
-                        <Popover>
-                            <PopoverTrigger asChild>
-                                <Button variant={"outline"} className={cn("flex-1 justify-start text-left font-normal", !customStartDate && "text-muted-foreground")}>
-                                    <Calendar className="mr-2 h-4 w-4" />
-                                    {customStartDate ? format(customStartDate, "PPP") : <span>Pick a date</span>}
-                                </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0">
-                                <CalendarPicker mode="single" selected={customStartDate} onSelect={setCustomStartDate} initialFocus />
-                            </PopoverContent>
-                        </Popover>
-                        <Button variant="secondary" onClick={() => handleReschedule(customStartDate)} disabled={isLoading || !customStartDate}>
-                           Reschedule
-                        </Button>
-                    </div>
-                </div>
             </CardContent>
         </Card>
     );
@@ -746,7 +727,7 @@ export default function TournamentPage() {
                     </div>
 
                     {isOrganizer && user && tournament.status === 'ready_to_start' && (
-                        <RescheduleDialog tournament={tournament} organizerId={user.uid} onSuccess={fetchTournament} />
+                        <StartTournamentDialog tournament={tournament} organizerId={user.uid} onSuccess={fetchTournament} />
                     )}
                     
                     {user && userProfile && userTeam !== undefined && !isOrganizer && (
@@ -768,7 +749,7 @@ export default function TournamentPage() {
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction onClick={handleLeave}>Confirm &amp; Leave</AlertDialogAction>
+                                    <AlertDialogAction onClick={handleLeave}>Confirm & Leave</AlertDialogAction>
                                     </AlertDialogFooter>
                                 </AlertDialogContent>
                                 </AlertDialog>
@@ -836,5 +817,3 @@ export default function TournamentPage() {
     </div>
   );
 }
-
-    
