@@ -1,35 +1,5 @@
 
-import { Timestamp } from 'firebase-admin/firestore';
 import { adminDb } from '../firebase-admin';
-
-// Helper function to convert Firestore Timestamps to ISO strings recursively
-export function serializeData(data: any): any {
-  if (data === null || data === undefined || typeof data !== 'object') {
-    return data;
-  }
-
-  if (data instanceof Timestamp) {
-    return data.toDate().toISOString();
-  }
-  
-  if (data instanceof Date) {
-      return data.toISOString();
-  }
-
-  if (Array.isArray(data)) {
-    return data.map(serializeData);
-  }
-
-  // This handles plain objects
-  const serializedObject: { [key: string]: any } = {};
-  for (const key in data) {
-    if (Object.prototype.hasOwnProperty.call(data, key)) {
-      serializedObject[key] = serializeData(data[key]);
-    }
-  }
-  return serializedObject;
-}
-
 
 async function deleteCollection(collectionPath: string, batchSize: number) {
   const collectionRef = adminDb.collection(collectionPath);

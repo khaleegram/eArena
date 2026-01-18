@@ -5,7 +5,7 @@ import { adminDb } from '@/lib/firebase-admin';
 import type { Announcement, Article } from '@/lib/types';
 import { FieldValue, orderBy, collection, query, doc, getDoc } from 'firebase-admin/firestore';
 import { sendNotification } from './notifications';
-import { serializeData } from './helpers';
+import { serializeData } from '@/lib/utils';
 
 export async function postAnnouncement(tournamentId: string, organizerId: string, title: string, content: string) {
     const announcementRef = adminDb.collection('tournaments').doc(tournamentId).collection('announcements');

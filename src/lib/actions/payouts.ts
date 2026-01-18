@@ -1,0 +1,149 @@
+
+'use server';
+
+import { adminDb } from '@/lib/firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
+import type { Tournament, PrizeDistributionItem, TournamentAward, UserProfile, Transaction } from '@/lib/types';
+import { getStandingsForTournament } from './standings';
+import { getTeamsForTournament } from './team';
+import { sendNotification } from './notifications';
+import { serializeData } from '@/lib/utils';
+
+const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
+
+async function createPaystackRecipient(userProfile: UserProfile): Promise<string> {
+    if (!userProfile.bankDetails?.accountNumber || !userProfile.bankDetails?.bankCode) {
+        throw new Error(`User ${userProfile.username} is missing bank details.`);
+    }
+
+    const response = await fetch('https://api.paystack.co/transferrecipient', {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            type: 'nuban',
+            name: userProfile.username,
+            account_number: userProfile.bankDetails.accountNumber,
+            bank_code: userProfile.bankDetails.bankCode,
+            currency: 'NGN',
+        }),
+    });
+    const data = await response.json();
+    if (!data.status || !data.data.recipient_code) {
+        throw new Error(`Paystack recipient creation failed: ${data.message}`);
+    }
+    return data.data.recipient_code;
+}
+
+export async function retryPayout(transactionId: string) {
+    if (!PAYSTACK_SECRET_KEY) throw new Error('Paystack secret key not configured.');
+    const transactionRef = adminDb.collection('transactions').doc(transactionId);
+    const transactionDoc = await transactionRef.get();
+    if (!transactionDoc.exists) throw new Error('Transaction not found.');
+    const transaction = transactionDoc.data() as Transaction;
+    if (transaction.status === 'success' || transaction.status === 'pending') {
+        throw new Error('Cannot retry a successful or pending transaction.');
+    }
+    if (!transaction.paystackTransferCode) {
+         throw new Error('This transaction cannot be retried automatically.');
+    }
+     const response = await fetch('https://api.paystack.co/transfer/resend_otp', {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            transfer_code: transaction.paystackTransferCode,
+            reason: "retry"
+        }),
+    });
+    const data = await response.json();
+    if (!data.status) {
+        throw new Error(`Paystack retry failed: ${data.message}`);
+    }
+     // Note: we don't update the status here. The webhook will handle the final status update.
+    return { message: 'Retry initiated. Awaiting webhook confirmation.' };
+}
+
+export async function getPrizeDistribution(tournamentId: string): Promise<PrizeDistributionItem[]> {
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    const tournamentDoc = await tournamentRef.get();
+    const tournament = tournamentDoc.data() as Tournament;
+
+    if (!tournament || tournament.rewardDetails.type !== 'money' || !tournament.rewardDetails.prizeAllocation) {
+        return [];
+    }
+
+    const { prizePool, prizeAllocation } = tournament.rewardDetails;
+    const awards = tournament.status === 'completed' ? await getTournamentAwards(tournamentId) : {};
+
+    const distribution: PrizeDistributionItem[] = [
+        { category: '1st Place', percentage: prizeAllocation.first_place, amount: 0, winner: awards.firstPlace },
+        { category: '2nd Place', percentage: prizeAllocation.second_place, amount: 0, winner: awards.secondPlace },
+        { category: '3rd Place', percentage: prizeAllocation.third_place, amount: 0, winner: awards.thirdPlace },
+        { category: 'Best Overall Team', percentage: prizeAllocation.best_overall, amount: 0, winner: awards.bestOverall },
+        { category: 'Highest Scoring Team', percentage: prizeAllocation.highest_scoring, amount: 0, winner: awards.highestScoring },
+        { category: 'Best Defensive Team', percentage: prizeAllocation.best_defensive, amount: 0, winner: awards.bestDefensive },
+        { category: 'Best Attacking Team', percentage: prizeAllocation.best_attacking, amount: 0, winner: awards.bestAttacking },
+    ];
+    
+    distribution.forEach(item => {
+        item.amount = (prizePool * item.percentage) / 100;
+    });
+
+    return serializeData(distribution);
+}
+
+
+export async function getTournamentAwards(tournamentId: string): Promise<Record<string, TournamentAward>> {
+    const standings = await getStandingsForTournament(tournamentId);
+    const teams = await getTeamsForTournament(tournamentId);
+
+    if (standings.length === 0) return {};
+
+    const getAward = (standing: typeof standings[0]): TournamentAward | undefined => {
+        if (!standing) return undefined;
+        const team = teams.find(t => t.id === standing.teamId);
+        if (!team) return undefined;
+        return {
+            awardTitle: '', // This will be set by the caller
+            team: team,
+            reason: '' // This will be set by the caller
+        };
+    };
+
+    const firstPlace = getAward(standings.find(s => s.ranking === 1));
+    const secondPlace = getAward(standings.find(s => s.ranking === 2));
+    const thirdPlace = getAward(standings.find(s => s.ranking === 3));
+
+    const bestOverall = getAward(standings.reduce((prev, curr) => (prev.points > curr.points) ? prev : curr));
+    const highestScoring = getAward(standings.reduce((prev, curr) => (prev.goalsFor > curr.goalsFor) ? prev : curr));
+    const bestDefensive = getAward(standings.reduce((prev, curr) => (prev.cleanSheets > curr.cleanSheets) ? prev : curr));
+    
+    const getBestAttacking = () => {
+        let bestAttackingTeam = standings[0];
+        let maxGoalsPerMatch = 0;
+        for (const s of standings) {
+            const gpm = s.matchesPlayed > 0 ? s.goalsFor / s.matchesPlayed : 0;
+            if (gpm > maxGoalsPerMatch) {
+                maxGoalsPerMatch = gpm;
+                bestAttackingTeam = s;
+            }
+        }
+        return getAward(bestAttackingTeam);
+    }
+
+    const awards: Record<string, TournamentAward> = {};
+    if (firstPlace) awards.firstPlace = { ...firstPlace, awardTitle: '1st Place', reason: 'Top of the league' };
+    if (secondPlace) awards.secondPlace = { ...secondPlace, awardTitle: '2nd Place', reason: 'Valiant runner-up' };
+    if (thirdPlace) awards.thirdPlace = { ...thirdPlace, awardTitle: '3rd Place', reason: 'On the podium' };
+    if (bestOverall) awards.bestOverall = { ...bestOverall, awardTitle: 'Best Overall', reason: `${bestOverall.points} points` };
+    if (highestScoring) awards.highestScoring = { ...highestScoring, awardTitle: 'Highest Scoring', reason: `${highestScoring.goalsFor} goals scored` };
+    if (bestDefensive) awards.bestDefensive = { ...bestDefensive, awardTitle: 'Best Defense', reason: `${bestDefensive.cleanSheets} clean sheets` };
+    if (getBestAttacking()) awards.bestAttacking = { ...getBestAttacking()!, awardTitle: 'Best Attacking', reason: 'Highest goals per match' };
+
+    return serializeData(awards);
+}
