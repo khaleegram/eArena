@@ -83,6 +83,9 @@ const ActionsCell = ({ row }: { row: { original: Tournament }}) => {
                 <DropdownMenuItem asChild>
                     <Link href={`/tournaments/${tournament.id}`}>View Tournament</Link>
                 </DropdownMenuItem>
+                 <DropdownMenuItem asChild>
+                    <Link href={`/admin/tournaments/${tournament.id}/prize-allocation`}>Edit Prize Allocation</Link>
+                </DropdownMenuItem>
                 {canProcessPayouts && (
                      <DropdownMenuItem onClick={handlePayout} disabled={isPending}>
                         {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Coins className="mr-2 h-4 w-4" />} 

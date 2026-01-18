@@ -1,6 +1,6 @@
 'use server';
 
-import { adminDb } from '@/lib/firebase-admin';
+import { adminDb, adminAuth } from '@/lib/firebase-admin';
 import type { UserProfile, PlayerStats, Conversation, PlayerTitle } from '@/lib/types';
 import { FieldValue } from 'firebase-admin/firestore';
 import { revalidatePath } from 'next/cache';
@@ -8,6 +8,8 @@ import { getAdminUids } from './admin';
 import { serializeData } from '@/lib/utils';
 import { analyzePlayerPerformance, type PlayerPerformanceInput, type PlayerPerformanceOutput } from '@/ai/flows/analyze-player-performance';
 import { sendNotification } from './notifications';
+import { getStorage } from 'firebase-admin/storage';
+import { sendEmail } from '../email';
 
 export async function updateUserProfile(uid: string, data: Partial<UserProfile>) {
   const userRef = adminDb.collection('users').doc(uid);
@@ -20,6 +22,38 @@ export async function updateUserProfile(uid: string, data: Partial<UserProfile>)
   await userRef.update(updateData);
   revalidatePath(`/profile/${uid}`);
   revalidatePath(`/profile`);
+}
+
+export async function updateUserProfilePhoto(uid: string, formData: FormData) {
+    const photo = formData.get('photo') as File;
+    if(!photo) {
+        throw new Error("No photo provided");
+    }
+
+    const bucket = getStorage().bucket(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
+    const fileName = `users/${uid}/avatars/${Date.now()}_${photo.name}`;
+    const file = bucket.file(fileName);
+
+    const stream = file.createWriteStream({
+        metadata: { contentType: photo.type },
+    });
+    
+    const buffer = Buffer.from(await photo.arrayBuffer());
+    
+    await new Promise((resolve, reject) => {
+        stream.on('error', reject);
+        stream.on('finish', resolve);
+        stream.end(buffer);
+    });
+
+    const photoURL = await file.getSignedUrl({
+        action: 'read',
+        expires: '03-09-2491',
+    }).then(urls => urls[0]);
+
+    await adminDb.collection('users').doc(uid).update({ photoURL });
+    revalidatePath(`/profile/${uid}`);
+    revalidatePath(`/profile`);
 }
 
 export async function getUserProfileById(uid: string): Promise<UserProfile | null> {
@@ -124,7 +158,6 @@ export async function getConversationsForUser(userId: string): Promise<Conversat
 }
 
 export async function getPlayerPerformanceAnalysis(stats: PlayerPerformanceInput): Promise<PlayerPerformanceOutput> {
-  // The Genkit flow is already a server function, so we can just call it directly.
   return analyzePlayerPerformance(stats);
 }
 
@@ -236,4 +269,32 @@ export async function confirmUserDetailsForPayout(uid: string) {
     const userRef = adminDb.collection('users').doc(uid);
     await userRef.update({ 'bankDetails.confirmedForPayout': true });
     revalidatePath(`/profile`);
+}
+
+export async function sendPasswordResetEmail(email: string) {
+    const link = await adminAuth.generatePasswordResetLink(email);
+    await sendEmail({
+        to: email,
+        subject: 'Reset Your eArena Password',
+        body: `Click the following link to reset your password: ${link}`
+    });
+}
+
+export async function resendVerificationEmail(email: string) {
+    try {
+        const user = await adminAuth.getUserByEmail(email);
+        if (user && !user.emailVerified) {
+            const link = await adminAuth.generateEmailVerificationLink(email);
+            await sendEmail({
+                to: email,
+                subject: 'Verify Your eArena Email',
+                body: `Click here to verify your email and activate your account: ${link}`
+            });
+        }
+    } catch(error: any) {
+        // If user not found, just fail silently.
+        if (error.code !== 'auth/user-not-found') {
+            console.error("Failed to resend verification email:", error);
+        }
+    }
 }
