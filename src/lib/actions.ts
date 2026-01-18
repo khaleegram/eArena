@@ -1,6 +1,5 @@
 
 
-
 'use server';
 
 import { adminDb, adminAuth } from './firebase-admin';
@@ -408,8 +407,41 @@ export async function unfollowUser(currentUserId: string, targetUserId: string) 
 
 
 // Tournament Actions
-export async function createTournament(values: any) {
+export async function createTournament(formData: FormData) {
   try {
+    const rawData = Object.fromEntries(formData.entries());
+
+    const values = {
+      name: rawData.name as string,
+      description: rawData.description as string,
+      format: rawData.format as TournamentFormat,
+      registrationDates: {
+        from: new Date(rawData['registrationDates.from'] as string),
+        to: new Date(rawData['registrationDates.to'] as string),
+      },
+      tournamentDates: {
+        from: new Date(rawData['tournamentDates.from'] as string),
+        to: new Date(rawData['tournamentDates.to'] as string),
+      },
+      maxTeams: Number(rawData.maxTeams),
+      rules: rawData.rules as string,
+      isPublic: rawData.isPublic === 'true',
+      matchLength: Number(rawData.matchLength),
+      substitutions: Number(rawData.substitutions),
+      extraTime: rawData.extraTime === 'true',
+      penalties: rawData.penalties === 'true',
+      homeAndAway: rawData.homeAndAway === 'true',
+      squadRestrictions: rawData.squadRestrictions as string,
+      rewardType: rawData.rewardType as 'virtual' | 'money',
+      prizePool: Number(rawData.prizePool) || 0,
+      recurringEnabled: rawData.recurringEnabled === 'true',
+      recurringDays: Number(rawData.recurringDays),
+      organizerId: rawData.organizerId as string,
+      game: (rawData.game as string) || 'eFootball',
+      platform: (rawData.platform as string) || 'Multi-Platform',
+      injuries: rawData.injuries === 'true' || false,
+    };
+    
     const {
         name, description, format, registrationDates, tournamentDates, maxTeams, rules, isPublic,
         matchLength, substitutions, extraTime, penalties, homeAndAway, squadRestrictions, rewardType,
@@ -1390,6 +1422,8 @@ export async function submitSecondaryEvidence(tournamentId: string, matchId: str
     }
     await matchRef.update(updateData);
 
+    const updatedMatchData = (await matchRef.get()).data() as Match;
+
     // Wait for the second report before triggering verification
     if (updatedMatchData.homeTeamSecondaryReport && updatedMatchData.awayTeamSecondaryReport) {
         try {
@@ -1576,7 +1610,7 @@ export async function approveMatchResult(tournamentId: string, matchId: string, 
         wasAutoForfeited,
     };
     if (homeStats) updateData.homeTeamStats = homeStats;
-    if (awayStats) updateData.awayStats = awayStats;
+    if (awayStats) updateData.awayTeamStats = awayStats;
     if (highlightUrl) {
       updateData.highlightUrl = highlightUrl;
     }
@@ -2626,7 +2660,7 @@ export async function getAdminDashboardAnalytics() {
         activeTournamentsPromise,
         platformSummaryPromise,
         userGrowthQuery.get(),
-        tournamentActivitySnapshot.get()
+        tournamentActivityQuery.get()
     ]);
 
     const userGrowthData: { [date: string]: number } = {};
