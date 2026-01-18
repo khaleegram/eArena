@@ -113,3 +113,22 @@ The platform's intelligence and automation are powered by a combination of deter
   3.  **Output:** Returns a final status (`verified`, `disputed`, etc.), the confirmed scores, the extracted stats (if any), and a reasoning for its decision.
 
 This rigorous, step-by-step logic ensures fair and automated resolution for the vast majority of match reports, minimizing the need for manual organizer intervention.
+
+---
+
+## 5. Configuration & Deployment
+
+### Environment Variables
+To run the application, you'll need to set up your environment variables. Create a `.env.local` file in the root of the project and add the necessary keys from `.env.example`.
+
+### Cron Jobs (Automated Tasks)
+This project uses GitHub Actions for scheduled tasks like updating standings and starting tournaments. To make this work, you need to add two secrets to your GitHub repository settings:
+
+1.  **`CRON_URL`**: This is the full, absolute URL to your deployed application's daily cron API endpoint. For your app, this will be: `https://e-arena.vercel.app/api/cron/daily`
+2.  **`CRON_SECRET`**: This should be a long, random, and secure string that you generate. You must add the same secret to your Vercel deployment environment variables. This secret ensures that only authorized requests can trigger your cron jobs.
+
+**How to add secrets in GitHub:**
+1. Go to your repository on GitHub.
+2. Click on the "Settings" tab.
+3. In the left sidebar, navigate to "Secrets and variables" > "Actions".
+4. Click "New repository secret" to add `CRON_URL` and `CRON_SECRET`.
