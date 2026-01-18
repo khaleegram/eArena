@@ -1,4 +1,6 @@
 
+'use server';
+
 import { adminDb } from '../firebase-admin';
 
 async function deleteCollection(collectionPath: string, batchSize: number) {
