@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import { 
     runUpdateStandingsJob, 
@@ -13,7 +14,7 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-        console.log("Starting daily cron jobs...");
+        console.log("Executing all daily cron jobs...");
         const [standingsResult, startResult, payoutResult, cloneResult] = await Promise.all([
             runUpdateStandingsJob().catch(e => ({ error: e.message })),
             runStartTournamentsJob().catch(e => ({ error: e.message })),
