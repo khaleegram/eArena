@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -5,10 +6,9 @@ import Link from 'next/link';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, getDocs } from 'firebase/firestore';
 import { useAuth } from '@/hooks/use-auth';
-import type { Tournament, Team, UnifiedTimestamp, PlatformSettings } from '@/lib/types';
+import type { Tournament, Team, UnifiedTimestamp } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { deleteTournament, getJoinedTournamentIdsForUser, getTournamentsByIds } from '@/lib/actions';
-import { getPlatformSettings } from '@/lib/settings';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -111,11 +111,10 @@ const TournamentCard = ({ tournament, isOrganizer }: { tournament: Tournament, i
 }
 
 export default function MyTournamentsPage() {
-  const { user } = useAuth();
+  const { user, settings: platformSettings } = useAuth();
   const [organizedTournaments, setOrganizedTournaments] = useState<Tournament[]>([]);
   const [joinedTournaments, setJoinedTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
-  const [platformSettings, setPlatformSettings] = useState<PlatformSettings | null>(null);
 
 
   useEffect(() => {
@@ -123,12 +122,6 @@ export default function MyTournamentsPage() {
         setLoading(false);
         return;
     };
-
-    const fetchSettings = async () => {
-        const settings = await getPlatformSettings();
-        setPlatformSettings(settings);
-    }
-    fetchSettings();
 
     setLoading(true);
     let organizedUnsub: () => void;

@@ -77,3 +77,24 @@ export async function getMatchPrediction(matchId: string, tournamentId: string) 
     // ... logic for prediction
     return { predictedWinnerName: 'Team A', confidence: 75, reasoning: 'AI analysis placeholder' };
 }
+
+export async function getTournamentsByIds(ids: string[]): Promise<Tournament[]> {
+    if (!ids || ids.length === 0) {
+        return [];
+    }
+    const tournaments: Tournament[] = [];
+    const chunks: string[][] = [];
+    // Firestore 'in' query supports a maximum of 30 elements.
+    for (let i = 0; i < ids.length; i += 30) {
+        chunks.push(ids.slice(i, i + 30));
+    }
+    for (const chunk of chunks) {
+        if (chunk.length > 0) {
+            const snapshot = await adminDb.collection('tournaments').where('__name__', 'in', chunk).get();
+            snapshot.forEach(doc => {
+                tournaments.push(serializeData({ id: doc.id, ...doc.data() }) as Tournament);
+            });
+        }
+    }
+    return tournaments;
+}
