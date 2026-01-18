@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -465,6 +464,7 @@ function OrganizerTools({ tournament, user, allMatches, onSuccess }: { tournamen
                     <summary className="cursor-pointer font-medium">Dev Tools (for testing)</summary>
                     <div className="mt-4 space-y-4">
                         
+                        {/* General Tool */}
                         <div>
                             <h4 className="font-semibold text-xs uppercase tracking-wider text-muted-foreground mb-2">General</h4>
                             <Button variant="secondary" size="sm" className="w-full justify-start text-xs"
@@ -479,69 +479,83 @@ function OrganizerTools({ tournament, user, allMatches, onSuccess }: { tournamen
                             </Button>
                         </div>
                         
+                        {/* Swiss Format Tools */}
                         {tournament.format === 'swiss' && (
                             <div>
-                                <h4 className="font-semibold text-xs uppercase tracking-wider text-muted-foreground mb-2">Swiss Specific</h4>
-                                <Button variant="secondary" size="sm" className="w-full justify-start text-xs"
-                                    onClick={async () => {
-                                        try {
-                                            await devSeedDummyTeams(tournament.id, user.uid, 128);
-                                            toast({ title: 'Done', description: 'Seeded 128 dummy teams.' });
-                                            onSuccess();
-                                        } catch (e: any) { toast({ variant: 'destructive', title: 'Dev seed failed', description: e.message }); }
-                                    }}>
-                                    Seed 128 Dummy Teams (Swiss)
-                                </Button>
-                            </div>
-                        )}
-                        
-                        {(tournament.format === 'cup' || tournament.format === 'swiss') && (
-                             <div>
-                                <h4 className="font-semibold text-xs uppercase tracking-wider text-muted-foreground mb-2">Stage-Based Formats</h4>
+                                <h4 className="font-semibold text-xs uppercase tracking-wider text-muted-foreground mt-4 mb-2">Swiss Tools</h4>
                                 <div className="space-y-2">
-                                <Button variant="secondary" size="sm" className="w-full justify-start text-xs"
-                                    onClick={async () => {
-                                        try {
-                                            const res = await devAutoApproveCurrentStageMatches(tournament.id, user.uid);
-                                            toast({ title: 'Done', description: `Auto-approved ${res.approved} match(es).` });
-                                            onSuccess();
-                                        } catch (e: any) { toast({ variant: 'destructive', title: 'Auto-approve failed', description: e.message }); }
-                                    }}>
-                                    Auto-Approve Current Stage
-                                </Button>
-                                 <Button variant="secondary" size="sm" className="w-full justify-start text-xs"
-                                    onClick={async () => {
-                                        try {
-                                            const res = await devAutoApproveAndProgress(tournament.id, user.uid);
-                                            toast({
-                                                title: 'Done',
-                                                description: res.progressed ? `Approved ${res.approved}. Advanced.` : `Approved ${res.approved}. ${res.status === 'completed' ? 'Tournament completed.' : 'Nothing to advance.'}`,
-                                            });
-                                            onSuccess();
-                                        } catch (e: any) { toast({ variant: 'destructive', title: 'Auto-advance failed', description: e.message }); }
-                                    }}>
-                                    Auto-Approve + Progress
-                                </Button>
+                                    <Button variant="secondary" size="sm" className="w-full justify-start text-xs"
+                                        onClick={async () => {
+                                            try {
+                                                await devSeedDummyTeams(tournament.id, user.uid, 128);
+                                                toast({ title: 'Done', description: 'Seeded 128 dummy teams.' });
+                                                onSuccess();
+                                            } catch (e: any) { toast({ variant: 'destructive', title: 'Dev seed failed', description: e.message }); }
+                                        }}>
+                                        Seed 128 Dummy Teams
+                                    </Button>
+                                    <Button variant="secondary" size="sm" className="w-full justify-start text-xs"
+                                        onClick={async () => {
+                                            try {
+                                                const res = await devAutoApproveCurrentStageMatches(tournament.id, user.uid);
+                                                toast({ title: 'Done', description: `Auto-approved ${res.approved} match(es).` });
+                                                onSuccess();
+                                            } catch (e: any) { toast({ variant: 'destructive', title: 'Auto-approve failed', description: e.message }); }
+                                        }}>
+                                        Auto-Approve Current Stage
+                                    </Button>
+                                    <Button variant="secondary" size="sm" className="w-full justify-start text-xs"
+                                        onClick={async () => {
+                                            try {
+                                                const res = await devAutoApproveAndProgress(tournament.id, user.uid);
+                                                toast({ title: 'Done', description: res.progressed ? `Approved ${res.approved}. Advanced.` : `Approved ${res.approved}. ${res.status === 'completed' ? 'Tournament completed.' : 'Nothing to advance.'}` });
+                                                onSuccess();
+                                            } catch (e: any) { toast({ variant: 'destructive', title: 'Auto-advance failed', description: e.message }); }
+                                        }}>
+                                        Auto-Approve + Progress
+                                    </Button>
                                 </div>
                             </div>
                         )}
-
+                        
+                        {/* Cup Format Tools */}
                         {tournament.format === 'cup' && (
                            <div>
-                                <h4 className="font-semibold text-xs uppercase tracking-wider text-muted-foreground mb-2">Cup Specific</h4>
-                                <Button variant="secondary" size="sm" className="w-full justify-start text-xs"
-                                    onClick={async () => {
-                                        try {
-                                            const res = await devAutoRunCupToCompletion(tournament.id, user.uid);
-                                            toast({ title: 'Done', description: `Auto-run finished. Status: ${res.status}` });
-                                            onSuccess();
-                                        } catch (e: any) { toast({ variant: 'destructive', title: 'Auto-run failed', description: e.message }); }
-                                    }}>
-                                    Auto-Run Cup To Completion
-                                </Button>
+                                <h4 className="font-semibold text-xs uppercase tracking-wider text-muted-foreground mt-4 mb-2">Cup Tools</h4>
+                                <div className="space-y-2">
+                                    <Button variant="secondary" size="sm" className="w-full justify-start text-xs"
+                                        onClick={async () => {
+                                            try {
+                                                const res = await devAutoApproveCurrentStageMatches(tournament.id, user.uid);
+                                                toast({ title: 'Done', description: `Auto-approved ${res.approved} match(es).` });
+                                                onSuccess();
+                                            } catch (e: any) { toast({ variant: 'destructive', title: 'Auto-approve failed', description: e.message }); }
+                                        }}>
+                                        Auto-Approve Current Stage
+                                    </Button>
+                                    <Button variant="secondary" size="sm" className="w-full justify-start text-xs"
+                                        onClick={async () => {
+                                            try {
+                                                const res = await devAutoApproveAndProgress(tournament.id, user.uid);
+                                                toast({ title: 'Done', description: res.progressed ? `Approved ${res.approved}. Advanced.` : `Approved ${res.approved}. ${res.status === 'completed' ? 'Tournament completed.' : 'Nothing to advance.'}` });
+                                                onSuccess();
+                                            } catch (e: any) { toast({ variant: 'destructive', title: 'Auto-advance failed', description: e.message }); }
+                                        }}>
+                                        Auto-Approve + Progress
+                                    </Button>
+                                    <Button variant="secondary" size="sm" className="w-full justify-start text-xs"
+                                        onClick={async () => {
+                                            try {
+                                                const res = await devAutoRunCupToCompletion(tournament.id, user.uid);
+                                                toast({ title: 'Done', description: `Auto-run finished. Status: ${res.status}` });
+                                                onSuccess();
+                                            } catch (e: any) { toast({ variant: 'destructive', title: 'Auto-run failed', description: e.message }); }
+                                        }}>
+                                        Auto-Run Cup To Completion
+                                    </Button>
+                                </div>
                            </div>
                         )}
-                        
                     </div>
                 </details>
             )}
@@ -822,3 +836,5 @@ export default function TournamentPage() {
     </div>
   );
 }
+
+    
