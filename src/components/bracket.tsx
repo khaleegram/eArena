@@ -3,6 +3,7 @@
 
 import type { Match, Team } from '@/lib/types';
 import { BracketMatch } from './bracket-match';
+import { getOverallRoundRank } from '@/lib/cup-progression';
 
 interface BracketProps {
     matches: Match[];
@@ -22,23 +23,8 @@ export function Bracket({ matches, teams }: BracketProps) {
     const getTeam = (teamId: string) => teams.find(t => t.id === teamId);
 
     // Sort rounds in proper tournament progression order
-    const roundOrder = ['Final', 'Semi-finals', 'Quarter-finals'];
-    const getRoundOrder = (round: string): number => {
-        // Extract number from "Round of X"
-        const match = round.match(/Round of (\d+)/);
-        if (match) {
-            return parseInt(match[1]!, 10); // Higher number = earlier round
-        }
-        // Check for named rounds
-        const index = roundOrder.indexOf(round);
-        if (index !== -1) {
-            return 1000 - index; // Final = 1000, Semi-finals = 999, etc.
-        }
-        return 0; // Unknown rounds go first
-    };
-    
     const roundKeys = Object.keys(rounds).sort((a, b) => {
-        return getRoundOrder(b) - getRoundOrder(a); // Descending: Round of 16 -> Round of 8 -> Semi-finals -> Final
+        return getOverallRoundRank(a) - getOverallRoundRank(b); // Ascending: Round of 16 -> ... -> Final
     });
 
     return (
@@ -47,7 +33,7 @@ export function Bracket({ matches, teams }: BracketProps) {
                 <div key={roundKey} className="flex flex-col gap-8 justify-around">
                     <h3 className="text-lg font-bold text-center font-headline">{roundKey}</h3>
                     <div className="flex flex-col gap-12">
-                        {rounds[roundKey].map(match => (
+                        {rounds[roundKey]!.map(match => (
                             <BracketMatch 
                                 key={match.id}
                                 match={match}

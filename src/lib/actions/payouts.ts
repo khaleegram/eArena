@@ -3,7 +3,7 @@
 
 import { adminDb } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
-import type { Tournament, PrizeDistributionItem, TournamentAward, UserProfile, Transaction } from '@/lib/types';
+import type { Tournament, PrizeDistributionItem, TournamentAward, UserProfile, Transaction, Standing } from '@/lib/types';
 import { getStandingsForTournament } from './standings';
 import { getTeamsForTournament } from './team';
 import { sendNotification } from './notifications';
@@ -105,8 +105,8 @@ export async function getTournamentAwards(tournamentId: string): Promise<Record<
 
     if (standings.length === 0) return {};
 
-    const getAward = (standing: typeof standings[0]): TournamentAward | undefined => {
-        if (!standing) return undefined;
+    const getAward = (standing: Standing | undefined): TournamentAward | undefined => {
+        if (!standing || !standing.teamId) return undefined;
         const team = teams.find(t => t.id === standing.teamId);
         if (!team) return undefined;
         return {
@@ -120,31 +120,49 @@ export async function getTournamentAwards(tournamentId: string): Promise<Record<
     const secondPlace = getAward(standings.find(s => s.ranking === 2));
     const thirdPlace = getAward(standings.find(s => s.ranking === 3));
 
-    const bestOverall = getAward(standings.reduce((prev, curr) => (prev.points > curr.points) ? prev : curr, standings[0] || {}));
-    const highestScoring = getAward(standings.reduce((prev, curr) => (prev.goalsFor > curr.goalsFor) ? prev : curr, standings[0] || {}));
-    const bestDefensive = getAward(standings.reduce((prev, curr) => (prev.cleanSheets > curr.cleanSheets) ? prev : curr, standings[0] || {}));
+    const bestOverallStanding = standings.reduce((prev, curr) => (prev.points > curr.points) ? prev : curr, standings[0] || {} as Standing);
+    const highestScoringStanding = standings.reduce((prev, curr) => (prev.goalsFor > curr.goalsFor) ? prev : curr, standings[0] || {} as Standing);
+    const bestDefensiveStanding = standings.reduce((prev, curr) => (prev.cleanSheets > curr.cleanSheets) ? prev : curr, standings[0] || {} as Standing);
     
-    const getBestAttacking = () => {
-        let bestAttackingTeam = standings[0];
+    const getBestAttackingStanding = () => {
+        let bestAttackingTeamStanding = standings[0];
+        if (!bestAttackingTeamStanding) return null;
         let maxGoalsPerMatch = 0;
         for (const s of standings) {
             const gpm = s.matchesPlayed > 0 ? s.goalsFor / s.matchesPlayed : 0;
             if (gpm > maxGoalsPerMatch) {
                 maxGoalsPerMatch = gpm;
-                bestAttackingTeam = s;
+                bestAttackingTeamStanding = s;
             }
         }
-        return getAward(bestAttackingTeam);
+        return bestAttackingTeamStanding;
     }
-
+    const bestAttackingStanding = getBestAttackingStanding();
+    
     const awards: Record<string, TournamentAward> = {};
     if (firstPlace) awards.firstPlace = { ...firstPlace, awardTitle: '1st Place', reason: 'Top of the league' };
     if (secondPlace) awards.secondPlace = { ...secondPlace, awardTitle: '2nd Place', reason: 'Valiant runner-up' };
     if (thirdPlace) awards.thirdPlace = { ...thirdPlace, awardTitle: '3rd Place', reason: 'On the podium' };
-    if (bestOverall) awards.bestOverall = { ...bestOverall, awardTitle: 'Best Overall', reason: `${bestOverall.points} points` };
-    if (highestScoring) awards.highestScoring = { ...highestScoring, awardTitle: 'Highest Scoring', reason: `${highestScoring.goalsFor} goals scored` };
-    if (bestDefensive) awards.bestDefensive = { ...bestDefensive, awardTitle: 'Best Defense', reason: `${bestDefensive.cleanSheets} clean sheets` };
-    if (getBestAttacking()) awards.bestAttacking = { ...getBestAttacking()!, awardTitle: 'Best Attacking', reason: 'Highest goals per match' };
+
+    const bestOverallAward = getAward(bestOverallStanding);
+    if (bestOverallAward) {
+        awards.bestOverall = { ...bestOverallAward, awardTitle: 'Best Overall', reason: `${bestOverallStanding.points} points` };
+    }
+
+    const highestScoringAward = getAward(highestScoringStanding);
+    if (highestScoringAward) {
+        awards.highestScoring = { ...highestScoringAward, awardTitle: 'Highest Scoring', reason: `${highestScoringStanding.goalsFor} goals scored` };
+    }
+
+    const bestDefensiveAward = getAward(bestDefensiveStanding);
+    if (bestDefensiveAward) {
+        awards.bestDefensive = { ...bestDefensiveAward, awardTitle: 'Best Defense', reason: `${bestDefensiveStanding.cleanSheets} clean sheets` };
+    }
+    
+    const bestAttackingAward = getAward(bestAttackingStanding);
+    if (bestAttackingAward) {
+        awards.bestAttacking = { ...bestAttackingAward, awardTitle: 'Best Attacking', reason: 'Highest goals per match' };
+    }
 
     return serializeData(awards);
 }
