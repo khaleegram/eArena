@@ -477,6 +477,25 @@ function OrganizerTools({ tournament, user, allMatches, onSuccess }: { tournamen
                         >
                             Seed 8 Dummy Teams
                         </Button>
+                        
+                        {tournament.format === 'swiss' && (
+                            <Button
+                                variant="secondary"
+                                size="sm"
+                                className="w-full justify-start"
+                                onClick={async () => {
+                                    try {
+                                        await devSeedDummyTeams(tournament.id, user.uid, 128);
+                                        toast({ title: 'Done', description: 'Seeded 128 dummy teams (approved).' });
+                                        onSuccess();
+                                    } catch (e: any) {
+                                        toast({ variant: 'destructive', title: 'Dev seed failed', description: e.message });
+                                    }
+                                }}
+                            >
+                                Seed 128 Dummy Teams (Swiss)
+                            </Button>
+                        )}
 
                         <Button
                             variant="secondary"
