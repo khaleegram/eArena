@@ -7,7 +7,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { revalidatePath } from 'next/cache';
 import { getAdminUids } from './admin';
 import { serializeData } from '@/lib/utils';
-import { getPlayerPerformanceAnalysis } from './tournament';
+import { analyzePlayerPerformance, type PlayerPerformanceInput, type PlayerPerformanceOutput } from '@/ai/flows/analyze-player-performance';
 
 export async function updateUserProfile(uid: string, data: Partial<UserProfile>) {
   const userRef = adminDb.collection('users').doc(uid);
@@ -106,4 +106,9 @@ export async function getConversationsForUser(userId: string): Promise<Conversat
     }));
 
     return serializeData(conversations);
+}
+
+export async function getPlayerPerformanceAnalysis(stats: PlayerPerformanceInput): Promise<PlayerPerformanceOutput> {
+  // The Genkit flow is already a server function, so we can just call it directly.
+  return analyzePlayerPerformance(stats);
 }
