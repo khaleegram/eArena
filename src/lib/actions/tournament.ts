@@ -566,8 +566,15 @@ async function autoApproveMatches(matches: Match[], tournamentRef: FirebaseFires
     let approvedCount = 0;
     for (const match of matches) {
         if (match.status === 'scheduled') {
-            const homeScore = Math.floor(Math.random() * 4);
-            const awayScore = Math.floor(Math.random() * 4);
+            let homeScore: number;
+            let awayScore: number;
+            const isKnockout = isKnockoutRound(match.round);
+
+            do {
+                homeScore = Math.floor(Math.random() * 4);
+                awayScore = Math.floor(Math.random() * 4);
+            } while (isKnockout && homeScore === awayScore);
+            
             const matchRef = tournamentRef.collection('matches').doc(match.id);
             const homeTeamStats = { possession: Math.floor(40 + Math.random() * 20), shots: Math.floor(5 + Math.random() * 10), shotsOnTarget: Math.floor(1 + Math.random() * 5), fouls: Math.floor(Math.random() * 5), offsides: Math.floor(Math.random() * 3), cornerKicks: Math.floor(Math.random() * 8), freeKicks: Math.floor(Math.random() * 5), passes: Math.floor(150 + Math.random() * 100), successfulPasses: Math.floor(120 + Math.random() * 80), crosses: Math.floor(Math.random() * 10), interceptions: Math.floor(5 + Math.random() * 10), tackles: Math.floor(5 + Math.random() * 15), saves: Math.floor(Math.random() * 6)};
             const awayTeamStats = { possession: 100 - homeTeamStats.possession, shots: Math.floor(5 + Math.random() * 10), shotsOnTarget: Math.floor(1 + Math.random() * 5), fouls: Math.floor(Math.random() * 5), offsides: Math.floor(Math.random() * 3), cornerKicks: Math.floor(Math.random() * 8), freeKicks: Math.floor(Math.random() * 5), passes: Math.floor(150 + Math.random() * 100), successfulPasses: Math.floor(120 + Math.random() * 80), crosses: Math.floor(Math.random() * 10), interceptions: Math.floor(5 + Math.random() * 10), tackles: Math.floor(5 + Math.random() * 15), saves: Math.floor(Math.random() * 6)};
@@ -604,7 +611,12 @@ export async function devAutoApproveCurrentStageMatches(tournamentId: string, or
     if (scheduledMatches.length === 0) {
       return { approved: 0 };
     }
-    const earliestRound = getLatestRound(scheduledMatches);
+    
+    // This is a simpler, more robust way to find the "current" stage to approve.
+    const roundsWithScheduledMatches = [...new Set(scheduledMatches.map(m => m.round))];
+    roundsWithScheduledMatches.sort((a,b) => getLatestRound([ {round: a}, {round: b} ] as any) === a ? 1 : -1);
+    const earliestRound = roundsWithScheduledMatches[0];
+    
     const matchesToApprove = scheduledMatches.filter(m => m.round === earliestRound);
 
     const approved = await autoApproveMatches(matchesToApprove, tournamentRef);
