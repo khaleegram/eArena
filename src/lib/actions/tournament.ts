@@ -17,7 +17,8 @@ import { addDays, differenceInDays, isBefore, isPast } from 'date-fns';
 import { generateRoundRobinFixtures } from '../round-robin';
 import { createWorldCupGroups, generateGroupStageFixtures, computeAllGroupStandings, seedKnockoutFromGroups, isGroupRound } from '../group-stage';
 import { generateSwissRoundFixtures, getMaxSwissRounds, isSwissRound, getSwissRoundNumber } from '../swiss';
-import { getCurrentCupRound, assertRoundCompleted, getWinnersForRound, getChampionIfFinalComplete, isKnockoutRound, getCupRoundRank } from '../cup-progression';
+import { getLatestRound, assertRoundCompleted, getWinnersForRound, getChampionIfFinalComplete, isKnockoutRound } from '../cup-progression';
+import { generateCupRound, getRoundName } from '../cup-tournament';
 import { predictMatchWinner as predictMatchWinnerFlow, PredictWinnerInput } from '@/ai/flows/predict-match-winner';
 
 
@@ -333,17 +334,6 @@ export async function startTournamentAndGenerateFixtures(tournamentId: string, o
     }
 }
 
-// OTHER MISSING TOURNAMENT ACTIONS
-export async function extendRegistration(tournamentId: string, hours: number, organizerId: string) {
-    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
-    // Auth and validation logic...
-    const doc = await tournamentRef.get();
-    const currentEndDate = (doc.data()?.registrationEndDate as Timestamp).toDate();
-    const newEndDate = new Date(currentEndDate.getTime() + hours * 60 * 60 * 1000);
-    await tournamentRef.update({ registrationEndDate: Timestamp.fromDate(newEndDate) });
-    revalidatePath(`/tournaments/${tournamentId}`);
-}
-
 export async function progressTournamentStage(tournamentId: string, organizerId: string) {
     const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
     const tournamentDoc = await tournamentRef.get();
@@ -358,45 +348,87 @@ export async function progressTournamentStage(tournamentId: string, organizerId:
     let newFixtures: Omit<Match, 'id' | 'tournamentId' | 'matchDay' | 'status'>[] = [];
     let progressed = false;
 
-    if (tournament.format === 'cup') {
-        const currentRound = getCurrentCupRound(allMatches);
+    // Helper to handle knockout stage progression for both Cup and Swiss formats
+    const handleKnockoutProgression = async (currentRound: string) => {
         assertRoundCompleted(currentRound, allMatches);
         
-        if(currentRound.toLowerCase() === 'final') {
-            const championId = getChampionIfFinalComplete(allMatches, tournament);
+        const championId = getChampionIfFinalComplete(allMatches, tournament);
+        if (championId) {
             await tournamentRef.update({ status: 'completed', endedAt: FieldValue.serverTimestamp() });
+            await updateStandings(tournamentId); // Final standings update
             return { status: 'completed', progressed: true };
         }
 
         const winners = getWinnersForRound(allMatches, currentRound, tournament);
-        if (winners.length > 1) {
-            newFixtures = generateGroupStageFixtures([{name: getRoundName(winners.length), teamIds: winners}]); // Using generateGroupStageFixtures as a generic round generator
+        if (winners.length >= 2) {
+            newFixtures = generateCupRound(winners, getRoundName(winners.length));
             progressed = true;
         }
+    };
+    
+    const currentRound = getLatestRound(allMatches);
 
-    } else if (tournament.format === 'swiss') {
-        const swissRounds = allMatches.filter(m => isSwissRound(m.round));
-        const roundNumbers = swissRounds.map(m => getSwissRoundNumber(m.round)).filter(n => n !== null) as number[];
-        const currentRoundNumber = Math.max(0, ...roundNumbers);
-        assertRoundCompleted(`Swiss Round ${currentRoundNumber}`, swissRounds);
+    if (tournament.format === 'cup') {
+        // Cup logic: Progress through group stage then knockouts
+        if (isGroupRound(currentRound)) {
+            const groupMatches = allMatches.filter(m => isGroupRound(m.round));
+            const groupStandings = computeAllGroupStandings(groupMatches);
+            
+            // Check if all groups are done
+            const teamIdsInGroups = Object.values(groupStandings).flatMap(table => table.map(row => row.teamId));
+            const totalTeamsInGroups = new Set(teamIdsInGroups).size;
+            const teamsInTournament = (await tournamentRef.collection('teams').get()).size;
 
-        if (currentRoundNumber >= getMaxSwissRounds(tournament.teamCount)) {
-            await tournamentRef.update({ status: 'completed', endedAt: FieldValue.serverTimestamp() });
-            return { status: 'completed', progressed: true };
+            if (totalTeamsInGroups !== teamsInTournament) {
+                throw new Error("Standings are not yet calculated for all teams.");
+            }
+            
+            const allGroupMatchesPlayed = Object.values(groupStandings).every(table => 
+                table.every(row => row.matchesPlayed === (table.length - 1) * (tournament.homeAndAway ? 2 : 1))
+            );
+
+            if (allGroupMatchesPlayed) {
+                newFixtures = seedKnockoutFromGroups(groupStandings);
+                progressed = true;
+            } else {
+                throw new Error("All group stage matches must be completed and approved to proceed.");
+            }
+        } else if (isKnockoutRound(currentRound)) {
+             await handleKnockoutProgression(currentRound);
         }
-        
-        const standings = await getStandingsForTournament(tournamentId);
-        const teamIds = (await tournamentRef.collection('teams').get()).docs.map(d => d.id);
-        
-        newFixtures = generateSwissRoundFixtures({
-            teamIds,
-            roundNumber: currentRoundNumber + 1,
-            standings,
-            previousMatches: allMatches,
-        });
-        progressed = true;
-    }
+    } else if (tournament.format === 'swiss') {
+        if (isKnockoutRound(currentRound)) {
+             await handleKnockoutProgression(currentRound);
+        } else if (isSwissRound(currentRound)) {
+            const currentRoundNumber = getSwissRoundNumber(currentRound)!;
+            assertRoundCompleted(currentRound, allMatches);
 
+            if (currentRoundNumber >= getMaxSwissRounds(tournament.teamCount)) {
+                // Transition to knockout stage
+                const standings = await getStandingsForTournament(tournamentId);
+                const top16 = standings.slice(0, 16).map(s => s.teamId);
+                if (top16.length < 2) {
+                     await tournamentRef.update({ status: 'completed', endedAt: FieldValue.serverTimestamp() });
+                     return { status: 'completed', progressed: true };
+                }
+                newFixtures = generateCupRound(top16, 'Round of 16');
+                progressed = true;
+            } else {
+                // Progress to next swiss round
+                const standings = await getStandingsForTournament(tournamentId);
+                const teamIds = (await tournamentRef.collection('teams').get()).docs.map(d => d.id);
+                
+                newFixtures = generateSwissRoundFixtures({
+                    teamIds,
+                    roundNumber: currentRoundNumber + 1,
+                    standings,
+                    previousMatches: allMatches,
+                });
+                progressed = true;
+            }
+        }
+    }
+    
     if (progressed && newFixtures.length > 0) {
         const { tournamentStartDate, tournamentEndDate } = tournament;
         const startDate = new Date(tournamentStartDate.toMillis());
@@ -429,6 +461,19 @@ export async function progressTournamentStage(tournamentId: string, organizerId:
 
     return { status: tournament.status, progressed };
 }
+
+// OTHER MISSING TOURNAMENT ACTIONS
+export async function extendRegistration(tournamentId: string, hours: number, organizerId: string) {
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    // Auth and validation logic...
+    const doc = await tournamentRef.get();
+    const currentEndDate = (doc.data()?.registrationEndDate as Timestamp).toDate();
+    const newEndDate = new Date(currentEndDate.getTime() + hours * 60 * 60 * 1000);
+    await tournamentRef.update({ registrationEndDate: Timestamp.fromDate(newEndDate) });
+    revalidatePath(`/tournaments/${tournamentId}`);
+}
+
+
 
 export async function rescheduleTournamentAndStart(tournamentId: string, organizerId: string, startDate: string) {
     // Logic to update tournament dates and start it
@@ -554,15 +599,16 @@ export async function devAutoApproveCurrentStageMatches(tournamentId: string, or
     const matchesSnapshot = await tournamentRef.collection('matches').get();
     const allMatches = matchesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Match));
     
+    // Find the earliest round with scheduled matches
     const scheduledMatches = allMatches.filter(m => m.status === 'scheduled');
-    
     if (scheduledMatches.length === 0) {
-      return { approved: 0 }; // Nothing to approve
+      return { approved: 0 };
     }
-    
-    const approved = await autoApproveMatches(scheduledMatches, tournamentRef);
+    const earliestRound = getLatestRound(scheduledMatches);
+    const matchesToApprove = scheduledMatches.filter(m => m.round === earliestRound);
 
-    // This is a dev tool, so we can trigger the update immediately.
+    const approved = await autoApproveMatches(matchesToApprove, tournamentRef);
+
     await updateStandings(tournamentId);
 
     return { approved };
@@ -630,12 +676,3 @@ export async function devAutoRunCupToCompletion(tournamentId: string, organizerI
     const finalDoc = await adminDb.collection('tournaments').doc(tournamentId).get();
     return { status: finalDoc.data()?.status, steps };
 }
-
-function getRoundName(numTeams: number): string {
-    if (numTeams === 2) return 'Final';
-    if (numTeams === 4) return 'Semi-finals';
-    if (numTeams === 8) return 'Quarter-finals';
-    return `Round of ${numTeams}`;
-}
-
-    

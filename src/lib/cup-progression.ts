@@ -25,26 +25,45 @@ export function isKnockoutRound(round?: string): boolean {
  * Higher value = later stage in tournament.
  * Used to determine the current/latest round in a cup bracket.
  */
-export function getCupRoundRank(round: CupRoundKey): number {
+export function getOverallRoundRank(round: string): number {
   const normalized = round.trim().toLowerCase();
+  
+  const swissMatch = normalized.match(/^swiss round (\d+)$/);
+  if (swissMatch) {
+    return Number(swissMatch[1]); // Swiss Round 1 -> 1, ... Swiss Round 8 -> 8
+  }
+
   if (normalized === 'final') return 1000;
   if (normalized === 'semi-finals') return 900;
   if (normalized === 'quarter-finals') return 800;
 
-  const roundOf = parseRoundOf(normalized);
-  if (roundOf != null) {
-    // Earlier rounds have bigger team counts, so they should rank LOWER than later rounds.
-    // Example: Round of 16 (16) < Round of 8 (8 but named)
-    return 100 - roundOf; // Round of 8 => 92, Round of 16 => 84
+  const roundOfMatch = normalized.match(/round of (\d+)/);
+  if (roundOfMatch) {
+    return 100 + (64 / Number(roundOfMatch[1])); // e.g. Ro16 -> 104, Ro32 -> 102
   }
-  return -Infinity;
+
+  const groupMatch = normalized.match(/^group\s+[a-z]$/i);
+  if (groupMatch) {
+      return 0; // Group stages are the very first
+  }
+
+  return -1; // Unknown rounds
+}
+
+
+export function getLatestRound(matches: Match[]): string {
+  const rounds = [...new Set(matches.map(m => m.round).filter(Boolean))] as string[];
+  if (rounds.length === 0) throw new Error('No rounds found in tournament.');
+  rounds.sort((a, b) => getOverallRoundRank(b) - getOverallRoundRank(a));
+  return rounds[0]!;
 }
 
 export function getCurrentCupRound(matches: Match[]): string {
-  const rounds = [...new Set(matches.map(m => m.round).filter(Boolean))] as string[];
-  if (rounds.length === 0) throw new Error('No rounds found in tournament.');
-  rounds.sort((a, b) => getCupRoundRank(b) - getCupRoundRank(a));
-  return rounds[0]!;
+    return getLatestRound(matches);
+}
+
+export function getCupRoundRank(round: CupRoundKey): number {
+    return getOverallRoundRank(round);
 }
 
 export function assertRoundCompleted(round: string, matches: Match[]): void {
