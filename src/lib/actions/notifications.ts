@@ -78,3 +78,13 @@ export async function markNotificationsAsRead(userId: string) {
 
     await batch.commit();
 }
+
+export async function savePushSubscription(userId: string, subscription: any) {
+    const subscriptionRef = adminDb.collection('users').doc(userId).collection('pushSubscriptions').doc(subscription.endpoint.slice(-100)); // Use part of endpoint as ID
+    await subscriptionRef.set(subscription);
+}
+
+export async function deletePushSubscription(userId: string, endpoint: string) {
+    const subscriptionRef = adminDb.collection('users').doc(userId).collection('pushSubscriptions').doc(endpoint.slice(-100));
+    await subscriptionRef.delete();
+}

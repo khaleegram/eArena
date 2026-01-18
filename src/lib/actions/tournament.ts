@@ -471,6 +471,29 @@ export async function savePrizeAllocation(tournamentId: string, allocation: Priz
     revalidatePath(`/tournaments/${tournamentId}`);
 }
 
+export async function verifyAndActivateTournament(reference: string) {
+    const response = await fetch(`https://api.paystack.co/transaction/verify/${reference}`, {
+        headers: {
+            Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
+        },
+    });
+    const data = await response.json();
+
+    if (data.status && data.data.status === 'success') {
+        const tournamentId = data.data.metadata.tournamentId;
+        const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+        await tournamentRef.update({ 
+            status: 'open_for_registration',
+            'rewardDetails.paymentStatus': 'paid',
+            'rewardDetails.paymentReference': reference
+        });
+        revalidatePath(`/tournaments/${tournamentId}`);
+        return { tournamentId };
+    } else {
+        throw new Error('Payment verification failed.');
+    }
+}
+
 // DEV-ONLY FUNCTIONS
 export async function devSeedDummyTeams(tournamentId: string, organizerId: string, count: number): Promise<void> {
     const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);

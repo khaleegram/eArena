@@ -1,6 +1,6 @@
-
-import { getTournamentById } from "@/lib/actions";
-import { getTeamsForTournament, getStandingsForTournament, getGroupTablesForTournament } from "@/lib/actions";
+import { getTournamentById } from "@/lib/actions/tournament";
+import { getTeamsForTournament } from "@/lib/actions/team";
+import { getStandingsForTournament, getGroupTablesForTournament } from "@/lib/actions/standings";
 import { notFound } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";

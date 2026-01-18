@@ -8,6 +8,7 @@ import { getStandingsForTournament } from './standings';
 import { getTeamsForTournament } from './team';
 import { sendNotification } from './notifications';
 import { serializeData } from '@/lib/utils';
+import { getUserProfileById } from './user';
 
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
 
@@ -119,9 +120,9 @@ export async function getTournamentAwards(tournamentId: string): Promise<Record<
     const secondPlace = getAward(standings.find(s => s.ranking === 2));
     const thirdPlace = getAward(standings.find(s => s.ranking === 3));
 
-    const bestOverall = getAward(standings.reduce((prev, curr) => (prev.points > curr.points) ? prev : curr));
-    const highestScoring = getAward(standings.reduce((prev, curr) => (prev.goalsFor > curr.goalsFor) ? prev : curr));
-    const bestDefensive = getAward(standings.reduce((prev, curr) => (prev.cleanSheets > curr.cleanSheets) ? prev : curr));
+    const bestOverall = getAward(standings.reduce((prev, curr) => (prev.points > curr.points) ? prev : curr, standings[0] || {}));
+    const highestScoring = getAward(standings.reduce((prev, curr) => (prev.goalsFor > curr.goalsFor) ? prev : curr, standings[0] || {}));
+    const bestDefensive = getAward(standings.reduce((prev, curr) => (prev.cleanSheets > curr.cleanSheets) ? prev : curr, standings[0] || {}));
     
     const getBestAttacking = () => {
         let bestAttackingTeam = standings[0];
@@ -146,4 +147,83 @@ export async function getTournamentAwards(tournamentId: string): Promise<Record<
     if (getBestAttacking()) awards.bestAttacking = { ...getBestAttacking()!, awardTitle: 'Best Attacking', reason: 'Highest goals per match' };
 
     return serializeData(awards);
+}
+
+export async function initiatePayouts(tournamentId: string) {
+    if (!PAYSTACK_SECRET_KEY) throw new Error('Paystack secret key not configured.');
+
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    const tournamentDoc = await tournamentRef.get();
+    if (!tournamentDoc.exists) throw new Error('Tournament not found.');
+    const tournament = tournamentDoc.data() as Tournament;
+    
+    if (tournament.status !== 'completed') throw new Error('Tournament is not completed.');
+    if (tournament.rewardDetails.type !== 'money') throw new Error('This is not a cash prize tournament.');
+
+    await tournamentRef.update({ payoutInitiated: true });
+
+    const distribution = await getPrizeDistribution(tournamentId);
+    const payoutLog: any[] = tournament.payoutLog || [];
+    const processedUids = new Set(payoutLog.map(p => p.uid));
+    
+    for (const item of distribution) {
+        if (!item.winner?.captainId || item.amount <= 0 || processedUids.has(item.winner.captainId)) {
+            continue;
+        }
+
+        const userProfile = await getUserProfileById(item.winner.captainId);
+        if (!userProfile?.bankDetails?.confirmedForPayout) {
+            console.warn(`Payout for ${userProfile?.username} skipped: bank details not confirmed.`);
+            payoutLog.push({ status: 'skipped', reason: 'Bank details not confirmed' });
+            continue;
+        }
+        
+        try {
+            let recipientCode = userProfile.bankDetails.recipientCode;
+            if (!recipientCode) {
+                recipientCode = await createPaystackRecipient(userProfile);
+                await adminDb.collection('users').doc(userProfile.uid).update({ 'bankDetails.recipientCode': recipientCode });
+            }
+            
+            const transactionRef = adminDb.collection('transactions').doc();
+            const transactionData: Omit<Transaction, 'id' | 'createdAt' | 'updatedAt'> = {
+                uid: userProfile.uid,
+                tournamentId,
+                category: item.category,
+                amount: item.amount,
+                status: 'pending',
+                recipientName: userProfile.username || '',
+                recipientBank: userProfile.bankDetails.bankName,
+                recipientAccountNumber: userProfile.bankDetails.accountNumber.slice(-4),
+            };
+
+            const response = await fetch('https://api.paystack.co/transfer', {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    source: 'balance',
+                    amount: item.amount * 100, // in kobo
+                    recipient: recipientCode,
+                    reason: `${tournament.name} - ${item.category}`,
+                    reference: transactionRef.id,
+                }),
+            });
+            const data = await response.json();
+            
+            if (!data.status || data.data.status === 'failed') {
+                throw new Error(data.message);
+            }
+            
+            await transactionRef.set({ ...transactionData, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(), paystackTransferCode: data.data.transfer_code });
+            payoutLog.push({ uid: userProfile.uid, status: 'pending', transactionId: transactionRef.id });
+
+        } catch (error: any) {
+            console.error(`Error processing payout for ${userProfile.username}:`, error.message);
+            payoutLog.push({ uid: userProfile.uid, status: 'failed', errorMessage: error.message });
+        }
+    }
+
+    await tournamentRef.update({ payoutLog });
+    revalidatePath(`/admin/tournaments`);
+    return { message: "Payout process has been initiated." };
 }

@@ -1,6 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyAndActivateTournament } from '@/lib/actions';
+import { verifyAndActivateTournament } from '@/lib/actions/tournament';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);

@@ -1,7 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
-import { updateStandings } from '@/lib/actions';
+import { updateStandings } from '@/lib/actions/standings';
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization');

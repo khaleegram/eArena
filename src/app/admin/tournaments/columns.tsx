@@ -19,7 +19,8 @@ import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { useTransition } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { adminDeleteTournament, initiatePayouts } from "@/lib/actions";
+import { adminDeleteTournament } from "@/lib/actions/admin";
+import { initiatePayouts } from "@/lib/actions/payouts";
 
 const toDate = (timestamp: any): Date => {
     if (timestamp && typeof timestamp.toDate === 'function') {
