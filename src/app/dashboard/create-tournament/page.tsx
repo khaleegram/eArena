@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
-import { createTournament } from '@/lib/actions';
+import { createTournament, updateTournamentFlyer } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 import { addDays, format, startOfDay } from 'date-fns';
 import { Calendar as CalendarIcon, Loader2, Sparkles, Trophy, Info, Users, CalendarDays, Settings, Award, Send, CreditCard, Repeat, HelpCircle, Image as ImageIcon } from 'lucide-react';
@@ -25,6 +25,9 @@ import type { TournamentFormat } from '@/lib/types';
 import { Switch } from '@/components/ui/switch';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { storage } from '@/lib/firebase';
 
 const formatOptions: Record<TournamentFormat, number[]> = {
     league: [4, 6, 8, 10, 12, 14, 16, 18, 20],
@@ -195,35 +198,35 @@ export default function CreateTournamentPage() {
       return;
     }
     setIsLoading(true);
-    try {
-        const formData = new FormData();
-        const { flyer, ...restOfValues } = values;
+    
+    const { flyer, ...otherFormValues } = values;
 
-        Object.entries(restOfValues).forEach(([key, value]) => {
-            if (value instanceof Date) {
-                formData.append(key, value.toISOString());
-            } else if (typeof value === 'object' && value !== null) {
-                formData.append(key, JSON.stringify(value));
-            } else {
-                formData.append(key, String(value));
-            }
-        });
-        
-        formData.append('organizerId', user.uid);
-        
-        if (flyer) {
-            formData.append('flyer', flyer);
-        }
-      
-        const result = await createTournament(formData);
-      
-        if (result.paymentUrl) {
-          toast({ title: "Tournament Created!", description: "Redirecting to payment..." });
-          router.push(result.paymentUrl);
-        } else {
-          toast({ title: "Success!", description: "Your tournament has been created." });
-          router.push(`/tournaments/${result.tournamentId}`);
-        }
+    try {
+      // Step 1: Create the tournament document first, without the flyer.
+      // This will be much faster for the user.
+      const result = await createTournament({ ...otherFormValues, organizerId: user.uid });
+      const { tournamentId, paymentUrl } = result;
+
+      toast({ title: "Tournament Created!", description: "Now uploading flyer in the background..." });
+
+      // Step 2: Asynchronously upload the flyer from the client-side if it exists.
+      if (flyer && tournamentId) {
+        const flyerRef = ref(storage, `flyers/${tournamentId}/${flyer.name}`);
+        const snapshot = await uploadBytes(flyerRef, flyer);
+        const downloadURL = await getDownloadURL(snapshot.ref);
+
+        // Step 3: Update the tournament document with the flyer URL.
+        // This is a separate, quick server action.
+        await updateTournamentFlyer(tournamentId, downloadURL);
+        toast({ title: "Flyer Uploaded!", description: "Your tournament flyer is now live." });
+      }
+
+      // Step 4: Redirect the user.
+      if (paymentUrl) {
+        router.push(paymentUrl);
+      } else {
+        router.push(`/tournaments/${tournamentId}`);
+      }
     } catch (error: any) {
       console.error(error);
       toast({ variant: "destructive", title: "Error creating tournament", description: error.message || "An unexpected error occurred. Please try again." });
@@ -740,3 +743,5 @@ export default function CreateTournamentPage() {
     </div>
   );
 }
+
+    

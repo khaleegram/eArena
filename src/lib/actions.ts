@@ -1,5 +1,6 @@
 
 
+
 'use server';
 
 import { adminDb, adminAuth } from './firebase-admin';
@@ -407,37 +408,17 @@ export async function unfollowUser(currentUserId: string, targetUserId: string) 
 
 
 // Tournament Actions
-export async function createTournament(formData: FormData) {
+export async function createTournament(values: any) {
   try {
-    const name = formData.get('name') as string;
-    const description = formData.get('description') as string;
-    const flyerFile = formData.get('flyer') as File | null;
-    const format = formData.get('format') as TournamentFormat;
-    
-    const registrationDates = JSON.parse(formData.get('registrationDates') as string);
-    const tournamentDates = JSON.parse(formData.get('tournamentDates') as string);
-    
+    const {
+        name, description, format, registrationDates, tournamentDates, maxTeams, rules, isPublic,
+        matchLength, substitutions, extraTime, penalties, homeAndAway, squadRestrictions, rewardType,
+        prizePool, recurringEnabled, recurringDays, organizerId, game, platform, injuries
+    } = values;
+
     const registrationEndDate = toAdminDate(registrationDates.to);
     const tournamentStartDate = toAdminDate(tournamentDates.from);
     const tournamentEndDate = toAdminDate(tournamentDates.to);
-
-    const maxTeams = parseInt(formData.get('maxTeams') as string, 10);
-    const rules = formData.get('rules') as string | undefined;
-    const isPublic = formData.get('isPublic') === 'true';
-    const matchLength = parseInt(formData.get('matchLength') as string, 10);
-    const substitutions = parseInt(formData.get('substitutions') as string, 10);
-    const extraTime = formData.get('extraTime') === 'true';
-    const penalties = formData.get('penalties') === 'true';
-    const homeAndAway = formData.get('homeAndAway') === 'true';
-    const squadRestrictions = formData.get('squadRestrictions') as string | undefined;
-    const rewardType = formData.get('rewardType') as RewardType;
-    const prizePool = parseInt(formData.get('prizePool') as string, 10) || 0;
-    const recurringEnabled = formData.get('recurringEnabled') === 'true';
-    const recurringDays = parseInt(formData.get('recurringDays') as string, 10);
-    const organizerId = formData.get('organizerId') as string;
-    const game = formData.get('game') as string | undefined;
-    const platform = formData.get('platform') as string | undefined;
-    const injuries = formData.get('injuries') === 'true';
 
     if (isAfter(registrationEndDate, tournamentStartDate)) {
         throw new Error("Registration must end on or before the tournament start date.");
@@ -449,11 +430,6 @@ export async function createTournament(formData: FormData) {
     const userRecord = await adminAuth.getUser(organizerId);
     const tournamentCode = generateTournamentCode();
     
-    let flyerUrl: string | undefined = undefined;
-    if (flyerFile && flyerFile.size > 0) {
-        flyerUrl = await uploadFileAndGetPublicURL(`flyers/${tournamentCode}`, flyerFile, flyerFile.type);
-    }
-
     const rewardDetails: RewardDetails = {
       type: rewardType,
       prizePool: prizePool,
@@ -462,10 +438,9 @@ export async function createTournament(formData: FormData) {
       paymentStatus: rewardType === 'money' ? 'pending' : 'not-applicable',
     };
 
-    const newTournamentData: Omit<Tournament, 'id'> = {
+    const newTournamentData: Omit<Tournament, 'id' | 'flyerUrl'> = {
       name,
       description,
-      flyerUrl,
       format,
       registrationStartDate: Timestamp.fromDate(toAdminDate(registrationDates.from)),
       registrationEndDate: Timestamp.fromDate(registrationEndDate),
@@ -520,6 +495,19 @@ export async function createTournament(formData: FormData) {
     throw new Error(`A server error occurred while creating the tournament. Reason: ${error.message}`);
   }
 }
+
+export async function updateTournamentFlyer(tournamentId: string, flyerUrl: string) {
+    if (!tournamentId || !flyerUrl) {
+        throw new Error("Missing tournament ID or flyer URL.");
+    }
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    await tournamentRef.update({ flyerUrl });
+
+    // Revalidate paths to show the new flyer
+    revalidatePath(`/tournaments/${tournamentId}`);
+    revalidatePath(`/tournaments`);
+}
+
 
 async function deleteCollection(collectionPath: string, batchSize: number) {
   const collectionRef = adminDb.collection(collectionPath);
@@ -1401,10 +1389,6 @@ export async function submitSecondaryEvidence(tournamentId: string, matchId: str
         updateData.awayTeamSecondaryReport = report;
     }
     await matchRef.update(updateData);
-
-    // Now, fetch the updated doc and check if both have submitted
-    const updatedMatchDoc = await matchRef.get();
-    const updatedMatchData = updatedMatchDoc.data() as Match;
 
     // Wait for the second report before triggering verification
     if (updatedMatchData.homeTeamSecondaryReport && updatedMatchData.awayTeamSecondaryReport) {
@@ -3008,3 +2992,6 @@ export async function deletePushSubscription(userId: string, endpoint: string) {
     await subscriptionRef.delete();
 }
 
+
+
+    
