@@ -1,4 +1,3 @@
-'use server';
 
 import { adminDb } from '@/lib/firebase-admin';
 import type { PlatformSettings } from '@/lib/types';
