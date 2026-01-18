@@ -407,11 +407,37 @@ export async function unfollowUser(currentUserId: string, targetUserId: string) 
 
 
 // Tournament Actions
-export async function createTournament(data: Omit<Tournament, 'id' | 'organizerUsername' | 'createdAt' | 'status' | 'teamCount' | 'code' | 'rewardDetails'>) {
+export async function createTournament(formData: FormData) {
   try {
-    const registrationEndDate = toAdminDate((data as any).registrationEndDate);
-    const tournamentStartDate = toAdminDate((data as any).tournamentStartDate);
-    const tournamentEndDate = toAdminDate((data as any).tournamentEndDate);
+    const name = formData.get('name') as string;
+    const description = formData.get('description') as string;
+    const flyerFile = formData.get('flyer') as File | null;
+    const format = formData.get('format') as TournamentFormat;
+    
+    const registrationDates = JSON.parse(formData.get('registrationDates') as string);
+    const tournamentDates = JSON.parse(formData.get('tournamentDates') as string);
+    
+    const registrationEndDate = toAdminDate(registrationDates.to);
+    const tournamentStartDate = toAdminDate(tournamentDates.from);
+    const tournamentEndDate = toAdminDate(tournamentDates.to);
+
+    const maxTeams = parseInt(formData.get('maxTeams') as string, 10);
+    const rules = formData.get('rules') as string | undefined;
+    const isPublic = formData.get('isPublic') === 'true';
+    const matchLength = parseInt(formData.get('matchLength') as string, 10);
+    const substitutions = parseInt(formData.get('substitutions') as string, 10);
+    const extraTime = formData.get('extraTime') === 'true';
+    const penalties = formData.get('penalties') === 'true';
+    const homeAndAway = formData.get('homeAndAway') === 'true';
+    const squadRestrictions = formData.get('squadRestrictions') as string | undefined;
+    const rewardType = formData.get('rewardType') as RewardType;
+    const prizePool = parseInt(formData.get('prizePool') as string, 10) || 0;
+    const recurringEnabled = formData.get('recurringEnabled') === 'true';
+    const recurringDays = parseInt(formData.get('recurringDays') as string, 10);
+    const organizerId = formData.get('organizerId') as string;
+    const game = formData.get('game') as string | undefined;
+    const platform = formData.get('platform') as string | undefined;
+    const injuries = formData.get('injuries') === 'true';
 
     if (isAfter(registrationEndDate, tournamentStartDate)) {
         throw new Error("Registration must end on or before the tournament start date.");
@@ -420,54 +446,67 @@ export async function createTournament(data: Omit<Tournament, 'id' | 'organizerU
         throw new Error("Tournament start date must be on or before the end date.");
     }
     
-    const userRecord = await adminAuth.getUser(data.organizerId);
+    const userRecord = await adminAuth.getUser(organizerId);
     const tournamentCode = generateTournamentCode();
     
+    let flyerUrl: string | undefined = undefined;
+    if (flyerFile && flyerFile.size > 0) {
+        flyerUrl = await uploadFileAndGetPublicURL(`flyers/${tournamentCode}`, flyerFile, flyerFile.type);
+    }
+
     const rewardDetails: RewardDetails = {
-      type: data.rewardType,
-      prizePool: data.prizePool || 0,
+      type: rewardType,
+      prizePool: prizePool,
       currency: 'NGN',
       isPaidOut: false,
-      paymentStatus: data.rewardType === 'money' ? 'pending' : 'not-applicable',
+      paymentStatus: rewardType === 'money' ? 'pending' : 'not-applicable',
     };
 
     const newTournamentData: Omit<Tournament, 'id'> = {
-      ...data,
-      // Set defaults if game/platform not provided
-      game: data.game || 'eFootball',
-      platform: data.platform || 'Multi-Platform',
-      organizerUsername: userRecord.displayName || userRecord.email,
-      createdAt: FieldValue.serverTimestamp() as UnifiedTimestamp,
-      status: data.rewardType === 'money' ? 'pending' : 'open_for_registration',
-      teamCount: 0,
-      code: tournamentCode,
-      rewardDetails,
-      registrationStartDate: Timestamp.fromDate(toAdminDate((data as any).registrationStartDate)),
+      name,
+      description,
+      flyerUrl,
+      format,
+      registrationStartDate: Timestamp.fromDate(toAdminDate(registrationDates.from)),
       registrationEndDate: Timestamp.fromDate(registrationEndDate),
       tournamentStartDate: Timestamp.fromDate(tournamentStartDate),
       tournamentEndDate: Timestamp.fromDate(tournamentEndDate),
+      maxTeams,
+      rules,
+      isPublic,
+      matchLength,
+      substitutions,
+      extraTime,
+      penalties,
+      homeAndAway,
+      squadRestrictions,
+      game: game || 'eFootball',
+      platform: platform || 'Multi-Platform',
+      organizerId: organizerId,
+      organizerUsername: userRecord.displayName || userRecord.email,
+      createdAt: FieldValue.serverTimestamp() as UnifiedTimestamp,
+      status: rewardType === 'money' ? 'pending' : 'open_for_registration',
+      teamCount: 0,
+      code: tournamentCode,
+      rewardDetails,
+      injuries: injuries || false,
+      recurring: {
+          enabled: recurringEnabled,
+          daysAfterEnd: recurringDays,
+      }
     };
-    
-    delete (newTournamentData as any).registrationDates;
-    delete (newTournamentData as any).tournamentDates;
-    delete (newTournamentData as any).schedulingPreset;
-    delete (newTournamentData as any).duration;
-
 
     const tournamentRef = await adminDb.collection('tournaments').add(newTournamentData as any);
     
     revalidatePath('/dashboard');
 
-    // Handle payment initialization for money tournaments
     let paymentUrl = null;
-    if (data.rewardType === 'money' && data.prizePool && data.prizePool > 0) {
+    if (rewardType === 'money' && prizePool > 0) {
         try {
-            const paymentResult = await initializeTournamentPayment(tournamentRef.id, data.prizePool, userRecord.email || '', data.organizerId);
+            const paymentResult = await initializeTournamentPayment(tournamentRef.id, prizePool, userRecord.email || '', organizerId);
             paymentUrl = paymentResult.paymentUrl;
         } catch (paymentError: any) {
             console.error("Payment initialization failed:", paymentError);
-            // Don't fail tournament creation if payment fails, but log it
-            // The tournament will remain in 'pending' status until payment is completed
         }
     }
 
@@ -2968,3 +3007,4 @@ export async function deletePushSubscription(userId: string, endpoint: string) {
     const subscriptionRef = adminDb.collection('users').doc(userId).collection('pushSubscriptions').doc(subscriptionId);
     await subscriptionRef.delete();
 }
+
