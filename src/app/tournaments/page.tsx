@@ -3,7 +3,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { getPublicTournaments, getJoinedTournamentIdsForUser } from "@/lib/actions";
+import { getPublicTournaments } from "@/lib/actions/tournament";
+import { getJoinedTournamentIdsForUser } from "@/lib/actions/team";
 import type { Tournament, UnifiedTimestamp, TournamentStatus } from "@/lib/types";
 import { useAuth } from "@/hooks/use-auth";
 import { useCountdown } from "@/hooks/use-countdown";
@@ -32,6 +33,8 @@ const statusMeta: Record<TournamentStatus, { label: string; emoji: string; varia
   completed: { label: "Completed", emoji: "✅", variant: "outline" },
   draft: { label: "Draft", emoji: "📝", variant: "outline" },
   private: { label: "Private", emoji: "🔒", variant: "outline" },
+  pending: { label: "Pending", emoji: "🟡", variant: "outline" },
+  generating_fixtures: { label: "Generating", emoji: "🤖", variant: "secondary" },
 };
 
 function StatusPill({ status }: { status: TournamentStatus }) {

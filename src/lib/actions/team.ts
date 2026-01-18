@@ -1,3 +1,4 @@
+
 'use server';
 
 import { adminDb } from '@/lib/firebase-admin';
@@ -12,12 +13,26 @@ export async function getTeamsForTournament(tournamentId: string): Promise<Team[
     return teamsSnapshot.docs.map(doc => serializeData({ id: doc.id, ...doc.data() }) as Team);
 }
 
+export async function getJoinedTournamentIdsForUser(userId: string): Promise<string[]> {
+    const membershipSnapshot = await adminDb.collection('userMemberships')
+        .where('userId', '==', userId)
+        .get();
+
+    if (membershipSnapshot.empty) {
+        return [];
+    }
+
+    const tournamentIds = membershipSnapshot.docs.map(doc => doc.data().tournamentId);
+    return [...new Set(tournamentIds)]; // Return unique tournament IDs
+}
+
+
 export async function getUserTeamForTournament(tournamentId: string, userId: string): Promise<Team | null> {
     const membershipQuery = adminDb.collection('userMemberships')
         .where('userId', '==', userId)
         .where('tournamentId', '==', tournamentId)
         .limit(1);
-    
+
     const membershipSnapshot = await membershipQuery.get();
 
     if (membershipSnapshot.empty) {
@@ -54,7 +69,7 @@ export async function addTeam(tournamentId: string, teamData: Omit<Team, 'id' | 
         playerIds: [teamData.captain.uid],
         isApproved: true, // Default to true
     };
-    
+
     // Check if captain has too many warnings
     const captainProfileRef = adminDb.collection('users').doc(teamData.captainId);
     const captainProfileDoc = await captainProfileRef.get();
