@@ -1,5 +1,4 @@
-
-"use client";
+'use client';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -8,7 +7,8 @@ import { collection, query, where, onSnapshot, getDocs } from 'firebase/firestor
 import { useAuth } from '@/hooks/use-auth';
 import type { Tournament, Team, UnifiedTimestamp, PlatformSettings } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
-import { deleteTournament, getJoinedTournamentIdsForUser, getTournamentsByIds, getPlatformSettings } from '@/lib/actions';
+import { deleteTournament, getJoinedTournamentIdsForUser, getTournamentsByIds } from '@/lib/actions';
+import { getPlatformSettings } from '@/lib/settings';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
