@@ -1,5 +1,4 @@
 
-
 import type { Timestamp as FirebaseAdminTimestamp } from 'firebase-admin/firestore';
 import type { Timestamp as FirebaseClientTimestamp } from 'firebase/firestore';
 
@@ -131,6 +130,7 @@ export interface Tournament {
     daysAfterEnd: number;
     lastCloneDate?: UnifiedTimestamp;
   };
+  needsStandingsUpdate?: boolean;
 }
 
 export type PlayerRole = 'captain' | 'co-captain' | 'player';
