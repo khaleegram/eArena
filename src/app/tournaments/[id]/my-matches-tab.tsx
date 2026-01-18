@@ -426,11 +426,13 @@ function MatchCard({
   getTeam,
   userTeam,
   isOrganizer,
+  tournament,
 }: {
   match: Match;
   getTeam: (id: string) => Team | undefined;
   userTeam: Team;
   isOrganizer: boolean;
+  tournament: Tournament;
 }) {
   const { user } = useAuth();
 
@@ -456,7 +458,7 @@ function MatchCard({
   return (
     <Card className={cn("relative overflow-hidden", "hover:border-primary/20 transition-colors")}>
       <CardContent className="p-0">
-        <Link href={`/tournaments/${match.tournamentId}/matches/${match.id}`} className="block hover:bg-muted/30 p-3 sm:p-4 space-y-3">
+        <Link href={`/tournaments/${tournament.id}/matches/${match.id}`} className="block hover:bg-muted/30 p-3 sm:p-4 space-y-3">
           {/* Header strip */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -649,7 +651,7 @@ export function MyMatchesTab({
           ) : (
             <div className="space-y-4">
               {displayedMatches.map((m) => (
-                <MatchCard key={m.id} match={m} getTeam={getTeam} userTeam={userTeam} isOrganizer={isOrganizer} />
+                <MatchCard key={m.id} match={m} getTeam={getTeam} userTeam={userTeam} isOrganizer={isOrganizer} tournament={tournament} />
               ))}
             </div>
           )}
