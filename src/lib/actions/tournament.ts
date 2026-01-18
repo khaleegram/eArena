@@ -7,7 +7,7 @@ import type { Tournament, Player, Match, Team, PrizeAllocation, Standing } from 
 import { revalidatePath } from 'next/cache';
 import { serializeData } from '@/lib/utils';
 import { getTournamentAwards } from './payouts';
-import { updateStandings } from './standings';
+import { getStandingsForTournament, updateStandings } from './standings';
 import { customAlphabet } from 'nanoid';
 import { getStorage } from 'firebase-admin/storage';
 import { getUserProfileById } from './user';
@@ -560,8 +560,6 @@ export async function devAutoApproveCurrentStageMatches(tournamentId: string, or
       return { approved: 0 }; // Nothing to approve
     }
     
-    // Simplified logic: Approve all currently scheduled matches.
-    // This is more robust for a dev tool than trying to be too clever about rounds.
     const approved = await autoApproveMatches(scheduledMatches, tournamentRef);
 
     // This is a dev tool, so we can trigger the update immediately.
@@ -639,3 +637,5 @@ function getRoundName(numTeams: number): string {
     if (numTeams === 8) return 'Quarter-finals';
     return `Round of ${numTeams}`;
 }
+
+    
