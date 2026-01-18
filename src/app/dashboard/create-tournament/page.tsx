@@ -33,10 +33,19 @@ const formatOptions: Record<TournamentFormat, number[]> = {
 
 type SchedulingPreset = 'custom' | '1-day-cup' | 'weekend-knockout' | 'week-long-league' | '1-day-league-blitz';
 
+const MAX_FLYER_SIZE = 5 * 1024 * 1024; // 5MB
+const ALLOWED_FLYER_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
 const tournamentSchema = z.object({
   name: z.string().min(3, { message: "Tournament name must be at least 3 characters." }),
   description: z.string().min(10, { message: "Description must be at least 10 characters." }),
-  flyer: z.any().optional(),
+  flyer: z.any()
+    .optional()
+    .refine((file) => !file || file.size <= MAX_FLYER_SIZE, `Max image size is 5MB.`)
+    .refine(
+        (file) => !file || ALLOWED_FLYER_TYPES.includes(file.type),
+        "Only .jpg, .jpeg, .png and .webp formats are supported."
+    ),
   format: z.enum(['league', 'cup']),
   registrationDates: z.object({
     from: z.date({ required_error: "Registration start date is required." }),
@@ -276,9 +285,9 @@ export default function CreateTournamentPage() {
                             <FormItem>
                                 <FormLabel>Tournament Flyer (Optional)</FormLabel>
                                 <FormControl>
-                                    <Input type="file" accept="image/*" onChange={(e) => onChange(e.target.files?.[0])} {...rest} />
+                                    <Input type="file" accept="image/png, image/jpeg, image/webp" onChange={(e) => onChange(e.target.files?.[0])} {...rest} />
                                 </FormControl>
-                                <FormDescription>A portrait image works best. Recommended aspect ratio: 3:4.</FormDescription>
+                                <FormDescription>A portrait image works best. Recommended aspect ratio: 3:4. Max 5MB.</FormDescription>
                                 <FormMessage />
                             </FormItem>
                         )}
