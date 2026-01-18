@@ -1,3 +1,4 @@
+
 'use server';
 
 import { adminDb, adminAuth } from '@/lib/firebase-admin';
@@ -6,7 +7,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { revalidatePath } from 'next/cache';
 import { getAdminUids } from './admin';
 import { serializeData } from '@/lib/utils';
-import { analyzePlayerPerformance, type PlayerPerformanceInput, type PlayerPerformanceOutput } from '@/ai/flows/analyze-player-performance';
+import { getPlayerPerformanceAnalysis } from './index';
 import { sendNotification } from './notifications';
 import { getStorage } from 'firebase-admin/storage';
 import { sendEmail } from '../email';
@@ -157,9 +158,6 @@ export async function getConversationsForUser(userId: string): Promise<Conversat
     return serializeData(conversations);
 }
 
-export async function getPlayerPerformanceAnalysis(stats: PlayerPerformanceInput): Promise<PlayerPerformanceOutput> {
-  return analyzePlayerPerformance(stats);
-}
 
 export async function findUserByEmail(email: string): Promise<UserProfile | null> {
     const usersRef = adminDb.collection('users');
@@ -210,46 +208,6 @@ export async function startConversation(userId1: string, userId2: string): Promi
     }
 
     return conversationId;
-}
-
-export async function postDirectMessage(conversationId: string, message: string, senderId: string) {
-    const conversationRef = adminDb.collection('conversations').doc(conversationId);
-    const messagesRef = conversationRef.collection('messages').doc();
-    
-    const conversationDoc = await conversationRef.get();
-    if(!conversationDoc.exists) throw new Error("Conversation not found");
-
-    const senderProfile = await getUserProfileById(senderId);
-    if (!senderProfile) throw new Error("Sender not found");
-
-    const messageData = {
-        userId: senderId,
-        username: senderProfile.username,
-        photoURL: senderProfile.photoURL,
-        message,
-        timestamp: FieldValue.serverTimestamp()
-    };
-
-    const batch = adminDb.batch();
-    batch.set(messagesRef, messageData);
-    batch.update(conversationRef, {
-        lastMessage: {
-            message,
-            timestamp: FieldValue.serverTimestamp(),
-        }
-    });
-    
-    await batch.commit();
-
-    const otherParticipantId = conversationDoc.data()?.participantIds.find((id: string) => id !== senderId);
-    if(otherParticipantId) {
-        await sendNotification(otherParticipantId, {
-            userId: otherParticipantId,
-            title: `New message from ${senderProfile?.username || 'a user'}`,
-            body: message,
-            href: `/messages/${conversationId}`,
-        });
-    }
 }
 
 export async function updateUserActiveTitle(uid: string, title: string | null) {

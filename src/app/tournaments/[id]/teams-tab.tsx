@@ -15,7 +15,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { updateTeamRoster, findUserByEmail, startTournamentAndGenerateFixtures, removeTeamAsOrganizer, approveTeamRegistration } from "@/lib/actions";
+import { updateTeamRoster, approveTeamRegistration, removeTeamAsOrganizer } from "@/lib/actions/team";
+import { findUserByEmail } from "@/lib/actions/user";
+import { startTournamentAndGenerateFixtures } from "@/lib/actions/tournament";
 import { Loader2, PlusCircle, User, Users, Bot, Trash2, Mail, ShieldAlert, CheckCircle } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";

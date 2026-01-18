@@ -219,7 +219,7 @@ function ProgressStageButton({ tournament, organizerId }: { tournament: Tourname
         }
     }
 
-    if (tournament.status !== 'in_progress' || (tournament.format !== 'cup' && tournament.format !== 'champions-league')) {
+    if (tournament.status !== 'in_progress' || (tournament.format !== 'cup' && tournament.format !== 'swiss')) {
         return null;
     }
 

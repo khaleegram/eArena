@@ -40,7 +40,8 @@ import {
 import { format, isToday, isPast, endOfDay, formatDistanceToNow } from 'date-fns';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import { getMatchPrediction, setOrganizerStreamUrl, requestPlayerReplay, respondToPlayerReplay, forfeitMatch, postMatchMessage } from '@/lib/actions';
+import { getMatchPrediction, setOrganizerStreamUrl, requestPlayerReplay, respondToPlayerReplay, forfeitMatch } from '@/lib/actions/tournament';
+import { postMatchMessage } from '@/lib/actions/community';
 import { MatchStatusBadge } from '@/components/match-status-badge';
 import { toDate, cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
