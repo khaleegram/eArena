@@ -229,7 +229,7 @@ export const tournamentSchema = z.object({
     errorMap: () => ({ message: 'Invalid platform' })
   }),
   
-  format: z.enum(['league', 'cup', 'champions-league', 'double-elimination', 'swiss']),
+  format: z.enum(['league', 'cup', 'swiss']),
   
   maxTeams: z.number()
     .int('Must be a whole number')

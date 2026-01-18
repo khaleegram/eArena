@@ -20,6 +20,7 @@ import { toDate } from './utils';
 import { getRoundName, generateCupRound } from './cup-tournament';
 import { getCurrentCupRound, assertRoundCompleted, getWinnersForRound } from './cup-progression';
 import { createWorldCupGroups, generateGroupStageFixtures, computeAllGroupStandings, seedKnockoutFromGroups, isGroupRound, isKnockoutRound } from './group-stage';
+import { generateSwissRoundFixtures, getMaxSwissRounds, getSwissRoundNumber, isSwissRound } from './swiss';
 
 if (process.env.VAPID_PRIVATE_KEY && process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) {
     webpush.setVapidDetails(
@@ -505,6 +506,12 @@ export async function createTournament(formData: FormData) {
 
     const tournamentRef = await adminDb.collection('tournaments').add(newTournamentData as any);
     
+    const flyerFile = formData.get('flyer') as File | null;
+    if (flyerFile) {
+        const flyerUrl = await uploadFileAndGetPublicURL(`tournaments/${tournamentRef.id}`, flyerFile, flyerFile.type);
+        await tournamentRef.update({ flyerUrl });
+    }
+    
     revalidatePath('/dashboard');
 
     let paymentUrl = null;
@@ -829,7 +836,7 @@ function generateFixtures(teamIds: string[], format: TournamentFormat, homeAndAw
         const roundName = getRoundName(teamIds.length);
         fixtures = generateCupRound(teamIds, roundName);
     }
-    // Swiss format logic would be much more complex and state-dependent per round, handled separately.
+    // Swiss format logic is handled separately
 
     return fixtures;
 }
@@ -860,10 +867,17 @@ export async function startTournamentAndGenerateFixtures(tournamentId: string, o
 
     let fixtures: Omit<Match, 'id' | 'tournamentId' | 'matchDay' | 'status'>[] = [];
     if (tournament.format === 'cup') {
-        // World Cup style: group stage first, then knockout via Progress to Next Stage
         const groups = createWorldCupGroups(teams, 4);
         fixtures = generateGroupStageFixtures(groups);
-    } else {
+    } else if (tournament.format === 'swiss') {
+        fixtures = generateSwissRoundFixtures({
+            teamIds: teams,
+            roundNumber: 1,
+            standings: [],
+            previousMatches: [],
+        });
+    }
+    else {
         fixtures = generateFixtures(teams, tournament.format, tournament.homeAndAway);
     }
     
@@ -881,7 +895,6 @@ export async function startTournamentAndGenerateFixtures(tournamentId: string, o
     fixtures.forEach((fixture, index) => {
         const matchRef = tournamentRef.collection('matches').doc();
         
-        // Distribute matches across available days
         const dayOffset = index % totalDays;
         const matchDay = addDays(new Date(playStartDate), dayOffset);
 
@@ -1187,6 +1200,10 @@ export async function progressTournamentStage(tournamentId: string, organizerId:
     if (tournament.organizerId !== organizerId) throw new Error("You are not authorized to perform this action.");
     if (tournament.status !== 'in_progress') throw new Error("Tournament is not in progress.");
     if (tournament.format === 'league') throw new Error("Leagues do not have stages to progress.");
+    
+    if (tournament.format === 'swiss') {
+        return progressSwissTournament(tournamentId, organizerId);
+    }
 
     // Get all matches
     const allMatchesSnapshot = await tournamentRef.collection('matches').get();

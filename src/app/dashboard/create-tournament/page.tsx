@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useForm } from 'react-hook-form';
@@ -32,6 +33,8 @@ import { storage } from '@/lib/firebase';
 const formatOptions: Record<TournamentFormat, number[]> = {
     league: [4, 6, 8, 10, 12, 14, 16, 18, 20],
     cup: [8, 16, 32],
+    swiss: [8, 12, 16, 20, 24, 32, 64, 128],
+    'double-elimination': [8, 16, 32],
 };
 
 type SchedulingPreset = 'custom' | '1-day-cup' | 'weekend-knockout' | 'week-long-league' | '1-day-league-blitz';
@@ -49,7 +52,7 @@ const tournamentSchema = z.object({
         (file) => !file || ALLOWED_FLYER_TYPES.includes(file.type),
         "Only .jpg, .jpeg, .png and .webp formats are supported."
     ),
-  format: z.enum(['league', 'cup']),
+  format: z.enum(['league', 'cup', 'swiss']),
   registrationDates: z.object({
     from: z.date({ required_error: "Registration start date is required." }),
     to: z.date({ required_error: "Registration end date is required." }),
@@ -199,33 +202,33 @@ export default function CreateTournamentPage() {
     }
     setIsLoading(true);
     
-    const { flyer, ...otherFormValues } = values;
+    const formData = new FormData();
+    Object.entries(values).forEach(([key, value]) => {
+        if (key === 'flyer' || key === 'schedulingPreset' || key === 'duration') return;
+        if(typeof value === 'object' && value !== null) {
+            Object.entries(value).forEach(([subKey, subValue]) => {
+                formData.append(`${key}.${subKey}`, (subValue as any).toString());
+            });
+        } else {
+            formData.append(key, String(value));
+        }
+    });
+    
+    const flyerFile = values.flyer;
+    if (flyerFile) {
+        formData.append('flyer', flyerFile);
+    }
+
+    formData.append('organizerId', user.uid);
+
 
     try {
-      // Step 1: Create the tournament document first, without the flyer.
-      // This will be much faster for the user.
-      const result = await createTournament({ ...otherFormValues, organizerId: user.uid });
-      const { tournamentId, paymentUrl } = result;
-
-      toast({ title: "Tournament Created!", description: "Now uploading flyer in the background..." });
-
-      // Step 2: Asynchronously upload the flyer from the client-side if it exists.
-      if (flyer && tournamentId) {
-        const flyerRef = ref(storage, `flyers/${tournamentId}/${flyer.name}`);
-        const snapshot = await uploadBytes(flyerRef, flyer);
-        const downloadURL = await getDownloadURL(snapshot.ref);
-
-        // Step 3: Update the tournament document with the flyer URL.
-        // This is a separate, quick server action.
-        await updateTournamentFlyer(tournamentId, downloadURL);
-        toast({ title: "Flyer Uploaded!", description: "Your tournament flyer is now live." });
-      }
-
-      // Step 4: Redirect the user.
-      if (paymentUrl) {
-        router.push(paymentUrl);
+      const result = await createTournament(formData);
+      toast({ title: "Tournament Published!", description: "Your tournament is now live." });
+      if (result.paymentUrl) {
+        router.push(result.paymentUrl);
       } else {
-        router.push(`/tournaments/${tournamentId}`);
+        router.push(`/tournaments/${result.tournamentId}`);
       }
     } catch (error: any) {
       console.error(error);
@@ -311,6 +314,7 @@ export default function CreateTournamentPage() {
                                 <SelectContent>
                                     <SelectItem value="league">League (Round-Robin)</SelectItem>
                                     <SelectItem value="cup">Cup (Groups + Knockout)</SelectItem>
+                                    <SelectItem value="swiss">Swiss System</SelectItem>
                                 </SelectContent>
                                 </Select>
                                 <FormDescription>Choose the structure of your competition.</FormDescription>

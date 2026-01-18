@@ -1,3 +1,4 @@
+
 import type { Match, Standing } from './types';
 
 export function isSwissRound(round?: string): boolean {
@@ -130,4 +131,3 @@ export function generateSwissRoundFixtures(args: {
 
   return fixtures;
 }
-

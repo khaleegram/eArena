@@ -1,3 +1,4 @@
+
 import { describe, it, expect } from 'vitest';
 import type { Match, Standing } from './types';
 import { generateSwissRoundFixtures } from './swiss';
@@ -55,4 +56,3 @@ describe('swiss', () => {
     expect(pairs.has('G-H')).toBe(false);
   });
 });
-

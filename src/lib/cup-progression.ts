@@ -71,4 +71,3 @@ export function getChampionIfFinalComplete(matches: Match[], tournament: Pick<To
   if (finalMatch.status !== 'approved') return null;
   return getMatchWinnerTeamId(finalMatch, tournament);
 }
-

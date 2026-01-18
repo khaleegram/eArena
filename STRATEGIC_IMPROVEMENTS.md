@@ -417,12 +417,12 @@ match /{document=**} {
 ---
 
 ### 29. **Tournament Formats**
-- Swiss format incomplete
+- **Swiss format** is now implemented
 - Missing round-robin variations
 - No custom bracket support
 
 **Action Required:**
-- Complete Swiss format
+- Complete Swiss format (e.g. final knockout stage)
 - Add more tournament types
 - Custom bracket builder
 - Seeding algorithms
