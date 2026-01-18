@@ -47,6 +47,7 @@ const nextConfig = {
     ],
   },
   webpack: (config) => {
+    config.experiments = { ...config.experiments, asyncWebAssembly: true };
     config.resolve.alias = {
       ...config.resolve.alias,
       handlebars: 'handlebars/dist/handlebars.js',
