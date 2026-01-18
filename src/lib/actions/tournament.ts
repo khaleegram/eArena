@@ -351,7 +351,10 @@ export async function startTournamentAndGenerateFixtures(tournamentId: string, o
         const batch = adminDb.batch();
         for (const fixture of scheduledFixtures) {
             const matchRef = tournamentRef.collection('matches').doc();
-            batch.set(matchRef, fixture);
+            batch.set(matchRef, {
+                ...fixture,
+                tournamentId: tournamentId,
+            });
         }
         await batch.commit();
 
@@ -479,7 +482,10 @@ export async function progressTournamentStage(tournamentId: string, organizerId:
         const batch = adminDb.batch();
         for (const fixture of scheduledFixtures) {
             const matchRef = tournamentRef.collection('matches').doc();
-            batch.set(matchRef, fixture);
+            batch.set(matchRef, {
+                ...fixture,
+                tournamentId: tournamentId,
+            });
         }
         await batch.commit();
         revalidatePath(`/tournaments/${tournamentId}`);
@@ -557,7 +563,63 @@ export async function rescheduleTournament(tournamentId: string, newStartDateStr
 }
 
 export async function regenerateTournamentFixtures(tournamentId: string, organizerId: string) {
-    // Logic to delete old fixtures and generate new ones
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    const tournamentDoc = await tournamentRef.get();
+    if (!tournamentDoc.exists || tournamentDoc.data()?.organizerId !== organizerId) {
+        throw new Error("Unauthorized or tournament not found.");
+    }
+    const tournament = {id: tournamentDoc.id, ...tournamentDoc.data()} as Tournament;
+
+    // 1. Delete all existing matches
+    const matchesSnapshot = await tournamentRef.collection('matches').get();
+    if (!matchesSnapshot.empty) {
+        const deleteBatch = adminDb.batch();
+        matchesSnapshot.docs.forEach(doc => {
+            deleteBatch.delete(doc.ref);
+        });
+        await deleteBatch.commit();
+    }
+    
+    // 2. Re-run fixture generation logic
+    const teamsSnapshot = await tournamentRef.collection('teams').where('isApproved', '==', true).get();
+    const teams = teamsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Team));
+    const teamIds = teams.map(t => t.id);
+
+    let fixtures: Omit<Match, 'id' | 'tournamentId' | 'matchDay' | 'status'>[] = [];
+    switch (tournament.format) {
+        case 'league':
+            fixtures = generateRoundRobinFixtures(teamIds, tournament.homeAndAway);
+            break;
+        case 'cup':
+            const groups = createWorldCupGroups(teamIds);
+            fixtures = generateGroupStageFixtures(groups);
+            break;
+        case 'swiss':
+             fixtures = generateSwissRoundFixtures({
+                teamIds,
+                roundNumber: 1,
+                standings: [],
+                previousMatches: [],
+            });
+            break;
+        default:
+            throw new Error('Unsupported tournament format for fixture generation.');
+    }
+
+    const startDate = toDate(tournament.tournamentStartDate);
+    const duration = differenceInDays(toDate(tournament.tournamentEndDate), startDate);
+    const scheduledFixtures = scheduleFixtures(fixtures, startDate, Math.max(1, duration + 1));
+
+    const addBatch = adminDb.batch();
+    for (const fixture of scheduledFixtures) {
+        const matchRef = tournamentRef.collection('matches').doc();
+        addBatch.set(matchRef, {
+            ...fixture,
+            tournamentId: tournamentId,
+        });
+    }
+    await addBatch.commit();
+
     revalidatePath(`/tournaments/${tournamentId}`);
 }
 
