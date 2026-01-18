@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from 'next/link';
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot, query, where, orderBy } from "firebase/firestore";
 import type { Match, Standing, Team, Tournament } from "@/lib/types";
@@ -23,11 +24,11 @@ type GroupRow = {
   points: number;
 };
 
-function isGroupRound(round?: string) {
+function isGroupRound(round?: string): boolean {
   return typeof round === 'string' && /^group\s+[a-z]$/i.test(round.trim());
 }
 
-function computeGroupStandings(matches: Match[]): GroupRow[] {
+function computeGroupStandings(groupMatches: Match[]): GroupRow[] {
   const rows = new Map<string, GroupRow>();
   const ensure = (teamId: string) => {
     if (!rows.has(teamId)) {
@@ -46,13 +47,14 @@ function computeGroupStandings(matches: Match[]): GroupRow[] {
     return rows.get(teamId)!;
   };
 
-  // Ensure teams appear even if no match is approved yet (0 stats rows).
-  for (const match of matches) {
+  // Ensure teams appear even if no matches have been approved yet.
+  // We derive teams from the fixture list itself (scheduled + approved).
+  for (const match of groupMatches) {
     ensure(match.homeTeamId);
     ensure(match.awayTeamId);
   }
 
-  for (const match of matches) {
+  for (const match of groupMatches) {
     if (match.status !== 'approved') continue;
     if (match.homeScore == null || match.awayScore == null) continue;
 
@@ -83,19 +85,19 @@ function computeGroupStandings(matches: Match[]): GroupRow[] {
     }
   }
 
-  const out = Array.from(rows.values()).map(r => ({
+  const standings = Array.from(rows.values()).map(r => ({
     ...r,
     goalDifference: r.goalsFor - r.goalsAgainst,
   }));
 
-  out.sort((a, b) => {
+  standings.sort((a, b) => {
     if (b.points !== a.points) return b.points - a.points;
     if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
     if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
     return a.teamId.localeCompare(b.teamId);
   });
 
-  return out;
+  return standings;
 }
 
 export function StandingsTab({ tournament }: { tournament: Tournament }) {
@@ -169,7 +171,7 @@ export function StandingsTab({ tournament }: { tournament: Tournament }) {
     const teamsQuery = query(collection(db, `tournaments/${tournamentId}/teams`));
     const unsubTeams = onSnapshot(teamsQuery, (snapshot) => {
         if (!active) return;
-        const teamsData = snapshot.docs.map(doc => ({id: doc.id, ...doc.data()}) as Team);
+        const teamsData = teamsSnapshot.docs.map(doc => ({id: doc.id, ...doc.data()}) as Team);
         setTeams(teamsData);
         teamsLoaded = true;
         checkDone();
@@ -246,10 +248,10 @@ export function StandingsTab({ tournament }: { tournament: Tournament }) {
                           <TableRow key={row.teamId} className={highlight}>
                             <TableCell className="font-bold text-lg">{idx + 1}</TableCell>
                             <TableCell>
-                              <div className="flex items-center gap-2">
+                              <Link href={`/profile/${teamInfo.captainId}`} className="flex items-center gap-2 hover:underline">
                                 <ReputationAvatar profile={teamInfo} className="h-8 w-8" />
                                 <span className="font-medium">{teamInfo.name}</span>
-                              </div>
+                              </Link>
                             </TableCell>
                             <TableCell className="text-center font-semibold">{row.matchesPlayed}</TableCell>
                             <TableCell className="text-center">{row.wins}</TableCell>
