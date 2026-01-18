@@ -31,6 +31,22 @@ vi.mock('next/image', () => ({
   },
 }));
 
+// Mock Next.js fonts
+vi.mock('next/font/google', () => ({
+    Inter: () => ({
+      style: {
+        fontFamily: 'Inter, sans-serif',
+      },
+      variable: '--font-body',
+    }),
+    Orbitron: () => ({
+      style: {
+        fontFamily: 'Orbitron, sans-serif',
+      },
+      variable: '--font-headline',
+    }),
+}));
+
 // Mock environment variables
 process.env.NEXT_PUBLIC_FIREBASE_API_KEY = 'test-api-key';
 process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN = 'test.firebaseapp.com';
