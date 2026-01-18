@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -171,7 +170,7 @@ export function StandingsTab({ tournament }: { tournament: Tournament }) {
     const teamsQuery = query(collection(db, `tournaments/${tournamentId}/teams`));
     const unsubTeams = onSnapshot(teamsQuery, (snapshot) => {
         if (!active) return;
-        const teamsData = teamsSnapshot.docs.map(doc => ({id: doc.id, ...doc.data()}) as Team);
+        const teamsData = snapshot.docs.map(doc => ({id: doc.id, ...doc.data()}) as Team);
         setTeams(teamsData);
         teamsLoaded = true;
         checkDone();
