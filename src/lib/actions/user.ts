@@ -1,13 +1,13 @@
-
 'use server';
 
 import { adminDb } from '@/lib/firebase-admin';
-import type { UserProfile, PlayerStats, Conversation } from '@/lib/types';
+import type { UserProfile, PlayerStats, Conversation, PlayerTitle } from '@/lib/types';
 import { FieldValue } from 'firebase-admin/firestore';
 import { revalidatePath } from 'next/cache';
 import { getAdminUids } from './admin';
 import { serializeData } from '@/lib/utils';
 import { analyzePlayerPerformance, type PlayerPerformanceInput, type PlayerPerformanceOutput } from '@/ai/flows/analyze-player-performance';
+import { sendNotification } from './notifications';
 
 export async function updateUserProfile(uid: string, data: Partial<UserProfile>) {
   const userRef = adminDb.collection('users').doc(uid);
@@ -19,6 +19,7 @@ export async function updateUserProfile(uid: string, data: Partial<UserProfile>)
 
   await userRef.update(updateData);
   revalidatePath(`/profile/${uid}`);
+  revalidatePath(`/profile`);
 }
 
 export async function getUserProfileById(uid: string): Promise<UserProfile | null> {
@@ -85,8 +86,20 @@ export async function unfollowUser(currentUserId: string, targetUserId: string) 
 export async function getUsersByIds(uids: string[]): Promise<UserProfile[]> {
     if (uids.length === 0) return [];
     const usersRef = adminDb.collection('users');
-    const snapshot = await usersRef.where('uid', 'in', uids).get();
-    return snapshot.docs.map(doc => serializeData(doc.data()) as UserProfile);
+    const chunks: string[][] = [];
+    for (let i = 0; i < uids.length; i += 30) {
+        chunks.push(uids.slice(i, i + 30));
+    }
+
+    const profiles: UserProfile[] = [];
+    for (const chunk of chunks) {
+        const snapshot = await usersRef.where('uid', 'in', chunk).get();
+        snapshot.forEach(doc => {
+            profiles.push(serializeData({ uid: doc.id, ...doc.data()}) as UserProfile);
+        });
+    }
+    
+    return profiles;
 }
 
 export async function getConversationsForUser(userId: string): Promise<Conversation[]> {
@@ -100,7 +113,9 @@ export async function getConversationsForUser(userId: string): Promise<Conversat
         const otherParticipantId = convo.participantIds.find(id => id !== userId);
         if (otherParticipantId) {
             const userProfile = await getUserProfileById(otherParticipantId);
-            convo.participants = convo.participants.map(p => p.uid === otherParticipantId && userProfile ? userProfile : p);
+            if (userProfile) {
+                convo.participants = convo.participants.map(p => p.uid === otherParticipantId ? userProfile : p);
+            }
         }
         return convo;
     }));
@@ -111,4 +126,114 @@ export async function getConversationsForUser(userId: string): Promise<Conversat
 export async function getPlayerPerformanceAnalysis(stats: PlayerPerformanceInput): Promise<PlayerPerformanceOutput> {
   // The Genkit flow is already a server function, so we can just call it directly.
   return analyzePlayerPerformance(stats);
+}
+
+export async function findUserByEmail(email: string): Promise<UserProfile | null> {
+    const usersRef = adminDb.collection('users');
+    const snapshot = await usersRef.where('email', '==', email).limit(1).get();
+    if (snapshot.empty) {
+        return null;
+    }
+    const userDoc = snapshot.docs[0];
+    return serializeData({ uid: userDoc.id, ...userDoc.data() }) as UserProfile;
+}
+
+export async function findUsersByUsername(username: string): Promise<UserProfile[]> {
+    const usersRef = adminDb.collection('users');
+    const snapshot = await usersRef
+        .where('username_lowercase', '>=', username.toLowerCase())
+        .where('username_lowercase', '<=', username.toLowerCase() + '\uf8ff')
+        .limit(10)
+        .get();
+    
+    return snapshot.docs.map(doc => serializeData(doc.data()) as UserProfile);
+}
+
+export async function startConversation(userId1: string, userId2: string): Promise<string> {
+    const participantIds = [userId1, userId2].sort();
+    const conversationId = participantIds.join('_');
+
+    const conversationRef = adminDb.collection('conversations').doc(conversationId);
+    const conversationDoc = await conversationRef.get();
+
+    if (!conversationDoc.exists) {
+        const [user1Profile, user2Profile] = await Promise.all([
+            getUserProfileById(userId1),
+            getUserProfileById(userId2)
+        ]);
+
+        if (!user1Profile || !user2Profile) {
+            throw new Error("One or both users not found.");
+        }
+
+        await conversationRef.set({
+            participantIds,
+            participants: [
+                { uid: user1Profile.uid, username: user1Profile.username, photoURL: user1Profile.photoURL, warnings: user1Profile.warnings || 0 },
+                { uid: user2Profile.uid, username: user2Profile.username, photoURL: user2Profile.photoURL, warnings: user2Profile.warnings || 0 }
+            ],
+            createdAt: FieldValue.serverTimestamp(),
+        });
+    }
+
+    return conversationId;
+}
+
+export async function postDirectMessage(conversationId: string, message: string, senderId: string) {
+    const conversationRef = adminDb.collection('conversations').doc(conversationId);
+    const messagesRef = conversationRef.collection('messages').doc();
+    
+    const conversationDoc = await conversationRef.get();
+    if(!conversationDoc.exists) throw new Error("Conversation not found");
+
+    const senderProfile = await getUserProfileById(senderId);
+    if (!senderProfile) throw new Error("Sender not found");
+
+    const messageData = {
+        userId: senderId,
+        username: senderProfile.username,
+        photoURL: senderProfile.photoURL,
+        message,
+        timestamp: FieldValue.serverTimestamp()
+    };
+
+    const batch = adminDb.batch();
+    batch.set(messagesRef, messageData);
+    batch.update(conversationRef, {
+        lastMessage: {
+            message,
+            timestamp: FieldValue.serverTimestamp(),
+        }
+    });
+    
+    await batch.commit();
+
+    const otherParticipantId = conversationDoc.data()?.participantIds.find((id: string) => id !== senderId);
+    if(otherParticipantId) {
+        await sendNotification(otherParticipantId, {
+            userId: otherParticipantId,
+            title: `New message from ${senderProfile?.username || 'a user'}`,
+            body: message,
+            href: `/messages/${conversationId}`,
+        });
+    }
+}
+
+export async function updateUserActiveTitle(uid: string, title: string | null) {
+    const userRef = adminDb.collection('users').doc(uid);
+    await userRef.update({ activeTitle: title });
+    revalidatePath(`/profile/${uid}`);
+    revalidatePath(`/profile`);
+}
+
+export async function saveUserBankDetails(uid: string, bankDetails: { accountNumber: string, bankCode: string }) {
+    const userRef = adminDb.collection('users').doc(uid);
+    await userRef.update({ 'bankDetails.accountNumber': bankDetails.accountNumber, 'bankDetails.bankCode': bankDetails.bankCode });
+    revalidatePath(`/profile`);
+}
+
+export async function confirmUserDetailsForPayout(uid: string) {
+    const userRef = adminDb.collection('users').doc(uid);
+    await userRef.update({ 'bankDetails.confirmedForPayout': true });
+    revalidatePath(`/profile`);
 }
