@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { useEffect, useMemo, useState, useRef } from 'react';
@@ -22,12 +20,10 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   Loader2,
   ArrowLeft,
-  Sparkles,
   Trophy,
   FileText,
   Calendar,
   BarChartHorizontal,
-  Bot,
   AlertTriangle,
   History,
   ShieldCheck,
@@ -40,7 +36,7 @@ import {
 import { format, isToday, isPast, endOfDay, formatDistanceToNow } from 'date-fns';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import { getMatchPrediction, setOrganizerStreamUrl, requestPlayerReplay, respondToPlayerReplay, forfeitMatch } from '@/lib/actions/tournament';
+import { setOrganizerStreamUrl, requestPlayerReplay, respondToPlayerReplay, forfeitMatch } from '@/lib/actions/tournament';
 import { postMatchMessage } from '@/lib/actions/community';
 import { MatchStatusBadge } from '@/components/match-status-badge';
 import { toDate, cn } from '@/lib/utils';
@@ -79,69 +75,6 @@ function StatRow({
       </div>
     </div>
   );
-}
-
-function AIPrediction({ match, tournamentId }: { match: Match, tournamentId: string}) {
-    const [prediction, setPrediction] = useState<{ predictedWinnerName: string; confidence: number; reasoning: string } | null>(null);
-    const [isPredicting, setIsPredicting] = useState(false);
-    const { toast } = useToast();
-
-    const handleGetPrediction = async () => {
-        setIsPredicting(true);
-        try {
-        const result = await getMatchPrediction(match.id, tournamentId);
-        setPrediction(result);
-        } catch (error: any) {
-        toast({ variant: 'destructive', title: 'Prediction Failed', description: error?.message || 'Failed.' });
-        } finally {
-        setIsPredicting(false);
-        }
-    };
-    
-    if (match.status !== 'scheduled') return null;
-
-    return (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Bot className="h-5 w-5 text-primary" />
-              AI Prediction
-            </CardTitle>
-            <CardDescription>An entertaining, data-driven prediction for the match outcome.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {!prediction ? (
-              <Button onClick={handleGetPrediction} disabled={isPredicting} className="w-full h-10">
-                {isPredicting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Analyzing…
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-4 w-4 mr-2 text-yellow-400" />
-                    Generate Prediction
-                  </>
-                )}
-              </Button>
-            ) : (
-              <div className="space-y-3">
-                <div className="rounded-xl border bg-primary/10 p-4">
-                  <p className="text-xs text-muted-foreground font-bold uppercase tracking-wider">Predicted Winner</p>
-                  <p className="text-xl font-black text-primary">{prediction.predictedWinnerName}</p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Confidence: <span className="font-black text-primary">{prediction.confidence}%</span>
-                  </p>
-                </div>
-                <div className="rounded-xl border bg-muted/20 p-4">
-                  <p className="text-xs text-muted-foreground font-bold uppercase tracking-wider mb-2">Pundit's Take</p>
-                  <p className="text-sm italic leading-relaxed">{prediction.reasoning}</p>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-    );
 }
 
 function SetOrganizerStreamUrlDialog({ matchId, tournamentId, organizerId }: { matchId: string; tournamentId: string; organizerId: string; }) {
@@ -466,7 +399,7 @@ export default function MatchDetailsPage() {
       </Card>
       
       {match.summary && (
-        <Alert className="border-2 border-yellow-500/30 bg-yellow-500/5"><Sparkles className="h-5 w-5 text-yellow-500" /><AlertTitle className="font-black">AI Summary</AlertTitle><AlertDescription className="mt-2 text-sm leading-relaxed">{match.summary}</AlertDescription></Alert>
+        <Alert className="border-2 border-yellow-500/30 bg-yellow-500/5"><AlertTriangle className="h-5 w-5 text-yellow-500" /><AlertTitle className="font-black">AI Summary</AlertTitle><AlertDescription className="mt-2 text-sm leading-relaxed">{match.summary}</AlertDescription></Alert>
       )}
       
       {statsAvailable && (
@@ -487,8 +420,6 @@ export default function MatchDetailsPage() {
       {match.resolutionNotes && (
         <Alert className="border-2 border-blue-500/30 bg-blue-500/5"><FileText className="h-5 w-5 text-blue-400" /><AlertTitle className="font-black">Organizer Verdict</AlertTitle><AlertDescription className="mt-2 text-sm leading-relaxed">{match.resolutionNotes}</AlertDescription></Alert>
       )}
-
-      <AIPrediction match={match} tournamentId={tournamentId} />
 
       <Card>
         <CardHeader>

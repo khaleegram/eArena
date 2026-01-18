@@ -19,7 +19,6 @@ import { createWorldCupGroups, generateGroupStageFixtures, computeAllGroupStandi
 import { generateSwissRoundFixtures, getMaxSwissRounds, isSwissRound, getSwissRoundNumber } from '../swiss';
 import { getLatestRound, assertRoundCompleted, getWinnersForRound, getChampionIfFinalComplete, isKnockoutRound } from '../cup-progression';
 import { generateCupRound, getRoundName } from '../cup-tournament';
-import { predictMatchWinner as predictMatchWinnerFlow, PredictWinnerInput } from '@/ai/flows/predict-match-winner';
 
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
 
@@ -268,36 +267,6 @@ export async function getTournamentsByIds(ids: string[]): Promise<Tournament[]> 
     }
     return tournaments;
 }
-
-export async function getMatchPrediction(matchId: string, tournamentId: string) {
-    const [matchDoc, homeStatsDoc, awayStatsDoc] = await Promise.all([
-        adminDb.collection('tournaments').doc(tournamentId).collection('matches').doc(matchId).get(),
-        adminDb.collection('playerStats').doc(matchId.split('-')[0]).get(),
-        adminDb.collection('playerStats').doc(matchId.split('-')[1]).get()
-    ]);
-
-    if (!matchDoc.exists) throw new Error("Match not found");
-    
-    const match = matchDoc.data() as Match;
-
-    const input: PredictWinnerInput = {
-        homeTeam: {
-            teamName: match.homeTeamName || "Home",
-            winPercentage: homeStatsDoc.exists() ? (homeStatsDoc.data()?.totalWins || 0) / (homeStatsDoc.data()?.totalMatches || 1) * 100 : 50,
-            avgGoalsFor: homeStatsDoc.exists() ? (homeStatsDoc.data()?.totalGoals || 0) / (homeStatsDoc.data()?.totalMatches || 1) : 1,
-            avgGoalsAgainst: homeStatsDoc.exists() ? (homeStatsDoc.data()?.totalConceded || 0) / (homeStatsDoc.data()?.totalMatches || 1) : 1,
-        },
-        awayTeam: {
-            teamName: match.awayTeamName || "Away",
-            winPercentage: awayStatsDoc.exists() ? (awayStatsDoc.data()?.totalWins || 0) / (awayStatsDoc.data()?.totalMatches || 1) * 100 : 50,
-            avgGoalsFor: awayStatsDoc.exists() ? (awayStatsDoc.data()?.totalGoals || 0) / (awayStatsDoc.data()?.totalMatches || 1) : 1,
-            avgGoalsAgainst: awayStatsDoc.exists() ? (awayStatsDoc.data()?.totalConceded || 0) / (awayStatsDoc.data()?.totalMatches || 1) : 1,
-        }
-    };
-    
-    return await predictMatchWinnerFlow(input);
-}
-
 
 export async function startTournamentAndGenerateFixtures(tournamentId: string, organizerId: string, startImmediately: boolean = false) {
     const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
