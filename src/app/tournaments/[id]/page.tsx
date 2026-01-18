@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getTournamentById, organizerResolveOverdueMatches, extendRegistration, startTournamentAndGenerateFixtures, regenerateTournamentFixtures, devSeedDummyTeams, devAutoApproveCurrentStageMatches, devAutoApproveAndProgress, devAutoRunCupToCompletion, retryTournamentPayment } from '@/lib/actions/tournament';
+import { getTournamentById, organizerResolveOverdueMatches, extendRegistration, startTournamentAndGenerateFixtures, regenerateTournamentFixtures, devSeedDummyTeams, devAutoApproveCurrentStageMatches, devAutoApproveAndProgress, devAutoRunCupToCompletion, retryTournamentPayment, rescheduleTournament } from '@/lib/actions/tournament';
 import { getUserTeamForTournament, leaveTournament, addTeam } from '@/lib/actions/team';
 import { findUserByEmail } from '@/lib/actions/user';
 import { useAuth } from "@/hooks/use-auth";
@@ -31,7 +31,7 @@ import Image from "next/image";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage } from '@/lib/firebase';
 import { CommunicationHub } from './communication-hub';
-import { cn } from "@/lib/utils";
+import { cn, toDate } from "@/lib/utils";
 import { useCountdown } from '@/hooks/use-countdown';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -41,16 +41,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { TournamentPodium } from '@/components/tournament-podium';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { PrizeAllocationEditor } from './prize-allocation';
-
-const toDate = (timestamp: UnifiedTimestamp): Date => {
-    if (typeof timestamp === 'string') {
-        return new Date(timestamp);
-    }
-    if (timestamp && typeof (timestamp as any).toDate === 'function') {
-        return (timestamp as any).toDate();
-    }
-    return timestamp as Date;
-};
 
 const CountdownDisplay = ({ days, hours, minutes, seconds }: { days: number, hours: number, minutes: number, seconds: number }) => (
     <div className="flex items-center gap-2 font-mono text-lg">
@@ -154,6 +144,63 @@ function ExtendRegistrationDialog({ tournament, organizerId, onSuccess }: { tour
             </DialogContent>
         </Dialog>
     )
+}
+
+function RescheduleDialog({ tournament, organizerId, onSuccess }: { tournament: Tournament; organizerId: string; onSuccess: () => void }) {
+    const { toast } = useToast();
+    const [open, setOpen] = useState(false);
+    const [newDate, setNewDate] = useState<Date | undefined>(toDate(tournament.tournamentStartDate));
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    if (tournament.status === 'completed') return null;
+
+    const handleReschedule = async () => {
+        if (!newDate) {
+            toast({ variant: "destructive", title: "Error", description: "Please select a new start date." });
+            return;
+        }
+        setIsSubmitting(true);
+        try {
+            await rescheduleTournament(tournament.id, newDate.toISOString(), organizerId);
+            toast({ title: "Success!", description: "Tournament has been rescheduled." });
+            onSuccess();
+            setOpen(false);
+        } catch (error: any) {
+            toast({ variant: "destructive", title: "Error", description: error.message });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="w-full justify-start"><Calendar className="mr-2" /> Reschedule</Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Reschedule Tournament</DialogTitle>
+                    <DialogDescription>
+                        Select a new start date. All match dates will be shifted accordingly.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                    <CalendarPicker
+                        mode="single"
+                        selected={newDate}
+                        onSelect={setNewDate}
+                        initialFocus
+                    />
+                </div>
+                <DialogFooter>
+                    <Button onClick={handleReschedule} disabled={isSubmitting}>
+                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Confirm & Reschedule
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
 }
 
 function RegenerateFixturesDialog({ tournamentId, organizerId, canRegenerate, onSuccess }: { tournamentId: string, organizerId: string, canRegenerate: boolean, onSuccess: () => void }) {
@@ -385,7 +432,7 @@ function StartTournamentDialog({ tournament, organizerId, onSuccess }: { tournam
     const handleStart = async () => {
         setIsLoading(true);
         try {
-            await startTournamentAndGenerateFixtures(tournament.id, organizerId);
+            await startTournamentAndGenerateFixtures(tournament.id, organizerId, true);
             toast({ title: "Tournament Started!", description: "Fixtures have been generated and participants notified." });
             onSuccess();
         } catch (error: any) {
@@ -437,6 +484,7 @@ function OrganizerTools({ tournament, user, allMatches, onSuccess }: { tournamen
                 <AlertCircle className="mr-2" /> {isLoading ? 'Resolving...' : 'Resolve Overdue Matches'}
             </Button>
             <ExtendRegistrationDialog tournament={tournament} organizerId={user.uid} onSuccess={onSuccess} />
+            <RescheduleDialog tournament={tournament} organizerId={user.uid} onSuccess={onSuccess} />
             <ProgressStageButton tournament={tournament} organizerId={user.uid} />
             <RegenerateFixturesDialog tournamentId={tournament.id} organizerId={user.uid} canRegenerate={canRegenerateFixtures} onSuccess={onSuccess} />
 

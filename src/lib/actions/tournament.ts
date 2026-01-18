@@ -5,14 +5,14 @@ import { adminDb } from '@/lib/firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import type { Tournament, Player, Match, Team, PrizeAllocation, Standing } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
-import { serializeData } from '@/lib/utils';
+import { serializeData, toDate } from '@/lib/utils';
 import { getTournamentAwards } from './payouts';
 import { getStandingsForTournament, updateStandings } from './standings';
 import { customAlphabet } from 'nanoid';
 import { getStorage } from 'firebase-admin/storage';
 import { getUserProfileById } from './user';
 import { sendNotification } from './notifications';
-import { addDays, differenceInDays, isBefore, isPast } from 'date-fns';
+import { addDays, differenceInDays, format, isBefore, isPast } from 'date-fns';
 
 import { generateRoundRobinFixtures } from '../round-robin';
 import { createWorldCupGroups, generateGroupStageFixtures, computeAllGroupStandings, seedKnockoutFromGroups, isGroupRound } from '../group-stage';
@@ -21,8 +21,61 @@ import { getLatestRound, assertRoundCompleted, getWinnersForRound, getChampionIf
 import { generateCupRound, getRoundName } from '../cup-tournament';
 import { predictMatchWinner as predictMatchWinnerFlow, PredictWinnerInput } from '@/ai/flows/predict-match-winner';
 
-
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
+
+function scheduleFixtures(
+    fixtures: Omit<Match, 'id' | 'tournamentId' | 'matchDay' | 'status'>[],
+    startDate: Date,
+    totalDays: number
+): Omit<Match, 'id' | 'tournamentId' | 'status'>[] {
+    const schedule: { [day: string]: { [timeSlot: string]: { [teamId: string]: boolean } } } = {};
+    const timeSlots = [20, 21, 22, 23]; // 8 PM, 9 PM, 10 PM, 11 PM UTC
+    const scheduledFixtures: Omit<Match, 'id' | 'tournamentId' | 'status'>[] = [];
+
+    for (const fixture of fixtures) {
+        let scheduled = false;
+        // Loop over days with a buffer to find a slot
+        for (let dayIndex = 0; dayIndex < totalDays * 2; dayIndex++) {
+            const currentDay = addDays(startDate, dayIndex);
+            const dayKey = format(currentDay, 'yyyy-MM-dd');
+            if (!schedule[dayKey]) schedule[dayKey] = {};
+
+            for (const hour of timeSlots) {
+                const timeKey = `${hour}:00`;
+                if (!schedule[dayKey]![timeKey]) schedule[dayKey]![timeKey] = {};
+
+                const homeTeamBusy = schedule[dayKey]![timeKey]![fixture.homeTeamId];
+                const awayTeamBusy = schedule[dayKey]![timeKey]![fixture.awayTeamId];
+
+                if (!homeTeamBusy && !awayTeamBusy) {
+                    const matchDay = new Date(currentDay);
+                    // Use UTC hours to avoid timezone issues on the server
+                    matchDay.setUTCHours(hour, 0, 0, 0);
+
+                    (fixture as any).matchDay = Timestamp.fromDate(matchDay);
+                    
+                    // Mark teams as busy for this time slot
+                    schedule[dayKey]![timeKey]![fixture.homeTeamId] = true;
+                    schedule[dayKey]![timeKey]![fixture.awayTeamId] = true;
+                    
+                    scheduledFixtures.push(fixture as any);
+                    scheduled = true;
+                    break; 
+                }
+            }
+            if (scheduled) break;
+        }
+        if (!scheduled) {
+            // Fallback if a slot isn't found (should be rare), place it at the end.
+            console.warn("Could not schedule a match without conflict, placing it on the last day.");
+            const lastDay = addDays(startDate, totalDays -1);
+            lastDay.setUTCHours(timeSlots[timeSlots.length - 1]!, 0, 0, 0);
+            (fixture as any).matchDay = Timestamp.fromDate(lastDay);
+            scheduledFixtures.push(fixture as any);
+        }
+    }
+    return scheduledFixtures;
+}
 
 export async function createTournament(formData: FormData) {
   const organizerId = formData.get('organizerId') as string;
@@ -246,7 +299,7 @@ export async function getMatchPrediction(matchId: string, tournamentId: string) 
 }
 
 
-export async function startTournamentAndGenerateFixtures(tournamentId: string, organizerId: string) {
+export async function startTournamentAndGenerateFixtures(tournamentId: string, organizerId: string, startImmediately: boolean = false) {
     const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
     const tournamentDoc = await tournamentRef.get();
     if (!tournamentDoc.exists || tournamentDoc.data()?.organizerId !== organizerId) {
@@ -263,68 +316,60 @@ export async function startTournamentAndGenerateFixtures(tournamentId: string, o
     await tournamentRef.update({ status: 'generating_fixtures' });
   
     try {
-      const teamsSnapshot = await tournamentRef.collection('teams').where('isApproved', '==', true).get();
-      const teams = teamsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Team));
-      const teamIds = teams.map(t => t.id);
-  
-      let fixtures: Omit<Match, 'id' | 'tournamentId' | 'matchDay' | 'status'>[] = [];
-  
-      switch (tournament.format) {
-        case 'league':
-          fixtures = generateRoundRobinFixtures(teamIds, tournament.homeAndAway);
-          break;
-        case 'cup':
-          const groups = createWorldCupGroups(teamIds);
-          fixtures = generateGroupStageFixtures(groups);
-          break;
-        case 'swiss':
-          fixtures = generateSwissRoundFixtures({
-              teamIds,
-              roundNumber: 1,
-              standings: [],
-              previousMatches: [],
-          });
-          break;
-        default:
-          throw new Error('Unsupported tournament format for fixture generation.');
-      }
+        const teamsSnapshot = await tournamentRef.collection('teams').where('isApproved', '==', true).get();
+        const teams = teamsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Team));
+        const teamIds = teams.map(t => t.id);
+
+        let fixtures: Omit<Match, 'id' | 'tournamentId' | 'matchDay' | 'status'>[] = [];
+
+        switch (tournament.format) {
+            case 'league':
+            fixtures = generateRoundRobinFixtures(teamIds, tournament.homeAndAway);
+            break;
+            case 'cup':
+            const groups = createWorldCupGroups(teamIds);
+            fixtures = generateGroupStageFixtures(groups);
+            break;
+            case 'swiss':
+            fixtures = generateSwissRoundFixtures({
+                teamIds,
+                roundNumber: 1,
+                standings: [],
+                previousMatches: [],
+            });
+            break;
+            default:
+            throw new Error('Unsupported tournament format for fixture generation.');
+        }
+
+        const effectiveStartDate = startImmediately ? new Date() : toDate(tournament.tournamentStartDate);
+        const originalDuration = differenceInDays(toDate(tournament.tournamentEndDate), toDate(tournament.tournamentStartDate));
+        const effectiveEndDate = addDays(effectiveStartDate, originalDuration);
+
+        const scheduledFixtures = scheduleFixtures(fixtures, effectiveStartDate, Math.max(1, originalDuration + 1));
+        
+        const batch = adminDb.batch();
+        for (const fixture of scheduledFixtures) {
+            const matchRef = tournamentRef.collection('matches').doc();
+            batch.set(matchRef, fixture);
+        }
+        await batch.commit();
+
+        const updateData: any = { status: 'in_progress' };
+        if (startImmediately) {
+            updateData.tournamentStartDate = Timestamp.fromDate(effectiveStartDate);
+            updateData.tournamentEndDate = Timestamp.fromDate(effectiveEndDate);
+        }
+        await tournamentRef.update(updateData);
       
-      const { tournamentStartDate, tournamentEndDate } = tournament;
-      const startDate = new Date(tournamentStartDate.toMillis());
-      const endDate = new Date(tournamentEndDate.toMillis());
-      const totalDays = Math.max(1, differenceInDays(endDate, startDate) + 1);
-      
-      const matchesPerDay = Math.ceil(fixtures.length / totalDays);
-      const timeSlots = [19, 20, 21, 22]; 
-  
-      fixtures.forEach((fixture, index) => {
-          const dayIndex = Math.floor(index / matchesPerDay);
-          const matchDay = addDays(startDate, dayIndex);
-          matchDay.setHours(timeSlots[timeIndex]!);
-          matchDay.setMinutes(0);
-          
-          (fixture as any).matchDay = Timestamp.fromDate(matchDay);
-          (fixture as any).status = 'scheduled';
-      });
-  
-      const batch = adminDb.batch();
-      for (const fixture of fixtures) {
-        const matchRef = tournamentRef.collection('matches').doc();
-        batch.set(matchRef, fixture);
-      }
-      
-      await batch.commit();
-  
-      await tournamentRef.update({ status: 'in_progress' });
-      
-      for (const team of teams) {
-        await sendNotification(team.captainId, {
-            userId: team.captainId,
-            title: 'Tournament Started!',
-            body: `The fixtures for "${tournament.name}" are live. Check your schedule!`,
-            href: `/tournaments/${tournamentId}?tab=my-matches`
-        });
-      }
+        for (const team of teams) {
+            await sendNotification(team.captainId, {
+                userId: team.captainId,
+                title: 'Tournament Started!',
+                body: `The fixtures for "${tournament.name}" are live. Check your schedule!`,
+                href: `/tournaments/${tournamentId}?tab=my-matches`
+            });
+        }
   
       revalidatePath(`/tournaments/${tournamentId}`);
     } catch (error: any) {
@@ -429,28 +474,10 @@ export async function progressTournamentStage(tournamentId: string, organizerId:
     }
     
     if (progressed && newFixtures.length > 0) {
-        const { tournamentStartDate, tournamentEndDate } = tournament;
-        const startDate = new Date(tournamentStartDate.toMillis());
-        const endDate = new Date(tournamentEndDate.toMillis());
-        const totalDays = Math.max(1, differenceInDays(endDate, startDate) + 1);
-        
-        const matchesPerDay = Math.ceil(newFixtures.length / totalDays);
-        const timeSlots = [19, 20, 21, 22];
-
-        newFixtures.forEach((fixture, index) => {
-            const dayIndex = Math.floor(index / matchesPerDay);
-            // For subsequent rounds, schedule them starting from today to keep momentum.
-            const matchDay = addDays(new Date(), dayIndex);
-            const timeIndex = index % timeSlots.length;
-            matchDay.setHours(timeSlots[timeIndex]!);
-            matchDay.setMinutes(0);
-            
-            (fixture as any).matchDay = Timestamp.fromDate(matchDay);
-            (fixture as any).status = 'scheduled';
-        });
+        const scheduledFixtures = scheduleFixtures(newFixtures, new Date(), 7); // Schedule over the next 7 days
 
         const batch = adminDb.batch();
-        for (const fixture of newFixtures) {
+        for (const fixture of scheduledFixtures) {
             const matchRef = tournamentRef.collection('matches').doc();
             batch.set(matchRef, fixture);
         }
@@ -461,14 +488,71 @@ export async function progressTournamentStage(tournamentId: string, organizerId:
     return { status: tournament.status, progressed };
 }
 
-// OTHER MISSING TOURNAMENT ACTIONS
 export async function extendRegistration(tournamentId: string, hours: number, organizerId: string) {
     const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
-    // Auth and validation logic...
     const doc = await tournamentRef.get();
-    const currentEndDate = (doc.data()?.registrationEndDate as Timestamp).toDate();
-    const newEndDate = new Date(currentEndDate.getTime() + hours * 60 * 60 * 1000);
-    await tournamentRef.update({ registrationEndDate: Timestamp.fromDate(newEndDate) });
+    if (!doc.exists || doc.data()?.organizerId !== organizerId) {
+        throw new Error("Unauthorized or tournament not found.");
+    }
+    const tournament = doc.data() as Tournament;
+    
+    const timeExtensionMs = hours * 60 * 60 * 1000;
+
+    const newRegEndDate = new Date(toDate(tournament.registrationEndDate).getTime() + timeExtensionMs);
+    const newStartDate = new Date(toDate(tournament.tournamentStartDate).getTime() + timeExtensionMs);
+    const newEndDate = new Date(toDate(tournament.tournamentEndDate).getTime() + timeExtensionMs);
+
+    const batch = adminDb.batch();
+    batch.update(tournamentRef, {
+        registrationEndDate: Timestamp.fromDate(newRegEndDate),
+        tournamentStartDate: Timestamp.fromDate(newStartDate),
+        tournamentEndDate: Timestamp.fromDate(newEndDate),
+    });
+
+    const matchesSnapshot = await tournamentRef.collection('matches').get();
+    if (!matchesSnapshot.empty) {
+        matchesSnapshot.forEach(matchDoc => {
+            const match = matchDoc.data() as Match;
+            const oldMatchDay = toDate(match.matchDay);
+            const newMatchDay = new Date(oldMatchDay.getTime() + timeExtensionMs);
+            batch.update(matchDoc.ref, { matchDay: Timestamp.fromDate(newMatchDay) });
+        });
+    }
+    
+    await batch.commit();
+    revalidatePath(`/tournaments/${tournamentId}`);
+}
+
+export async function rescheduleTournament(tournamentId: string, newStartDateString: string, organizerId: string) {
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    const tournamentDoc = await tournamentRef.get();
+    if (!tournamentDoc.exists || tournamentDoc.data()?.organizerId !== organizerId) {
+        throw new Error("Unauthorized or tournament not found.");
+    }
+    const tournament = tournamentDoc.data() as Tournament;
+
+    const oldStartDate = toDate(tournament.tournamentStartDate);
+    const newStartDate = new Date(newStartDateString);
+    const timeDifference = newStartDate.getTime() - oldStartDate.getTime();
+    
+    const newEndDate = new Date(toDate(tournament.tournamentEndDate).getTime() + timeDifference);
+
+    const matchesSnapshot = await tournamentRef.collection('matches').get();
+    const batch = adminDb.batch();
+
+    matchesSnapshot.forEach(doc => {
+        const match = doc.data() as Match;
+        const oldMatchDay = toDate(match.matchDay);
+        const newMatchDay = new Date(oldMatchDay.getTime() + timeDifference);
+        batch.update(doc.ref, { matchDay: Timestamp.fromDate(newMatchDay) });
+    });
+
+    batch.update(tournamentRef, {
+        tournamentStartDate: Timestamp.fromDate(newStartDate),
+        tournamentEndDate: Timestamp.fromDate(newEndDate),
+    });
+
+    await batch.commit();
     revalidatePath(`/tournaments/${tournamentId}`);
 }
 

@@ -1,3 +1,4 @@
+
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import type { UnifiedTimestamp } from "./types";
@@ -8,6 +9,12 @@ export function cn(...inputs: ClassValue[]) {
 
 // Utility to consistently convert various timestamp formats to a JS Date object
 export const toDate = (timestamp: UnifiedTimestamp): Date => {
+    if (!timestamp) {
+        // Return a default or handle as an error, depending on requirements.
+        // For now, returning current date to avoid crashes, but this should be looked at.
+        console.warn("toDate received a null or undefined timestamp.");
+        return new Date();
+    }
     if (timestamp instanceof Date) {
         return timestamp;
     }
@@ -19,6 +26,7 @@ export const toDate = (timestamp: UnifiedTimestamp): Date => {
         return (timestamp as any).toDate();
     }
     // Fallback for any other case, though it should ideally not be reached
+    console.warn("toDate received an unknown timestamp format:", timestamp);
     return new Date();
 };
 
