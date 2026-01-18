@@ -59,8 +59,6 @@ eArena is a full-featured platform for creating, managing, and competing in eFoo
 
 The platform's intelligence and automation are powered by a combination of deterministic logical functions and Genkit AI flows.
 
-### Core Logic (Deterministic)
-
 #### `generateRoundRobinFixtures` (in `src/lib/actions.ts`)
 - **Purpose:** Creates a fair and complete match schedule for round-robin stages. This function **does not use AI** to ensure correctness.
 - **Input:** A list of team IDs and a boolean for `homeAndAway`.
@@ -122,13 +120,24 @@ This rigorous, step-by-step logic ensures fair and automated resolution for the 
 To run the application, you'll need to set up your environment variables. Create a `.env.local` file in the root of the project and add the necessary keys from `.env.example`.
 
 ### Cron Jobs (Automated Tasks)
-This project uses GitHub Actions for scheduled tasks like updating standings and starting tournaments. To make this work, you need to add two secrets to your GitHub repository settings:
+The application uses a GitHub Action to run automated tasks once per day. For this to work, you must add two "secrets" to your GitHub repository. **You do not need to edit any code for this.**
 
-1.  **`CRON_URL`**: This is the full, absolute URL to your deployed application's daily cron API endpoint. For your app, this will be: `https://e-arena.vercel.app/api/cron/daily`
-2.  **`CRON_SECRET`**: This should be a long, random, and secure string that you generate. You must add the same secret to your Vercel deployment environment variables. This secret ensures that only authorized requests can trigger your cron jobs.
+**Step-by-Step Instructions:**
 
-**How to add secrets in GitHub:**
-1. Go to your repository on GitHub.
-2. Click on the "Settings" tab.
-3. In the left sidebar, navigate to "Secrets and variables" > "Actions".
-4. Click "New repository secret" to add `CRON_URL` and `CRON_SECRET`.
+1.  Go to your project's repository on the GitHub website.
+2.  Click the **"Settings"** tab near the top right.
+3.  In the left sidebar, go to **"Secrets and variables"** and then click on **"Actions"**.
+4.  Click the **"New repository secret"** button to add the first secret.
+
+    *   **Name:** `CRON_URL`
+    *   **Value:** `https://e-arena.vercel.app/api/cron/daily`
+
+5.  Click **"Add secret"**.
+6.  Click **"New repository secret"** again to add the second one.
+
+    *   **Name:** `CRON_SECRET`
+    *   **Value:** Create a long, random, secure string (like a password). **Important:** This value must be the **exact same** as the `CRON_SECRET` value you set in your Vercel project's environment variables.
+
+7.  Click **"Add secret"**.
+
+That's it. Your daily automated tasks will now run correctly.
