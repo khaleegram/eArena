@@ -703,13 +703,14 @@ export default function TournamentPage() {
   return (
     <div className="relative min-h-[calc(100vh-3.5rem)]">
         <Image
-            src="/images/Tournament.png"
+            src={tournament.flyerUrl || "/images/Tournament.png"}
             data-ai-hint="esports gaming"
-            alt="background"
+            alt={tournament.name}
             fill
             sizes="100vw"
             style={{objectFit: 'cover'}}
             className="absolute inset-0 z-[-1] opacity-10"
+            priority
         />
         <div className="container py-10 relative z-10">
             {tournament.status === 'completed' && <TournamentPodium tournament={tournament} matches={allMatches} standings={standings} teams={teams} />}

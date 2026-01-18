@@ -88,6 +88,7 @@ export interface Tournament {
   description: string;
   game: string;
   platform: string;
+  flyerUrl?: string;
   registrationStartDate: UnifiedTimestamp;
   registrationEndDate: UnifiedTimestamp;
   tournamentStartDate: UnifiedTimestamp;

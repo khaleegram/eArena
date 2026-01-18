@@ -9,7 +9,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { createTournament } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 import { addDays, format, startOfDay } from 'date-fns';
-import { Calendar as CalendarIcon, Loader2, Sparkles, Trophy, Info, Users, CalendarDays, Settings, Award, Send, CreditCard, Repeat, HelpCircle } from 'lucide-react';
+import { Calendar as CalendarIcon, Loader2, Sparkles, Trophy, Info, Users, CalendarDays, Settings, Award, Send, CreditCard, Repeat, HelpCircle, Image as ImageIcon } from 'lucide-react';
 import * as React from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -36,6 +36,7 @@ type SchedulingPreset = 'custom' | '1-day-cup' | 'weekend-knockout' | 'week-long
 const tournamentSchema = z.object({
   name: z.string().min(3, { message: "Tournament name must be at least 3 characters." }),
   description: z.string().min(10, { message: "Description must be at least 10 characters." }),
+  flyer: z.any().optional(),
   format: z.enum(['league', 'cup']),
   registrationDates: z.object({
     from: z.date({ required_error: "Registration start date is required." }),
@@ -186,25 +187,34 @@ export default function CreateTournamentPage() {
     }
     setIsLoading(true);
     try {
-      const { schedulingPreset, duration, ...rest } = values;
-      const tournamentData = {
-        ...rest,
-        organizerId: user.uid,
-        registrationStartDate: rest.registrationDates.from,
-        registrationEndDate: rest.registrationDates.to,
-        tournamentStartDate: rest.tournamentDates.from,
-        tournamentEndDate: rest.tournamentDates.to,
-      };
+        const formData = new FormData();
+        const { flyer, ...restOfValues } = values;
 
-      const result = await createTournament(tournamentData as any);
+        Object.entries(restOfValues).forEach(([key, value]) => {
+            if (value instanceof Date) {
+                formData.append(key, value.toISOString());
+            } else if (typeof value === 'object' && value !== null) {
+                formData.append(key, JSON.stringify(value));
+            } else {
+                formData.append(key, String(value));
+            }
+        });
+        
+        formData.append('organizerId', user.uid);
+        
+        if (flyer) {
+            formData.append('flyer', flyer);
+        }
       
-      if (result.paymentUrl) {
+        const result = await createTournament(formData);
+      
+        if (result.paymentUrl) {
           toast({ title: "Tournament Created!", description: "Redirecting to payment..." });
           router.push(result.paymentUrl);
-      } else {
+        } else {
           toast({ title: "Success!", description: "Your tournament has been created." });
           router.push(`/tournaments/${result.tournamentId}`);
-      }
+        }
     } catch (error: any) {
       console.error(error);
       toast({ variant: "destructive", title: "Error creating tournament", description: error.message || "An unexpected error occurred. Please try again." });
@@ -234,30 +244,44 @@ export default function CreateTournamentPage() {
                 </CardHeader>
                 <CardContent className="space-y-6">
                     <FormField
-                    control={form.control}
-                    name="name"
-                    render={({ field }) => (
-                        <FormItem>
-                        <FormLabel>Tournament Name</FormLabel>
-                        <FormControl>
-                            <Input placeholder="e.g., Sunday Night League" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                        </FormItem>
-                    )}
+                        control={form.control}
+                        name="name"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Tournament Name</FormLabel>
+                            <FormControl>
+                                <Input placeholder="e.g., Sunday Night League" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                            </FormItem>
+                        )}
                     />
                     <FormField
-                    control={form.control}
-                    name="description"
-                    render={({ field }) => (
-                        <FormItem>
-                        <FormLabel>Description</FormLabel>
-                        <FormControl>
-                            <Textarea placeholder="A brief description of your tournament." {...field} />
-                        </FormControl>
-                        <FormMessage />
-                        </FormItem>
-                    )}
+                        control={form.control}
+                        name="description"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Description</FormLabel>
+                            <FormControl>
+                                <Textarea placeholder="A brief description of your tournament." {...field} />
+                            </FormControl>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="flyer"
+                        render={({ field: { onChange, value, ...rest } }) => (
+                            <FormItem>
+                                <FormLabel>Tournament Flyer (Optional)</FormLabel>
+                                <FormControl>
+                                    <Input type="file" accept="image/*" onChange={(e) => onChange(e.target.files?.[0])} {...rest} />
+                                </FormControl>
+                                <FormDescription>An image or banner for your tournament. Recommended aspect ratio: 16:9.</FormDescription>
+                                <FormMessage />
+                            </FormItem>
+                        )}
                     />
                      <div className="grid md:grid-cols-2 gap-6">
                         <FormField

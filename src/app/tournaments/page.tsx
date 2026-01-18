@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -10,13 +11,14 @@ import { useCountdown } from "@/hooks/use-countdown";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowRight, KeyRound, Users, Calendar, CheckCircle, Shield, Search, Filter, Sparkles, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowRight, KeyRound, Users, Calendar, CheckCircle, Shield, Search, Filter, Sparkles, ChevronDown, ChevronUp, Trophy } from "lucide-react";
 import { format, isBefore, isAfter, endOfDay } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import Image from "next/image";
 
 const toDate = (timestamp: UnifiedTimestamp): Date => {
   if (typeof timestamp === "string") return new Date(timestamp);
@@ -115,43 +117,47 @@ function TournamentCard({
 
   return (
     <Card className="overflow-hidden border bg-card/50 hover:bg-card transition-colors rounded-2xl flex flex-col h-full">
-      <div className={cn("px-3 sm:px-4 py-2 border-b flex items-center justify-between", hasJoined ? "bg-primary/5" : "bg-muted/20")}>
-        <div className="flex items-center gap-2">
-          <StatusPill status={tournament.status} />
-          {hasJoined && (
-            <Badge variant="outline" className="border-green-500 text-green-500 text-[10px] font-black uppercase tracking-wider">
-              <CheckCircle className="w-3 h-3 mr-1" />
-              Joined
-            </Badge>
-          )}
+      <Link href={`/tournaments/${tournament.id}`} className="block h-full flex flex-col">
+        <div className="relative h-28 bg-muted overflow-hidden">
+            {tournament.flyerUrl ? (
+                <Image src={tournament.flyerUrl} alt={tournament.name} fill style={{ objectFit: 'cover' }} className="transition-transform group-hover:scale-105" />
+            ) : (
+                <div className="flex items-center justify-center h-full bg-gradient-to-br from-primary/10 to-primary/20">
+                    <Trophy className="w-10 h-10 text-primary/30" />
+                </div>
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
+            <div className="absolute top-2 right-2 flex flex-wrap gap-1 justify-end">
+                <StatusPill status={tournament.status} />
+                {regOpen && tournament.registrationEndDate ? <RegistrationCountdownBadge endDate={tournament.registrationEndDate} /> : null}
+            </div>
         </div>
-        {regOpen && tournament.registrationEndDate ? <RegistrationCountdownBadge endDate={tournament.registrationEndDate} /> : null}
-      </div>
 
-      <CardContent className="p-3 sm:p-4 space-y-3 flex-grow flex flex-col">
-        <div className="space-y-1 flex-grow">
-          <h3 className="font-headline text-base font-black leading-tight line-clamp-2">
-            {tournament.name}
-          </h3>
-          <p className="text-xs text-muted-foreground line-clamp-1">
-            🎮 {tournament.game} • 🖥 {tournament.platform}
-          </p>
-          <p className="text-xs text-muted-foreground pt-2 line-clamp-2">{tournament.description}</p>
-        </div>
-        
-        <div className="pt-2">
-            <TeamsMiniBar current={tournament.teamCount} max={tournament.maxTeams} />
-        </div>
-      </CardContent>
+        <CardHeader className="pt-3 pb-2 px-3">
+            <h3 className="font-headline text-base font-black leading-tight line-clamp-2">
+                {tournament.name}
+            </h3>
+            <p className="text-xs text-muted-foreground line-clamp-1">
+                🎮 {tournament.game} • 🖥 {tournament.platform}
+            </p>
+        </CardHeader>
 
-      <CardFooter className="p-3 sm:p-4 border-t">
-        <Link href={`/tournaments/${tournament.id}`} className="w-full">
-          <Button variant={hasJoined ? "default" : "secondary"} className="w-full rounded-xl">
-            {cta}
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
-        </Link>
-      </CardFooter>
+        <CardContent className="px-3 pt-0 pb-3 flex-grow">
+             <p className="text-xs text-muted-foreground line-clamp-2">{tournament.description}</p>
+        </CardContent>
+
+        <CardFooter className="p-3 border-t">
+            <div className="w-full space-y-2">
+              <TeamsMiniBar current={tournament.teamCount} max={tournament.maxTeams} />
+              {hasJoined && (
+                  <Badge variant="outline" className="border-green-500 text-green-500 text-[10px] font-black uppercase tracking-wider w-full justify-center">
+                      <CheckCircle className="w-3 h-3 mr-1" />
+                      Joined
+                  </Badge>
+              )}
+            </div>
+        </CardFooter>
+      </Link>
     </Card>
   );
 }
@@ -324,8 +330,8 @@ export default function BrowseTournamentsPage() {
 
         {/* Results */}
         {loading ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {[...Array(6)].map((_, i) => (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {[...Array(8)].map((_, i) => (
               <Card key={i} className="rounded-2xl">
                 <CardHeader>
                   <Skeleton className="h-5 w-3/4" />
@@ -342,7 +348,7 @@ export default function BrowseTournamentsPage() {
             ))}
           </div>
         ) : filtered.length > 0 ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filtered.map((tournament) => {
               const hasJoined = user ? joinedTournamentIds.includes(tournament.id) : false;
               return <TournamentCard key={tournament.id} tournament={tournament} hasJoined={hasJoined} />;
