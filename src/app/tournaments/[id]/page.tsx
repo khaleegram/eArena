@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -499,7 +498,6 @@ function OrganizerTools({ tournament, user, allMatches, onSuccess }: { tournamen
                                 Seed 128 Dummy Teams (Swiss)
                             </Button>
                         )}
-
                         <Button
                             variant="secondary"
                             size="sm"
@@ -557,7 +555,7 @@ function OrganizerTools({ tournament, user, allMatches, onSuccess }: { tournamen
                                 Auto-Run Cup To Completion
                             </Button>
                         )}
-
+                        
                         <p className="text-xs text-muted-foreground">
                             Tip: after auto-approve, click “Progress to Next Stage” to generate the next round/bracket.
                         </p>
