@@ -278,7 +278,7 @@ export default function CreateTournamentPage() {
                                 <FormControl>
                                     <Input type="file" accept="image/*" onChange={(e) => onChange(e.target.files?.[0])} {...rest} />
                                 </FormControl>
-                                <FormDescription>An image or banner for your tournament. Recommended aspect ratio: 16:9.</FormDescription>
+                                <FormDescription>A portrait image works best. Recommended aspect ratio: 3:4.</FormDescription>
                                 <FormMessage />
                             </FormItem>
                         )}

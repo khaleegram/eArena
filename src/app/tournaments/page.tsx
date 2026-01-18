@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -113,12 +112,10 @@ function TournamentCard({
     isAfter(now, toDate(tournament.registrationStartDate)) &&
     isBefore(now, endOfDay(toDate(tournament.registrationEndDate)));
 
-  const cta = hasJoined ? "Manage" : tournament.status === "open_for_registration" ? "Join" : "View";
-
   return (
-    <Card className="overflow-hidden border bg-card/50 hover:bg-card transition-colors rounded-2xl flex flex-col h-full">
+    <Card className="overflow-hidden border bg-card/50 hover:bg-card transition-colors rounded-2xl flex flex-col h-full group">
       <Link href={`/tournaments/${tournament.id}`} className="block h-full flex flex-col">
-        <div className="relative h-28 bg-muted overflow-hidden">
+        <div className="relative h-56 bg-muted overflow-hidden">
             {tournament.flyerUrl ? (
                 <Image src={tournament.flyerUrl} alt={tournament.name} fill style={{ objectFit: 'cover' }} className="transition-transform group-hover:scale-105" />
             ) : (
