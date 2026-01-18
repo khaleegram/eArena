@@ -79,6 +79,21 @@ test.describe('Swiss Tournament Flow', () => {
     //    - Verify that A does not play B again, C not D, etc.
   });
 
+  test('should create a 128-team Swiss tournament and generate first round fixtures', async ({ page }) => {
+    // This test is a placeholder for a larger-scale test.
+    // It would require a full sign-up/login flow and a way to quickly add 128 teams.
+    test.skip(true, 'Skipping large-scale test that requires auth and complex setup.');
+
+    // 1. Navigate to create tournament page
+    // 2. Fill in basic details for a 128-team tournament
+    // 3. Select Swiss format
+    // 4. Select 128 teams
+    // 5. Publish tournament
+    // 6. Have 128 dummy users join the tournament (or use a dev tool to seed them)
+    // 7. As organizer, start the tournament
+    // 8. Verify that "Swiss Round 1" fixtures are generated (64 matches)
+  });
+
   test('should handle bye for odd number of teams (if feature is added)', async ({ page }) => {
     // This is a placeholder for a future enhancement, as the current implementation
     // requires an even number of teams.
