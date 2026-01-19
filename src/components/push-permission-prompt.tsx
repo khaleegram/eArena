@@ -54,10 +54,7 @@ export function PushPermissionPrompt() {
         setIsLoading(true);
 
         try {
-            const swReg = await navigator.serviceWorker.getRegistration();
-            if (!swReg) {
-                throw new Error("Service worker not found. Please refresh the page.");
-            }
+            const swReg = await navigator.serviceWorker.register('/sw.js');
             
             const subscription = await swReg.pushManager.subscribe({
                 userVisibleOnly: true,

@@ -40,14 +40,9 @@ export function PushNotificationManager() {
                 setIsSupported(true);
                 const checkSubscription = async () => {
                     try {
-                        const swReg = await navigator.serviceWorker.getRegistration();
-                        if (swReg) {
-                            const sub = await swReg.pushManager.getSubscription();
-                            setIsSubscribed(!!sub);
-                        } else {
-                            setIsSubscribed(false);
-                            console.warn("Push Manager: Service worker not registered on page load.");
-                        }
+                        const swReg = await navigator.serviceWorker.register('/sw.js');
+                        const sub = await swReg.pushManager.getSubscription();
+                        setIsSubscribed(!!sub);
                     } catch (error: any) {
                         console.error("Error checking push subscription:", error);
                         setIsSubscribed(false);
@@ -81,11 +76,7 @@ export function PushNotificationManager() {
         }
 
         try {
-            const swReg = await navigator.serviceWorker.getRegistration();
-            if (!swReg) {
-                throw new Error("Service worker not found. Please refresh the page.");
-            }
-
+            const swReg = await navigator.serviceWorker.register('/sw.js');
             const existingSubscription = await swReg.pushManager.getSubscription();
 
             if (existingSubscription) {
@@ -111,13 +102,9 @@ export function PushNotificationManager() {
             }
             // Re-check state in case of failure
             try {
-                const swReg = await navigator.serviceWorker.getRegistration();
-                if (swReg) {
-                  const sub = await swReg.pushManager.getSubscription();
-                  setIsSubscribed(!!sub);
-                } else {
-                  setIsSubscribed(false);
-                }
+                const swReg = await navigator.serviceWorker.register('/sw.js');
+                const sub = await swReg.pushManager.getSubscription();
+                setIsSubscribed(!!sub);
             } catch (recheckError) {
                 console.error("Failed to re-check subscription status:", recheckError);
                 setIsSubscribed(false);
