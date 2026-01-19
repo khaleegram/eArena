@@ -62,12 +62,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { submitMatchResult, transferHost, setMatchRoomCode, postMatchMessage } from "@/lib/actions";
+import { getOverallRoundRank } from "@/lib/cup-progression";
 
 
 /* ----------------------------- Dialogs & Buttons ----------------------------- */
@@ -559,8 +560,7 @@ export function MyMatchesTab({
       if (!active) return;
       const allMatches = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Match));
       const myMatches = allMatches.filter((m) => m.homeTeamId === userTeam.id || m.awayTeamId === userTeam.id);
-      const sorted = myMatches.sort((a, b) => (a.round || "").localeCompare(b.round || ""));
-      setMatches(sorted);
+      setMatches(myMatches);
       matchesLoaded = true;
       checkDone();
     });
@@ -590,28 +590,40 @@ export function MyMatchesTab({
 
     const userMatches = matches.filter((m) => m.homeTeamId === userTeam.id || m.awayTeamId === userTeam.id);
     
-    // Sort by match day
-    userMatches.sort((a,b) => toDate(a.matchDay).getTime() - toDate(b.matchDay).getTime());
+    // Sort by round, then by date. This is the crucial fix.
+    userMatches.sort((a, b) => {
+        const roundRankA = getOverallRoundRank(a.round || '');
+        const roundRankB = getOverallRoundRank(b.round || '');
+        if (roundRankA !== roundRankB) {
+            return roundRankA - roundRankB;
+        }
+        return toDate(a.matchDay).getTime() - toDate(b.matchDay).getTime();
+    });
 
     if (showAllMatches) {
       return userMatches;
     }
 
     const now = new Date();
-    // Show next upcoming match + up to 2 most recent completed/active matches
-    const upcoming = userMatches.filter(m => (toDate(m.matchDay).getTime() >= now.getTime()));
-    const past = userMatches.filter(m => (toDate(m.matchDay).getTime() < now.getTime()));
+    
+    // Find the index of the next match that isn't approved yet.
+    const nextMatchIndex = userMatches.findIndex(m => m.status !== 'approved');
 
-    const nextMatch = upcoming[0];
-    const recentPast = past.sort((a, b) => toDate(b.matchDay).getTime() - toDate(a.matchDay).getTime()).slice(0, 2);
+    if (nextMatchIndex === -1) {
+      // All matches are completed, show the last 3.
+      return userMatches.slice(-3);
+    }
+    
+    // Get the next upcoming match
+    const nextMatch = userMatches[nextMatchIndex];
+    
+    // Get up to 2 most recent completed matches before the next one
+    const pastMatches = userMatches.slice(0, nextMatchIndex).slice(-2);
 
     let finalDisplay = [];
     if(nextMatch) finalDisplay.push(nextMatch);
-    finalDisplay.push(...recentPast);
+    finalDisplay.unshift(...pastMatches);
     
-    // Remove duplicates if next match is also in recent past (if it's today)
-    finalDisplay = [...new Set(finalDisplay)];
-
     return finalDisplay;
   }, [matches, userTeam, showAllMatches]);
 

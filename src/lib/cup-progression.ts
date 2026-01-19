@@ -26,10 +26,11 @@ export function isKnockoutRound(round?: string): boolean {
  * Used to determine the current/latest round in a cup bracket.
  */
 export function getOverallRoundRank(round: string): number {
+  if (!round) return -1;
   const normalized = round.trim().toLowerCase();
   
   const swissMatch = normalized.match(/^swiss round (\d+)$/);
-  if (swissMatch) {
+  if (swissMatch && swissMatch[1]) {
     return Number(swissMatch[1]); // Swiss Round 1 -> 1, ... Swiss Round 8 -> 8
   }
 
@@ -38,13 +39,18 @@ export function getOverallRoundRank(round: string): number {
   if (normalized === 'quarter-finals') return 800;
 
   const roundOfMatch = normalized.match(/round of (\d+)/);
-  if (roundOfMatch) {
+  if (roundOfMatch && roundOfMatch[1]) {
     return 100 + (64 / Number(roundOfMatch[1])); // e.g. Ro16 -> 104, Ro32 -> 102
   }
 
   const groupMatch = normalized.match(/^group\s+[a-z]$/i);
   if (groupMatch) {
       return 0; // Group stages are the very first
+  }
+
+  const leagueRoundMatch = normalized.match(/^round (\d+)$/);
+  if (leagueRoundMatch && leagueRoundMatch[1]) {
+    return Number(leagueRoundMatch[1]);
   }
 
   return -1; // Unknown rounds

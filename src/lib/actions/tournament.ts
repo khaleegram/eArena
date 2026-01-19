@@ -324,6 +324,7 @@ export async function startTournamentAndGenerateFixtures(tournamentId: string, o
             batch.set(matchRef, {
                 ...fixture,
                 tournamentId: tournamentId,
+                status: 'scheduled',
             });
         }
         await batch.commit();
@@ -455,6 +456,7 @@ export async function progressTournamentStage(tournamentId: string, organizerId:
             batch.set(matchRef, {
                 ...fixture,
                 tournamentId: tournamentId,
+                status: 'scheduled',
             });
         }
         await batch.commit();
@@ -586,6 +588,7 @@ export async function regenerateTournamentFixtures(tournamentId: string, organiz
         addBatch.set(matchRef, {
             ...fixture,
             tournamentId: tournamentId,
+            status: 'scheduled',
         });
     }
     await addBatch.commit();
