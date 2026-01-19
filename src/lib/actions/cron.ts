@@ -9,35 +9,6 @@ import type { Tournament } from '@/lib/types';
 import { addDays, startOfDay } from 'date-fns';
 import { updateStandings } from './standings';
 
-export async function runUpdateStandingsJob() {
-  const snapshot = await adminDb.collection('tournaments')
-      .where('needsStandingsUpdate', '==', true)
-      .get();
-      
-  if (snapshot.empty) {
-    return { message: 'No tournaments need standings updates.' };
-  }
-
-  const updates = snapshot.docs.map(async (doc) => {
-    const tournamentId = doc.id;
-    try {
-      await updateStandings(tournamentId);
-      await doc.ref.update({ needsStandingsUpdate: false });
-      return { id: tournamentId, status: 'success' };
-    } catch (error: any) {
-      console.error(`Failed to update standings for ${tournamentId}:`, error);
-      return { id: tournamentId, status: 'error', reason: error.message };
-    }
-  });
-
-  const results = await Promise.all(updates);
-
-  return { 
-      message: `Standings update job finished.`,
-      results,
-  };
-}
-
 export async function runStartTournamentsJob() {
     const now = new Date();
     

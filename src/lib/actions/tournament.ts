@@ -339,7 +339,7 @@ export async function startTournamentAndGenerateFixtures(tournamentId: string, o
         for (const team of teams) {
             await sendNotification(team.captainId, {
                 userId: team.captainId,
-                title: 'Tournament Started!',
+                title: "Tournament Started!",
                 body: `The fixtures for "${tournament.name}" are live. Check your schedule!`,
                 href: `/tournaments/${tournamentId}?tab=my-matches`
             });
@@ -711,7 +711,7 @@ export async function forfeitMatch(tournamentId: string, matchId: string, userId
         resolutionNotes: `Match forfeited by ${userTeam.name}.`
     });
 
-    await tournamentRef.update({ needsStandingsUpdate: true });
+    await updateStandings(tournamentId);
 
     revalidatePath(`/tournaments/${tournamentId}/matches/${matchId}`);
     revalidatePath(`/tournaments/${tournamentId}`);
@@ -800,8 +800,7 @@ export async function submitMatchResult(tournamentId: string, matchId: string, t
                 [isHomeReporting ? 'homeTeamReport' : 'awayTeamReport']: newReport,
                 resolutionNotes: 'Scores confirmed by both teams.',
             });
-            // Trigger standings update
-            await adminDb.collection('tournaments').doc(tournamentId).update({ needsStandingsUpdate: true });
+            await updateStandings(tournamentId);
         } else {
             // Scores conflict, trigger AI verification
             await matchRef.update({
@@ -851,7 +850,7 @@ export async function submitMatchResult(tournamentId: string, matchId: string, t
                 await matchRef.update(updateData);
 
                 if (updateData.status === 'approved' || updateData.status === 'verified') {
-                    await adminDb.collection('tournaments').doc(tournamentId).update({ needsStandingsUpdate: true });
+                    await updateStandings(tournamentId);
                 }
             }).catch(error => {
                 console.error("AI score verification failed:", error);
@@ -971,7 +970,7 @@ async function autoApproveMatches(matches: Match[], tournamentRef: FirebaseFires
     }
     if (approvedCount > 0) {
         await batch.commit();
-        await tournamentRef.update({ needsStandingsUpdate: true });
+        await updateStandings(tournamentRef.id);
     }
     return approvedCount;
 }
