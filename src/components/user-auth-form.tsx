@@ -13,7 +13,7 @@ import {
   signInWithPopup,
   type UserCredential
 } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -47,16 +47,22 @@ export function UserAuthForm({ className, mode, ...props }: UserAuthFormProps) {
 
   const handleGoogleSignInSuccess = async (userCredential: UserCredential) => {
     try {
-      const username = userCredential.user.displayName || userCredential.user.email?.split('@')[0];
-      await setDoc(doc(db, "users", userCredential.user.uid), {
-          uid: userCredential.user.uid,
-          email: userCredential.user.email,
-          username: username,
-          username_lowercase: username?.toLowerCase(), // Add lowercase username
-          photoURL: userCredential.user.photoURL,
-      }, { merge: true });
-      await handleNewUserSetup(userCredential.user.uid);
-      router.push('/dashboard');
+        const userDocRef = doc(db, 'users', userCredential.user.uid);
+        const userDoc = await getDoc(userDocRef);
+        
+        if (!userDoc.exists()) {
+            const username = userCredential.user.displayName || userCredential.user.email?.split('@')[0];
+            await setDoc(userDocRef, {
+                uid: userCredential.user.uid,
+                email: userCredential.user.email,
+                username: username,
+                username_lowercase: username?.toLowerCase(),
+                photoURL: userCredential.user.photoURL,
+                createdAt: serverTimestamp(),
+            });
+            await handleNewUserSetup(userCredential.user.uid);
+        }
+        router.push('/dashboard');
     } catch (error: any) {
         toast({
             variant: 'destructive',
@@ -120,6 +126,7 @@ export function UserAuthForm({ className, mode, ...props }: UserAuthFormProps) {
           username: username,
           username_lowercase: username.toLowerCase(),
           photoURL: user.photoURL,
+          createdAt: serverTimestamp(),
         });
 
         // Server action to handle admin auto-follow logic
