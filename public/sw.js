@@ -41,8 +41,7 @@ self.addEventListener("notificationclick", (event) => {
         const url = new URL(client.url);
         if (url.origin === self.location.origin) {
           await client.focus();
-          // If you want to navigate the focused tab:
-          // client.navigate(href);
+          await client.navigate(href);
           return;
         }
       } catch {}

@@ -27,32 +27,39 @@ export function PushNotificationManager() {
     const { toast } = useToast();
     const [isSubscribed, setIsSubscribed] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [isSupported, setIsSupported] = useState(false);
     const [isChecking, setIsChecking] = useState(true);
 
     useEffect(() => {
-        if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+        if (typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window) {
+            setIsSupported(true);
+            const checkSubscription = async () => {
+                try {
+                    const swReg = await navigator.serviceWorker.ready;
+                    const sub = await swReg.pushManager.getSubscription();
+                    setIsSubscribed(!!sub);
+                } catch (error) {
+                    console.error("Error checking push subscription:", error);
+                    setIsSubscribed(false);
+                } finally {
+                    setIsChecking(false);
+                }
+            };
+            checkSubscription();
+        } else {
+            setIsSupported(false);
             setIsChecking(false);
-            return;
         }
-
-        const checkSubscription = async () => {
-            try {
-                const swReg = await navigator.serviceWorker.ready;
-                const sub = await swReg.pushManager.getSubscription();
-                setIsSubscribed(!!sub);
-            } catch (error) {
-                console.error("Error checking push subscription:", error);
-                setIsSubscribed(false);
-            } finally {
-                setIsChecking(false);
-            }
-        };
-
-        checkSubscription();
     }, []);
 
     const handleSubscription = async () => {
-        if (!user || isChecking) return;
+        if (!user || isLoading || !isSupported) return;
+        
+        if (!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) {
+             toast({ variant: 'destructive', title: 'Configuration Error', description: 'Push notifications are not configured on the server.' });
+             return;
+        }
+
         setIsLoading(true);
 
         const permission = await Notification.requestPermission();
@@ -74,7 +81,7 @@ export function PushNotificationManager() {
             } else {
                 const newSubscription = await swReg.pushManager.subscribe({
                     userVisibleOnly: true,
-                    applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!),
+                    applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY),
                 });
                 await savePushSubscription(user.uid, newSubscription.toJSON());
                 setIsSubscribed(true);
@@ -95,8 +102,12 @@ export function PushNotificationManager() {
         }
     };
 
+    if (!isSupported) {
+        return <p className="text-sm text-muted-foreground">Push notifications are not supported on this browser or device.</p>;
+    }
+
     if (!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) {
-        return <p className="text-sm text-destructive">Push notifications are not configured.</p>;
+        return <p className="text-sm text-destructive">Push notifications are not configured by the site administrator.</p>;
     }
     
     if (isChecking) {
