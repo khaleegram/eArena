@@ -36,17 +36,13 @@ export function PushNotificationManager() {
         if (typeof window !== 'undefined') {
             setIsIos(/iPad|iPhone|iPod/.test(navigator.userAgent));
 
-            if (process.env.NODE_ENV === 'development') {
-                setIsSupported(false);
-                setIsChecking(false);
-                return;
-            }
-
             if ('serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window) {
                 setIsSupported(true);
                 const checkSubscription = async () => {
                     try {
                         const readyPromise = navigator.serviceWorker.ready;
+                        // This timeout is a safeguard. If the service worker is broken,
+                        // we won't hang the UI forever.
                         const timeoutPromise = new Promise((_, reject) => 
                             setTimeout(() => reject(new Error("Service worker took too long to become ready.")), 15000)
                         );
@@ -55,11 +51,7 @@ export function PushNotificationManager() {
                         setIsSubscribed(!!sub);
                     } catch (error: any) {
                         console.error("Error checking push subscription:", error);
-                        toast({
-                            variant: 'destructive',
-                            title: 'Could not check status',
-                            description: error.message || 'Please try refreshing the page.'
-                        });
+                        // Don't toast here as it can be annoying if the SW is just slow on startup
                         setIsSubscribed(false);
                     } finally {
                         setIsChecking(false);
@@ -71,7 +63,7 @@ export function PushNotificationManager() {
                 setIsChecking(false);
             }
         }
-    }, [toast]);
+    }, []);
 
     const handleSubscription = async () => {
         if (!user || isLoading || !isSupported) return;
@@ -123,17 +115,10 @@ export function PushNotificationManager() {
         }
     };
     
-    if (process.env.NODE_ENV === 'development') {
-        return (
-            <Alert variant="default" className="border-primary/20">
-              <Info className="h-4 w-4" />
-              <AlertDescription>
-                Push notifications are disabled in the development environment for stability. They will be active in the production build.
-              </AlertDescription>
-            </Alert>
-        );
+    if (isChecking) {
+        return <Button disabled><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Checking Status...</Button>;
     }
-
+    
     if (!isSupported) {
         if (isIos) {
             return (
@@ -150,10 +135,6 @@ export function PushNotificationManager() {
 
     if (!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) {
         return <p className="text-sm text-destructive">Push notifications are not configured by the site administrator.</p>;
-    }
-    
-    if (isChecking) {
-        return <Button disabled><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Checking Status...</Button>;
     }
 
     return (
