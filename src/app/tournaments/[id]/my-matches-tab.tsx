@@ -606,11 +606,11 @@ export function MyMatchesTab({
       return [...upcomingMatches, ...playedMatches];
     }
     
-    // By default, show the next 2 upcoming and last 2 played matches.
-    const nextFixtures = upcomingMatches.slice(0, 2);
+    // By default, show the next upcoming match and last 2 played matches.
+    const nextFixture = upcomingMatches.slice(0, 1);
     const recentResults = playedMatches.slice(0, 2);
 
-    return [...nextFixtures, ...recentResults];
+    return [...nextFixture, ...recentResults];
 
   }, [matches, userTeam, showAllMatches]);
 
