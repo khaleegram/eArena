@@ -42,7 +42,7 @@ import { postMatchMessage } from '@/lib/actions/community';
 import { MatchStatusBadge } from '@/components/match-status-badge';
 import { toDate, cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ReputationAvatar } from '@/components/reputation-avatar';
@@ -293,7 +293,11 @@ export default function MatchDetailsPage() {
         unsubMatch = onSnapshot(doc(db, `tournaments/${tournamentId}/matches`, matchId), async (snapshot) => {
             if (!active) return;
             if (snapshot.exists()) {
-                const matchData = { id: snapshot.id, ...snapshot.data() } as Match;
+                const matchData = { 
+                    id: snapshot.id, 
+                    ...snapshot.data(),
+                    tournamentId: tournamentId // Ensure tournamentId is always present
+                } as Match;
                 setMatch(matchData);
 
                 const [homeTeamDoc, awayTeamDoc] = await Promise.all([
@@ -459,5 +463,3 @@ export default function MatchDetailsPage() {
     </div>
   );
 }
-
-    
