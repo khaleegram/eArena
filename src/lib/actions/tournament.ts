@@ -7,7 +7,6 @@ import type { Tournament, Player, Match, Team, PrizeAllocation, Standing, MatchR
 import { revalidatePath } from 'next/cache';
 import { serializeData, toDate } from '@/lib/utils';
 import { getTournamentAwards } from './payouts';
-import { getStandingsForTournament, updateStandings } from './standings';
 import { customAlphabet } from 'nanoid';
 import { getStorage } from 'firebase-admin/storage';
 import { getUserProfileById } from './user';
@@ -20,6 +19,7 @@ import { generateSwissRoundFixtures, getMaxSwissRounds, isSwissRound, getSwissRo
 import { getLatestRound, assertRoundCompleted, getWinnersForRound, getChampionIfFinalComplete, isKnockoutRound } from '../cup-progression';
 import { generateCupRound, getRoundName } from '../cup-tournament';
 import { verifyMatchScores } from '@/ai/flows/verify-match-scores';
+import { sendEmail } from '../email';
 
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
 
@@ -1040,12 +1040,26 @@ async function checkAndCompleteTournament(tournamentId: string) {
         // Notify organizer
         const organizerProfile = await getUserProfileById(tournament.organizerId);
         if (organizerProfile) {
+            // Push Notification
             await sendNotification(organizerProfile.uid, {
                 userId: organizerProfile.uid,
                 title: "Tournament Concluded!",
                 body: `"${tournament.name}" has finished. Final standings and awards are now available.`,
                 href: `/tournaments/${tournamentId}?tab=rewards`
             });
+            // Email Notification
+            if (organizerProfile.email) {
+                try {
+                    await sendEmail({
+                        to: organizerProfile.email,
+                        subject: `Tournament Finished: ${tournament.name}`,
+                        body: `Hello ${organizerProfile.username},\n\nYour tournament "${tournament.name}" has officially concluded. You can view the final standings and awards on the tournament page: ${process.env.NEXT_PUBLIC_BASE_URL}/tournaments/${tournamentId}?tab=rewards\n\nThanks for hosting with eArena!`
+                    });
+                } catch (emailError) {
+                    console.error(`Failed to send completion email to ${organizerProfile.email}:`, emailError);
+                    // Don't throw error to user, just log it.
+                }
+            }
         }
     }
 }
@@ -1178,4 +1192,89 @@ export async function devAutoRunCupToCompletion(tournamentId: string, organizerI
     
     const finalDoc = await adminDb.collection('tournaments').doc(tournamentId).get();
     return { status: finalDoc.data()?.status, steps };
+}
+export async function updateStandings(tournamentId: string) {
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    const teamsSnapshot = await tournamentRef.collection('teams').get();
+    const approvedMatchesSnapshot = await tournamentRef.collection('matches').where('status', '==', 'approved').get();
+
+    const teamsMap = new Map<string, { name: string; stats: any }>();
+    teamsSnapshot.forEach(doc => {
+        teamsMap.set(doc.id, {
+            name: doc.data().name,
+            stats: {
+                matchesPlayed: 0, wins: 0, draws: 0, losses: 0,
+                goalsFor: 0, goalsAgainst: 0, points: 0, cleanSheets: 0,
+            }
+        });
+    });
+
+    approvedMatchesSnapshot.forEach(doc => {
+        const match = doc.data() as Match;
+        const homeTeamStats = teamsMap.get(match.homeTeamId)?.stats;
+        const awayTeamStats = teamsMap.get(match.awayTeamId)?.stats;
+
+        if (homeTeamStats && awayTeamStats && typeof match.homeScore === 'number' && typeof match.awayScore === 'number') {
+            homeTeamStats.matchesPlayed++;
+            awayTeamStats.matchesPlayed++;
+            homeTeamStats.goalsFor += match.homeScore;
+            awayTeamStats.goalsFor += match.awayScore;
+            homeTeamStats.goalsAgainst += match.awayScore;
+            awayTeamStats.goalsAgainst += match.homeScore;
+            
+            if (match.awayScore === 0) homeTeamStats.cleanSheets++;
+            if (match.homeScore === 0) awayTeamStats.cleanSheets++;
+
+            if (match.homeScore > match.awayScore) {
+                homeTeamStats.wins++; homeTeamStats.points += 3; awayTeamStats.losses++;
+            } else if (match.awayScore > match.homeScore) {
+                awayTeamStats.wins++; awayTeamStats.points += 3; homeTeamStats.losses++;
+            } else {
+                homeTeamStats.draws++; awayTeamStats.draws++; homeTeamStats.points++; awayTeamStats.points++;
+            }
+        }
+    });
+
+    const standingsData: Omit<Standing, 'ranking' | 'teamName'>[] = Array.from(teamsMap.entries()).map(([teamId, data]) => ({
+        teamId,
+        tournamentId,
+        ...data.stats
+    }));
+
+    standingsData.sort((a, b) => {
+        if (b.points !== a.points) return b.points - a.points;
+        const gdA = a.goalsFor - a.goalsAgainst;
+        const gdB = b.goalsFor - b.goalsAgainst;
+        if (gdB !== gdA) return gdB - gdA;
+        if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
+        if (b.wins !== a.wins) return b.wins - a.wins;
+        return a.teamId.localeCompare(b.teamId);
+    });
+
+    const batch = adminDb.batch();
+    standingsData.forEach((s, index) => {
+        const teamName = teamsMap.get(s.teamId)?.name || 'Unknown';
+        const finalStanding: Standing = {
+            ...s,
+            teamName,
+            ranking: index + 1,
+        };
+        const docRef = adminDb.collection('standings').doc(`${tournamentId}_${s.teamId}`);
+        batch.set(docRef, finalStanding);
+    });
+
+    await batch.commit();
+    revalidatePath(`/tournaments/${tournamentId}`);
+    revalidatePath(`/tournaments/${tournamentId}/standings`);
+}
+
+export async function recalculateStandings(tournamentId: string, organizerId: string) {
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    const tournamentDoc = await tournamentRef.get();
+    if (!tournamentDoc.exists || tournamentDoc.data()?.organizerId !== organizerId) {
+        throw new Error("You are not authorized to perform this action.");
+    }
+
+    await updateStandings(tournamentId);
+    await checkAndCompleteTournament(tournamentId);
 }
