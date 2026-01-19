@@ -1,52 +1,23 @@
 {
-    "name": "eArena: eFootball Tournaments",
-    "short_name": "eArena",
-    "description": "The ultimate platform for creating, managing, and competing in eFootball tournaments.",
-    "start_url": "/",
-    "display": "standalone",
-    "background_color": "#0f172a",
-    "theme_color": "#172554",
-    "icons": [
-        {
-            "src": "/images/icons/icon.png",
-            "sizes": "72x72",
-            "type": "image/png"
-        },
-        {
-            "src": "/images/icons/icon.png",
-            "sizes": "96x96",
-            "type": "image/png"
-        },
-        {
-            "src": "/images/icons/icon.png",
-            "sizes": "128x128",
-            "type": "image/png"
-        },
-        {
-            "src": "/images/icons/icon.png",
-            "sizes": "144x144",
-            "type": "image/png"
-        },
-        {
-            "src": "/images/icons/icon.png",
-            "sizes": "152x152",
-            "type": "image/png"
-        },
-        {
-            "src": "/images/icons/icon.png",
-            "sizes": "192x192",
-            "type": "image/png",
-            "purpose": "any maskable"
-        },
-        {
-            "src": "/images/icons/icon.png",
-            "sizes": "384x384",
-            "type": "image/png"
-        },
-        {
-            "src": "/images/icons/icon.png",
-            "sizes": "512x512",
-            "type": "image/png"
-        }
-    ]
+  "name": "eArena",
+  "short_name": "eArena",
+  "description": "Your eFootball Tournament Platform",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#030822",
+  "theme_color": "#A67C52",
+  "icons": [
+    {
+      "src": "/images/logo-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/images/logo-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
 }
