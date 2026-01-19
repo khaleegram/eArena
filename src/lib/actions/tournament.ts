@@ -22,6 +22,7 @@ import { verifyMatchScores } from '@/ai/flows/verify-match-scores';
 import { getStandingsForTournament } from './standings';
 import { getTeamsForTournament } from './team';
 import { checkAndGrantAchievements } from './achievements';
+import { fullTournamentDelete } from './helpers';
 
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
 
@@ -484,7 +485,7 @@ export async function progressTournamentStage(tournamentId: string, organizerId:
     }
     
     const matchesSnapshot = await tournamentRef.collection('matches').get();
-    const allMatches = matchesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Match);
+    const allMatches = matchesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Match));
 
     const latestRound = getLatestRound(allMatches);
     
@@ -608,4 +609,14 @@ export async function organizerResolveOverdueMatches(tournamentId: string, organ
 export async function recalculateStandings(tournamentId: string, userId: string) {
     // Placeholder
     console.log(`Standings for tournament ${tournamentId} recalculated by user ${userId}`);
+}
+
+export async function deleteTournament(tournamentId: string, organizerId: string) {
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    const doc = await tournamentRef.get();
+    if (!doc.exists) throw new Error("Tournament not found");
+    if (doc.data()?.organizerId !== organizerId) throw new Error("Not authorized");
+    await fullTournamentDelete(tournamentId);
+    revalidatePath('/dashboard');
+    revalidatePath(`/tournaments/${tournamentId}`);
 }

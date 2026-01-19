@@ -72,11 +72,15 @@ export function PushPermissionPrompt() {
             if (error.name === 'NotAllowedError') {
                 toast({ variant: 'destructive', title: 'Permission Denied', description: 'You have blocked notifications. Please enable them in your browser settings.' });
             } else {
-                toast({ variant: 'destructive', title: 'Subscription Failed', description: 'Could not subscribe to notifications.' });
+                toast({ variant: 'destructive', title: 'Subscription Failed', description: 'Could not subscribe to notifications. Please try again later.' });
             }
             // If permission is now denied, don't ask again.
             if (Notification.permission === 'denied') {
                 handleDismiss();
+            }
+             // If timed out, just close the prompt
+            if (error.message.includes("Service worker took too long")) {
+                setIsVisible(false);
             }
         } finally {
             setIsLoading(false);

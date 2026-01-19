@@ -46,12 +46,10 @@ export async function adminGetAllTournaments(): Promise<Tournament[]> {
     return snapshot.docs.map(doc => serializeData({ id: doc.id, ...doc.data() }) as Tournament);
 }
 
-export async function deleteTournament(tournamentId: string, organizerId: string) {
+export async function adminDeleteTournament(tournamentId: string) {
     const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
     const doc = await tournamentRef.get();
     if (!doc.exists) throw new Error("Tournament not found");
-    // Optional: Add an ownership check
-    // if(doc.data()?.organizerId !== organizerId) throw new Error("Not authorized");
     await fullTournamentDelete(tournamentId);
     revalidatePath('/admin/tournaments');
     revalidatePath('/dashboard');
