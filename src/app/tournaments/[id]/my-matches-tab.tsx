@@ -487,11 +487,16 @@ function MatchCard({
             
             {/* Score / VS */}
             <div className="text-center">
-              {match.status === "approved" ? (
-                <div className="text-2xl sm:text-3xl font-black tabular-nums">{match.homeScore} <span className="opacity-30">-</span> {match.awayScore}</div>
-              ) : (
-                <div className="text-lg sm:text-xl font-black text-muted-foreground uppercase tracking-widest">VS</div>
-              )}
+                {(() => {
+                    if (match.status === 'approved' && match.homeScore !== null && match.awayScore !== null) {
+                    return <div className="text-2xl sm:text-3xl font-black tabular-nums">{match.homeScore} <span className="opacity-30">-</span> {match.awayScore}</div>;
+                    }
+                    const report = match.homeTeamReport || match.awayTeamReport;
+                    if ((match.status === 'awaiting_confirmation' || match.status === 'disputed') && report) {
+                    return <div className="text-2xl sm:text-3xl font-black tabular-nums">{report.homeScore} <span className="opacity-30">-</span> {report.awayScore}</div>;
+                    }
+                    return <div className="text-lg sm:text-xl font-black text-muted-foreground uppercase tracking-widest">VS</div>;
+                })()}
             </div>
 
             {/* Away Team */}

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useMemo, useState, useRef } from 'react';
@@ -379,9 +380,16 @@ export default function MatchDetailsPage() {
                     <div className="min-w-0"><p className="font-black truncate">{homeTeam.name}</p><p className="text-xs text-muted-foreground font-bold uppercase tracking-wider">Home</p></div>
                 </div>
                 <div className="rounded-xl border bg-muted/20 px-5 py-4 text-center">
-                    {match.status === 'approved' ? (
-                        <div className="text-4xl font-black tabular-nums">{match.homeScore} <span className="opacity-30">-</span> {match.awayScore}</div>
-                    ) : (<div className="text-2xl font-black text-muted-foreground uppercase tracking-widest">VS</div>)}
+                    {(() => {
+                        if (match.status === 'approved' && match.homeScore !== null && match.awayScore !== null) {
+                            return <div className="text-4xl font-black tabular-nums">{match.homeScore} <span className="opacity-30">-</span> {match.awayScore}</div>;
+                        }
+                        const report = match.homeTeamReport || match.awayTeamReport;
+                        if ((match.status === 'awaiting_confirmation' || match.status === 'disputed') && report) {
+                            return <div className="text-4xl font-black tabular-nums">{report.homeScore} <span className="opacity-30">-</span> {report.awayScore}</div>;
+                        }
+                        return <div className="text-2xl font-black text-muted-foreground uppercase tracking-widest">VS</div>;
+                    })()}
                     <div className="mt-2 flex items-center justify-center gap-2 text-xs text-muted-foreground font-semibold"><Calendar className="h-4 w-4" /><span>{format(toDate(match.matchDay), 'PPP p')}</span></div>
                     {match.round ? <div className="mt-1 text-[11px] text-muted-foreground">{match.round}</div> : null}
                 </div>
