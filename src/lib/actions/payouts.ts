@@ -245,3 +245,27 @@ export async function initiatePayouts(tournamentId: string) {
     revalidatePath(`/admin/tournaments`);
     return { message: "Payout process has been initiated." };
 }
+
+export async function getNigerianBanks(): Promise<{ name: string; code: string }[]> {
+    if (!PAYSTACK_SECRET_KEY) throw new Error('Paystack secret key not configured.');
+    const response = await fetch('https://api.paystack.co/bank', {
+        headers: { Authorization: `Bearer ${PAYSTACK_SECRET_KEY}` },
+    });
+    const data = await response.json();
+    if (!data.status) {
+        throw new Error(`Could not fetch bank list: ${data.message}`);
+    }
+    return data.data;
+}
+
+export async function verifyBankAccount(accountNumber: string, bankCode: string): Promise<{ account_number: string; account_name: string }> {
+    if (!PAYSTACK_SECRET_KEY) throw new Error('Paystack secret key not configured.');
+    const response = await fetch(`https://api.paystack.co/bank/resolve?account_number=${accountNumber}&bank_code=${bankCode}`, {
+        headers: { Authorization: `Bearer ${PAYSTACK_SECRET_KEY}` },
+    });
+    const data = await response.json();
+    if (!data.status) {
+        throw new Error(data.message);
+    }
+    return data.data;
+}

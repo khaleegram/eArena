@@ -8,7 +8,7 @@ import { collection, query, where, onSnapshot, getDocs } from 'firebase/firestor
 import { useAuth } from '@/hooks/use-auth';
 import type { Tournament, Team, UnifiedTimestamp } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
-import { deleteTournament, getJoinedTournamentIdsForUser, getTournamentsByIds } from '@/lib/actions';
+import { deleteTournament, getTournamentsByIds } from '@/lib/actions';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';

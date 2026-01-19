@@ -331,3 +331,30 @@ export async function resendVerificationEmail(email: string) {
     }
 }
 
+export async function getLeaderboardByWins(): Promise<(UserProfile & Partial<PlayerStats>)[]> {
+    const snapshot = await adminDb.collection('playerStats').orderBy('totalWins', 'desc').limit(20).get();
+    const statsList = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }) as PlayerStats & { uid: string });
+    const uids = statsList.map(s => s.uid);
+    const users = await getUsersByIds(uids);
+    const usersMap = new Map(users.map(u => [u.uid, u]));
+    return statsList.map(stat => ({ ...stat, ...usersMap.get(stat.uid) } as UserProfile & PlayerStats));
+}
+
+export async function getLeaderboardByTournamentsWon(): Promise<UserProfile[]> {
+    const snapshot = await adminDb.collection('users').orderBy('tournamentsWon', 'desc').limit(20).get();
+    return snapshot.docs.map(doc => serializeData({ ...doc.data() }) as UserProfile);
+}
+
+export async function getLeaderboardByGoals(): Promise<(UserProfile & Partial<PlayerStats>)[]> {
+    const snapshot = await adminDb.collection('playerStats').orderBy('totalGoals', 'desc').limit(20).get();
+    const statsList = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }) as PlayerStats & { uid: string });
+    const uids = statsList.map(s => s.uid);
+    const users = await getUsersByIds(uids);
+    const usersMap = new Map(users.map(u => [u.uid, u]));
+    return statsList.map(stat => ({ ...stat, ...usersMap.get(stat.uid) } as UserProfile & PlayerStats));
+}
+
+export async function getLeaderboardByReputation(): Promise<UserProfile[]> {
+    const snapshot = await adminDb.collection('users').orderBy('warnings', 'asc').limit(20).get();
+    return snapshot.docs.map(doc => serializeData({ ...doc.data() }) as UserProfile);
+}
