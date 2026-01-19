@@ -618,11 +618,34 @@ export async function setOrganizerStreamUrl(tournamentId: string, matchId: strin
 
 export async function requestPlayerReplay(tournamentId: string, matchId: string, userId: string, reason: string) {
     const matchRef = adminDb.collection('tournaments').doc(tournamentId).collection('matches').doc(matchId);
+    const matchDoc = await matchRef.get();
+    if (!matchDoc.exists) throw new Error('Match not found');
+
+    const matchData = matchDoc.data() as Match;
+
     const request: ReplayRequest = {
         requestedBy: userId,
         reason: reason,
         status: 'pending',
     };
+
+    const teamSnapshot = await adminDb.collection('tournaments').doc(tournamentId).collection('teams').where('playerIds', 'array-contains', userId).limit(1).get();
+    if (teamSnapshot.empty) throw new Error('You are not in this tournament.');
+    
+    const userTeamId = teamSnapshot.docs[0]!.id;
+    const opponentTeamId = matchData.homeTeamId === userTeamId ? matchData.awayTeamId : matchData.homeTeamId;
+    const opponentTeamDoc = await adminDb.collection('tournaments').doc(tournamentId).collection('teams').doc(opponentTeamId).get();
+    const opponentCaptainId = opponentTeamDoc.data()?.captainId;
+
+    if (opponentCaptainId) {
+        await sendNotification(opponentCaptainId, {
+            userId: opponentCaptainId,
+            title: "Replay Requested",
+            body: `Your opponent has requested a replay for your upcoming match. Reason: ${reason}`,
+            href: `/tournaments/${tournamentId}/matches/${matchId}`
+        });
+    }
+
     await matchRef.update({ replayRequest: request });
 
     revalidatePath(`/tournaments/${tournamentId}/matches/${matchId}`);
@@ -656,8 +679,8 @@ export async function forfeitMatch(tournamentId: string, matchId: string, userId
 
     const match = matchDoc.data() as Match;
     
-    if (match.status !== 'scheduled' || isPast(endOfDay(toDate(match.matchDay)))) {
-        throw new Error("This match is in the past and can no longer be forfeited.");
+    if (match.status !== 'scheduled') {
+        throw new Error("Only scheduled matches can be forfeited.");
     }
     
     const teamSnapshot = await tournamentRef.collection('teams').where('playerIds', 'array-contains', userId).limit(1).get();

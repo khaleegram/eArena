@@ -42,7 +42,7 @@ import { postMatchMessage } from '@/lib/actions/community';
 import { MatchStatusBadge } from '@/components/match-status-badge';
 import { toDate, cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ReputationAvatar } from '@/components/reputation-avatar';
@@ -174,11 +174,10 @@ function RequestReplayDialog({ match }: { match: Match }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [reason, setReason] = useState("");
 
-  const handleFormAction = async (formData: FormData) => {
-    if (!user) return;
-    const reason = formData.get("reason") as string;
-    if (!reason) {
+  const handleRequest = async () => {
+    if (!user || !reason.trim()) {
       toast({ variant: "destructive", title: "A reason is required." });
       return;
     }
@@ -208,18 +207,18 @@ function RequestReplayDialog({ match }: { match: Match }) {
           <DialogTitle>Request a Replay 🔁</DialogTitle>
           <DialogDescription>If there was a disconnect or issue, request a replay. Opponent must respond.</DialogDescription>
         </DialogHeader>
-        <form action={handleFormAction} className="space-y-4 py-4">
+        <div className="space-y-4 py-4">
           <div className="space-y-2">
             <Label htmlFor="reason">Reason</Label>
-            <Textarea id="reason" name="reason" placeholder="e.g., Internet disconnected in the 80th minute." required />
+            <Textarea id="reason" name="reason" placeholder="e.g., Internet disconnected in the 80th minute." required value={reason} onChange={e => setReason(e.target.value)} />
           </div>
           <DialogFooter>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button onClick={handleRequest} disabled={isSubmitting}>
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Send Request
             </Button>
           </DialogFooter>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   );
@@ -356,7 +355,7 @@ export default function MatchDetailsPage() {
   
   const canRequestReplay = isMyTeam && !replayRequest && match.status === 'scheduled';
   const canRespondToReplay = user?.uid === opponentCaptainId && replayRequest?.status === 'pending';
-  const canForfeit = (isHomeCaptain || isAwayCaptain) && !isPast(endOfDay(toDate(match.matchDay))) && match.status === "scheduled";
+  const canForfeit = (isHomeCaptain || isAwayCaptain) && match.status === 'scheduled';
 
   return (
     <div className="max-w-5xl mx-auto p-4 md:p-6 space-y-5">
@@ -393,9 +392,9 @@ export default function MatchDetailsPage() {
                     <div className="mt-2 flex items-center justify-center gap-2 text-xs text-muted-foreground font-semibold"><Calendar className="h-4 w-4" /><span>{format(toDate(match.matchDay), 'PPP p')}</span></div>
                     {match.round ? <div className="mt-1 text-[11px] text-muted-foreground">{match.round}</div> : null}
                 </div>
-                <div className="flex items-center gap-3 sm:flex-col sm:text-center sm:justify-self-end">
+                <div className="flex items-center gap-3 sm:flex-col sm:text-center sm:items-end">
                      <Avatar className="h-12 w-12 sm:h-16 sm:w-16"><AvatarImage src={awayTeam.logoUrl} alt={awayTeam.name} /><AvatarFallback>{awayTeam.name?.[0]?.toUpperCase()}</AvatarFallback></Avatar>
-                    <div className="min-w-0"><p className="font-black truncate">{awayTeam.name}</p><p className="text-xs text-muted-foreground font-bold uppercase tracking-wider">Away</p></div>
+                    <div className="min-w-0 text-right sm:text-center"><p className="font-black truncate">{awayTeam.name}</p><p className="text-xs text-muted-foreground font-bold uppercase tracking-wider">Away</p></div>
                 </div>
             </div>
             <Separator />

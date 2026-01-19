@@ -489,19 +489,19 @@ function MatchCard({
             <div className="text-center">
                 {(() => {
                     if (match.status === 'approved' && match.homeScore !== null && match.awayScore !== null) {
-                    return <div className="text-2xl sm:text-3xl font-black tabular-nums">{match.homeScore} <span className="opacity-30">-</span> {match.awayScore}</div>;
+                    return <div className="text-xl sm:text-3xl font-black tabular-nums">{match.homeScore} <span className="opacity-30">-</span> {match.awayScore}</div>;
                     }
                     const report = match.homeTeamReport || match.awayTeamReport;
                     if ((match.status === 'awaiting_confirmation' || match.status === 'disputed') && report) {
-                    return <div className="text-2xl sm:text-3xl font-black tabular-nums">{report.homeScore} <span className="opacity-30">-</span> {report.awayScore}</div>;
+                    return <div className="text-xl sm:text-3xl font-black tabular-nums">{report.homeScore} <span className="opacity-30">-</span> {report.awayScore}</div>;
                     }
-                    return <div className="text-lg sm:text-xl font-black text-muted-foreground uppercase tracking-widest">VS</div>;
+                    return <div className="text-base sm:text-xl font-black text-muted-foreground uppercase tracking-widest">VS</div>;
                 })()}
             </div>
 
             {/* Away Team */}
-            <div className="flex items-center gap-2 min-w-0 justify-end">
-                <div className="min-w-0 text-right"><p className="text-sm sm:text-base font-semibold truncate">{awayTeam.name}</p></div>
+            <div className="flex items-center gap-2 min-w-0 justify-end text-right">
+                <div className="min-w-0"><p className="text-sm sm:text-base font-semibold truncate">{awayTeam.name}</p></div>
                 <Avatar className="h-8 w-8 sm:h-10 sm:w-10"><AvatarImage src={awayTeam.logoUrl} alt={awayTeam.name} /><AvatarFallback>{awayTeam.name?.[0]?.toUpperCase()}</AvatarFallback></Avatar>
             </div>
           </div>
