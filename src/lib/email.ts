@@ -29,19 +29,15 @@ function getTransporter() {
     const smtpConfig: TransportOptions = {
         host: SMTP_HOST,
         port: port,
+        secure: port === 465, // Use TLS for 465, STARTTLS for others.
         auth: {
             user: SMTP_USERNAME,
             pass: SMTP_PASSWORD,
         },
-        // --- 2. Add timeouts ---
-        connectionTimeout: 10000, // 10 seconds
-        socketTimeout: 10000, // 10 seconds
+        connectionTimeout: 10000,
+        socketTimeout: 10000,
     };
     
-    if (port === 465) {
-        smtpConfig.secure = true;
-    }
-
     transporter = nodemailer.createTransport(smtpConfig);
     console.log(`[Email] Nodemailer transporter created for ${SMTP_HOST}`);
     return transporter;
@@ -53,7 +49,6 @@ interface SendEmailParams {
     body: string;
 }
 
-// --- 3. HTML Sanitization Helper ---
 function escapeHtml(text: string) {
   return text
     .replace(/&/g, "&amp;")
@@ -71,9 +66,7 @@ export async function sendEmail({ to, subject, body }: SendEmailParams) {
         throw new Error('The email service is not configured correctly on the server. Please contact support.');
     }
     
-    // --- 4. Use EMAIL_FROM env var ---
     const fromAddress = process.env.EMAIL_FROM || `"eArena" <${process.env.SMTP_USERNAME}>`;
-
     const sanitizedHtmlBody = `<p>${escapeHtml(body).replace(/\n/g, '<br>')}</p>`;
 
     const mailOptions = {
@@ -86,13 +79,12 @@ export async function sendEmail({ to, subject, body }: SendEmailParams) {
 
     try {
         await mailer.sendMail(mailOptions);
-        // --- 5. Reduced logging for production ---
         if (process.env.NODE_ENV !== 'production') {
             console.log(`[Email] Email sent successfully to ${to}`);
         }
     } catch (error) {
         console.error('[Email] Failed to send email. Error:', error);
-        // Invalidate the transporter so it can be recreated on next attempt, in case of connection issues.
+        // Invalidate the transporter so it can be recreated on next attempt.
         transporter = null; 
         throw new Error('Could not send email due to a server configuration or network issue.');
     }
