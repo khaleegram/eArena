@@ -279,3 +279,15 @@ export async function verifyAndActivateTournament(reference: string) {
 }
 // ... (rest of the file remains the same)
       
+
+export async function getPublicTournaments(): Promise<Tournament[]> {
+    const tournamentsRef = adminDb.collection('tournaments');
+    const snapshot = await tournamentsRef
+        .where('isPublic', '==', true)
+        .orderBy('createdAt', 'desc')
+        .get();
+        
+    const tournaments = snapshot.docs.map(doc => serializeData({ id: doc.id, ...doc.data() }) as Tournament);
+    // Filter out pending tournaments server-side after fetching
+    return tournaments.filter(t => t.status !== 'pending');
+}
