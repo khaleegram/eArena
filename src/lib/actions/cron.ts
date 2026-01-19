@@ -3,7 +3,8 @@
 
 import { adminDb } from '@/lib/firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { startTournamentAndGenerateFixtures, initiatePayouts } from '@/lib/actions';
+import { startTournamentAndGenerateFixtures } from './tournament';
+import { initiatePayouts } from './payouts';
 import { toDate } from '@/lib/utils';
 import type { Tournament } from '@/lib/types';
 import { addDays, startOfDay } from 'date-fns';
