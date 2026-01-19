@@ -35,6 +35,13 @@ export function PushNotificationManager() {
     useEffect(() => {
         if (typeof window !== 'undefined') {
             setIsIos(/iPad|iPhone|iPod/.test(navigator.userAgent));
+
+            if (process.env.NODE_ENV === 'development') {
+                setIsSupported(false);
+                setIsChecking(false);
+                return;
+            }
+
             if ('serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window) {
                 setIsSupported(true);
                 const checkSubscription = async () => {
@@ -115,6 +122,17 @@ export function PushNotificationManager() {
             setIsLoading(false);
         }
     };
+    
+    if (process.env.NODE_ENV === 'development') {
+        return (
+            <Alert variant="default" className="border-primary/20">
+              <Info className="h-4 w-4" />
+              <AlertDescription>
+                Push notifications are disabled in the development environment for stability. They will be active in the production build.
+              </AlertDescription>
+            </Alert>
+        );
+    }
 
     if (!isSupported) {
         if (isIos) {
