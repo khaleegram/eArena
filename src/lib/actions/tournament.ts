@@ -26,6 +26,14 @@ import { checkAndGrantAchievements } from './achievements';
 
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
 
+export async function getTournamentById(id: string): Promise<Tournament | null> {
+    const tournamentDoc = await adminDb.collection('tournaments').doc(id).get();
+    if (!tournamentDoc.exists) {
+        return null;
+    }
+    return serializeData({ id: tournamentDoc.id, ...tournamentDoc.data() }) as Tournament;
+}
+
 function scheduleFixtures(
     fixtures: Omit<Match, 'id' | 'tournamentId' | 'matchDay' | 'status'>[],
     startDate: Date,
