@@ -1,44 +1,58 @@
-// This file is the browser's "background worker" for handling push notifications.
+// Service Worker: handles push + notification click
 
-// Listen for a push event from the server
-self.addEventListener('push', (event) => {
-  if (!event.data) {
-    console.error('Push event but no data');
-    return;
-  }
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
 
-  try {
-    const data = event.data.json();
+  event.waitUntil((async () => {
+    let payload;
+    try {
+      payload = event.data.json();
+    } catch {
+      // fallback: accept plain text payloads too
+      const text = await event.data.text();
+      payload = { title: "eArena", body: text };
+    }
+
+    const title = payload.title || "eArena";
+    const body = payload.body || "";
+    const href = payload?.data?.href || payload?.href || "/";
+
     const options = {
-      body: data.body,
-      icon: '/images/logo-192.png', // The icon that appears in the notification
-      badge: '/images/logo-192.png', // A smaller icon for the notification bar
-      data: {
-        href: data.data.href, // The URL to open when the notification is clicked
-      },
+      body,
+      icon: "/icons/android/android-launchericon-192-192.png",
+      badge: "/icons/android/android-launchericon-72-72.png",
+      data: { href }
     };
-    // Tell the browser to show the notification
-    event.waitUntil(self.registration.showNotification(data.title, options));
-  } catch (e) {
-    console.error('Push event data is not valid JSON:', event.data.text());
-  }
+
+    await self.registration.showNotification(title, options);
+  })());
 });
 
-// Listen for a click on the notification
-self.addEventListener('notificationclick', (event) => {
-  // Close the notification
+self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  
-  const href = event.notification.data.href;
-  // If there's a URL, open it in a new window/tab
-  if (href) {
-    event.waitUntil(clients.openWindow(href));
-  }
+
+  const href = event?.notification?.data?.href || "/";
+  event.waitUntil((async () => {
+    const allClients = await clients.matchAll({ type: "window", includeUncontrolled: true });
+
+    // Try to focus an existing tab with the same origin
+    for (const client of allClients) {
+      try {
+        const url = new URL(client.url);
+        if (url.origin === self.location.origin) {
+          await client.focus();
+          // If you want to navigate the focused tab:
+          // client.navigate(href);
+          return;
+        }
+      } catch {}
+    }
+
+    await clients.openWindow(href);
+  })());
 });
 
-// This part is for the next-pwa library to work correctly
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-  }
+// next-pwa support
+self.addEventListener("message", (event) => {
+  if (event?.data?.type === "SKIP_WAITING") self.skipWaiting();
 });
