@@ -7,7 +7,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useToast } from '@/hooks/use-toast';
-import { updatePlatformSettings } from '@/lib/actions';
+import { updatePlatformSettings } from '@/lib/actions/settings';
 import type { PlatformSettings } from '@/lib/types';
 
 import { Button } from '@/components/ui/button';

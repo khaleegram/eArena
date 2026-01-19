@@ -5,9 +5,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getTournamentById, organizerResolveOverdueMatches, extendRegistration, startTournamentAndGenerateFixtures, regenerateTournamentFixtures, devSeedDummyTeams, devAutoApproveCurrentStageMatches, devAutoApproveAndProgress, devAutoRunCupToCompletion, retryTournamentPayment, rescheduleTournament, recalculateStandings, progressTournamentStage } from '@/lib/actions';
-import { getUserTeamForTournament, leaveTournament, addTeam } from '@/lib/actions';
-import { findUserByEmail } from '@/lib/actions';
+import { getTournamentById, organizerResolveOverdueMatches, extendRegistration, startTournamentAndGenerateFixtures, regenerateTournamentFixtures, devSeedDummyTeams, devAutoApproveCurrentStageMatches, devAutoApproveAndProgress, devAutoRunCupToCompletion, retryTournamentPayment, rescheduleTournament, recalculateStandings, progressTournamentStage } from '@/lib/actions/tournament';
+import { getUserTeamForTournament, leaveTournament, addTeam } from '@/lib/actions/team';
+import { findUserByEmail } from '@/lib/actions/user';
 import { useAuth } from "@/hooks/use-auth";
 import type { Tournament, TournamentStatus, Team, Player, UserProfile, UnifiedTimestamp, Match, Standing } from "@/lib/types";
 import { format, isBefore, isAfter, isToday, isFuture, addDays, differenceInDays, endOfDay, isPast } from "date-fns";

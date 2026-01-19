@@ -8,7 +8,8 @@ import { collection, query, where, onSnapshot, getDocs } from 'firebase/firestor
 import { useAuth } from '@/hooks/use-auth';
 import type { Tournament, Team, UnifiedTimestamp } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
-import { deleteTournament, getTournamentsByIds } from '@/lib/actions';
+import { getTournamentsByIds } from '@/lib/actions/tournament';
+import { adminDeleteTournament } from '@/lib/actions/admin';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -38,7 +39,7 @@ const TournamentCard = ({ tournament, isOrganizer }: { tournament: Tournament, i
         }
         setIsDeleting(tournamentId);
         try {
-            await deleteTournament(tournamentId, user.uid);
+            await adminDeleteTournament(tournamentId);
             toast({ title: "Success", description: "Tournament deleted successfully." });
         } catch (error: any) {
             toast({ variant: "destructive", title: "Error", description: "Failed to delete tournament." });

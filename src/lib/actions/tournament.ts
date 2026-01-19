@@ -6,7 +6,7 @@ import { FieldValue, Timestamp, FieldPath } from 'firebase-admin/firestore';
 import type { Tournament, Player, Match, Team, PrizeAllocation, Standing, MatchReport, PlayerStats } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
 import { serializeData, toDate } from '@/lib/utils';
-import { getTournamentAwards, retryTournamentPayment } from './payouts';
+import { retryTournamentPayment } from './payouts';
 import { customAlphabet } from 'nanoid';
 import { getStorage } from 'firebase-admin/storage';
 import { getUserProfileById } from './user';
@@ -609,14 +609,4 @@ export async function organizerResolveOverdueMatches(tournamentId: string, organ
 export async function recalculateStandings(tournamentId: string, userId: string) {
     // Placeholder
     console.log(`Standings for tournament ${tournamentId} recalculated by user ${userId}`);
-}
-
-export async function deleteTournament(tournamentId: string, organizerId: string) {
-    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
-    const doc = await tournamentRef.get();
-    if (!doc.exists) throw new Error("Tournament not found");
-    if (doc.data()?.organizerId !== organizerId) throw new Error("Not authorized");
-    await fullTournamentDelete(tournamentId);
-    revalidatePath('/dashboard');
-    revalidatePath(`/tournaments/${tournamentId}`);
 }

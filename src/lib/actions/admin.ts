@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { adminDb, adminAuth } from '@/lib/firebase-admin';
@@ -8,6 +9,7 @@ import { startOfMonth, subDays, format, eachMonthOfInterval } from 'date-fns';
 import { revalidatePath } from 'next/cache';
 import { toDate, serializeData } from '@/lib/utils';
 import { fullTournamentDelete } from './helpers';
+import { deleteTournament } from './tournament';
 
 export async function getAdminUids(): Promise<string[]> {
     const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || '')
@@ -205,13 +207,6 @@ export async function adminDeleteTournamentMessage(tournamentId: string, message
     await messageRef.delete();
 }
 
-export async function adminUpdateArticle(articleId: string, data: Partial<Article>) {
-    const articleRef = adminDb.collection('articles').doc(articleId);
-    await articleRef.update(data);
-    revalidatePath('/admin/community');
-    revalidatePath(`/community/articles/${data.slug}`);
-}
-
 export async function adminCreateArticle(data: Omit<Article, 'id' | 'createdAt'>) {
     const slugRef = adminDb.collection('articles').doc(data.slug);
     const doc = await slugRef.get();
@@ -226,10 +221,16 @@ export async function adminCreateArticle(data: Omit<Article, 'id' | 'createdAt'>
     revalidatePath('/community');
 }
 
+export async function adminUpdateArticle(articleId: string, data: Partial<Article>) {
+    const articleRef = adminDb.collection('articles').doc(articleId);
+    await articleRef.update(data);
+    revalidatePath('/admin/community');
+    revalidatePath(`/community/articles/${data.slug}`);
+}
+
 export async function adminDeleteArticle(slug: string) {
     const articleRef = adminDb.collection('articles').doc(slug);
     await articleRef.delete();
     revalidatePath('/admin/community');
     revalidatePath('/community');
 }
-

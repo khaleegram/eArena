@@ -22,7 +22,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { auth, db, googleAuthProvider } from '@/lib/firebase';
-import { handleNewUserSetup, resendVerificationEmail } from '@/lib/actions';
+import { handleNewUserSetup, resendVerificationEmail } from '@/lib/actions/user';
 import type { UserProfile } from '@/lib/types';
 
 interface UserAuthFormProps extends React.HTMLAttributes<HTMLDivElement> {

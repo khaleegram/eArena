@@ -291,18 +291,6 @@ export async function updateUserActiveTitle(uid: string, title: string | null) {
     revalidatePath(`/profile`);
 }
 
-export async function saveUserBankDetails(uid: string, bankDetails: { accountNumber: string, bankCode: string }) {
-    const userRef = adminDb.collection('users').doc(uid);
-    await userRef.update({ 'bankDetails.accountNumber': bankDetails.accountNumber, 'bankDetails.bankCode': bankDetails.bankCode });
-    revalidatePath(`/profile`);
-}
-
-export async function confirmUserDetailsForPayout(uid: string) {
-    const userRef = adminDb.collection('users').doc(uid);
-    await userRef.update({ 'bankDetails.confirmedForPayout': true });
-    revalidatePath(`/profile`);
-}
-
 export async function sendPasswordResetEmail(email: string) {
     const link = await adminAuth.generatePasswordResetLink(email);
     await sendEmail({
