@@ -145,13 +145,16 @@ export async function getConversationsForUser(userId: string): Promise<Conversat
 
     const conversations = await Promise.all(conversationsSnapshot.docs.map(async (doc) => {
         const convo = { id: doc.id, ...doc.data() } as Conversation;
-        const otherParticipantId = convo.participantIds.find(id => id !== userId);
-        if (otherParticipantId) {
-            const userProfile = await getUserProfileById(otherParticipantId);
-            if (userProfile) {
-                convo.participants = convo.participants.map(p => p.uid === otherParticipantId ? userProfile : p);
-            }
+        
+        if (convo.participantIds) {
+            const enrichedParticipants = await Promise.all(
+                convo.participantIds.map(id => getUserProfileById(id))
+            );
+            convo.participants = enrichedParticipants.filter(p => p !== null) as UserProfile[];
+        } else {
+            convo.participants = [];
         }
+
         return convo;
     }));
 
@@ -271,8 +274,8 @@ export async function startConversation(userId1: string, userId2: string): Promi
         await conversationRef.set({
             participantIds,
             participants: [
-                { uid: user1Profile.uid, username: user1Profile.username, photoURL: user1Profile.photoURL, warnings: userProfile.warnings || 0 },
-                { uid: user2Profile.uid, username: user2Profile.username, photoURL: user2Profile.photoURL, warnings: userProfile.warnings || 0 }
+                { uid: user1Profile.uid, username: user1Profile.username, photoURL: user1Profile.photoURL, warnings: user1Profile.warnings || 0 },
+                { uid: user2Profile.uid, username: user2Profile.username, photoURL: user2Profile.photoURL, warnings: user2Profile.warnings || 0 }
             ],
             createdAt: FieldValue.serverTimestamp(),
         });
@@ -327,3 +330,4 @@ export async function resendVerificationEmail(email: string) {
         }
     }
 }
+
