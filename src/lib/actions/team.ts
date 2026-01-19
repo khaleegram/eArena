@@ -74,7 +74,7 @@ export async function addTeam(tournamentId: string, teamData: Omit<Team, 'id' | 
     // Check if captain has too many warnings
     const captainProfileRef = adminDb.collection('users').doc(teamData.captainId);
     const captainProfileDoc = await captainProfileRef.get();
-    if (captainProfileDoc.exists() && captainProfileDoc.data()?.warnings && captainProfileDoc.data()?.warnings >= 5) {
+    if (captainProfileDoc.exists && captainProfileDoc.data()?.warnings && captainProfileDoc.data()?.warnings >= 5) {
         newTeam.isApproved = false; // Set to false if warnings are high
     }
 
