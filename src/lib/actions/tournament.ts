@@ -221,13 +221,6 @@ export async function createTournament(formData: FormData) {
           throw new Error(`Paystack initialization failed: ${data.message}`);
       }
       return { tournamentId: tournamentRef.id, paymentUrl: data.data.authorization_url };
-  } else if (organizerProfile.email) {
-    // This is a free tournament, send email right away.
-    await sendEmail({
-        to: organizerProfile.email,
-        subject: `Your Tournament "${newTournamentData.name}" is Live!`,
-        body: `Hello ${organizerProfile.username},\n\nYour tournament, "${newTournamentData.name}", has been successfully created and is now open for registration.\n\nYou can view and manage your tournament here: ${process.env.NEXT_PUBLIC_BASE_URL}/tournaments/${tournamentRef.id}`
-    });
   }
   
   // Notify followers
@@ -265,20 +258,6 @@ export async function verifyAndActivateTournament(reference: string) {
             'rewardDetails.paymentReference': reference
         });
         revalidatePath(`/tournaments/${tournamentId}`);
-        
-        // Send email on successful activation
-        const tournamentDoc = await tournamentRef.get();
-        if (tournamentDoc.exists()) {
-            const tournament = tournamentDoc.data() as Tournament;
-            const organizerProfile = await getUserProfileById(tournament.organizerId);
-            if (organizerProfile?.email) {
-                await sendEmail({
-                    to: organizerProfile.email,
-                    subject: `Your Tournament "${tournament.name}" is Live!`,
-                    body:  `Hello ${organizerProfile.username},\n\nYour payment has been confirmed and your tournament, "${tournament.name}", is now live and open for registration.\n\nYou can view and manage your tournament here: ${process.env.NEXT_PUBLIC_BASE_URL}/tournaments/${tournamentId}`
-                });
-            }
-        }
 
         return { tournamentId };
     } else {
