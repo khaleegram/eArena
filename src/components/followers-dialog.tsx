@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { UserProfile } from '@/lib/types';
-import { getUsersByIds, unfollowUser } from '@/lib/actions';
+import { getUsersByIds, unfollowUser } from '@/lib/actions/user';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, UserMinus } from 'lucide-react';

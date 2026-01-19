@@ -5,7 +5,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
-import { getConversationById, postDirectMessage } from '@/lib/actions';
+import { getConversationById, postDirectMessage } from '@/lib/actions/user';
 import type { Conversation, UserProfile, ChatMessage, UnifiedTimestamp } from '@/lib/types';
 import { Loader2, ArrowLeft, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';

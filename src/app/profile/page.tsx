@@ -1,11 +1,12 @@
 
+
 'use client';
 
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAuth } from '@/hooks/use-auth';
-import { updateUserProfile, getPlayerStats, updateUserProfilePhoto } from '@/lib/actions';
+import { updateUserProfile, getPlayerStats, updateUserProfilePhoto } from '@/lib/actions/user';
 import { analyzePlayerPerformance } from '@/ai/flows/analyze-player-performance';
 import { useToast } from '@/hooks/use-toast';
 import * as React from 'react';

@@ -6,7 +6,7 @@ import { useState, useEffect, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
-import { getConversationsForUser, getUsersByIds, startConversation, findUsersByUsername } from '@/lib/actions';
+import { getConversationsForUser, getUsersByIds, startConversation, findUsersByUsername } from '@/lib/actions/user';
 import type { Conversation, UserProfile, UnifiedTimestamp } from '@/lib/types';
 import { Loader2, User, MessageSquare, Search } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';

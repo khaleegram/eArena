@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
-import { sendPasswordResetEmail } from '@/lib/actions';
+import { sendPasswordResetEmail } from '@/lib/actions/user';
 import Link from 'next/link';
 
 const formSchema = z.object({

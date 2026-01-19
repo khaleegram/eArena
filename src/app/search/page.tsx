@@ -1,8 +1,9 @@
 
+
 'use client';
 
 import { useState, useEffect, useTransition } from 'react';
-import { findUsersByUsername } from '@/lib/actions';
+import { findUsersByUsername } from '@/lib/actions/user';
 import type { UserProfile } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';

@@ -7,7 +7,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from './ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { updateUserActiveTitle } from '@/lib/actions';
+import { updateUserActiveTitle } from '@/lib/actions/user';
 import { Loader2, Crown } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 

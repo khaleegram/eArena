@@ -11,27 +11,6 @@ import { toDate, serializeData } from '@/lib/utils';
 import { fullTournamentDelete } from './helpers';
 import { deleteTournament } from './tournament';
 
-export async function getAdminUids(): Promise<string[]> {
-    const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || '')
-        .split(',')
-        .map(e => e.trim().toLowerCase())
-        .filter(e => e); // Filter out empty strings
-
-    if (adminEmails.length === 0) {
-        return [];
-    }
-
-    try {
-        const adminUsers = await adminAuth.getUsers(
-            adminEmails.map(email => ({ email }))
-        );
-        return adminUsers.users.map(user => user.uid);
-    } catch (error) {
-        console.error("Error fetching admin UIDs:", error);
-        return [];
-    }
-}
-
 export async function adminUpdateUser(uid: string, data: Partial<UserProfile>) {
   const userRef = adminDb.collection('users').doc(uid);
   await userRef.update(data);

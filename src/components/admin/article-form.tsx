@@ -8,7 +8,7 @@ import * as z from 'zod';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
-import { adminCreateArticle, adminUpdateArticle } from '@/lib/actions';
+import { adminCreateArticle, adminUpdateArticle } from '@/lib/actions/admin';
 import type { Article } from '@/lib/types';
 
 import { Button } from '@/components/ui/button';

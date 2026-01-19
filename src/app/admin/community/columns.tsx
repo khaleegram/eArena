@@ -16,7 +16,7 @@ import {
 import { ArrowUpDown, MoreHorizontal, Trash2, Edit } from "lucide-react"
 import { useTransition } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { adminDeleteArticle } from "@/lib/actions";
+import { adminDeleteArticle } from "@/lib/actions/admin";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 

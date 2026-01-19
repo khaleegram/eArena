@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { useAuth } from '@/hooks/use-auth';
-import { followUser, unfollowUser } from '@/lib/actions';
+import { followUser, unfollowUser } from '@/lib/actions/user';
 import { Loader2, UserPlus, UserCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 

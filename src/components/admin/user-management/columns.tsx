@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { useTransition } from "react"
 import { useToast } from "@/hooks/use-toast"
-import { adminUpdateUser } from "@/lib/actions"
+import { adminUpdateUser } from "@/lib/actions/admin"
 
 
 const ActionsCell = ({ row }: { row: { original: UserProfile }}) => {

@@ -3,7 +3,7 @@
 'use client';
 
 import { useAuth } from '@/hooks/use-auth';
-import { getPlayerStats, getUserProfileById, startConversation } from '@/lib/actions';
+import { getPlayerStats, getUserProfileById, startConversation } from '@/lib/actions/user';
 import { analyzePlayerPerformance } from '@/ai/flows/analyze-player-performance';
 import { useToast } from '@/hooks/use-toast';
 import * as React from 'react';
