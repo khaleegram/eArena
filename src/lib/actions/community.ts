@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { adminDb } from '@/lib/firebase-admin';
@@ -43,7 +42,7 @@ export async function getArticles(): Promise<Article[]> {
 export async function getArticleBySlug(slug: string): Promise<Article | null> {
     const docRef = doc(adminDb, 'articles', slug);
     const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
+    if (docSnap.exists) {
         return serializeData({ id: docSnap.id, ...docSnap.data() }) as Article;
     }
     return null;
