@@ -1,4 +1,3 @@
-
 'use server';
 
 import { adminDb } from '@/lib/firebase-admin';
@@ -31,6 +30,7 @@ export async function sendNotification(userId: string, notification: Omit<Notifi
 
     // 2. Send push notification if configured
     if (!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) {
+        console.warn(`[Push Notification] Did not send push to user ${userId} ("${notification.title}") because VAPID keys are not configured on the server. Please add NEXT_PUBLIC_VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY to your environment variables.`);
         return;
     }
     
