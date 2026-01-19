@@ -3,7 +3,7 @@
 
 import { adminDb } from '@/lib/firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import type { Tournament, Player, Match, Team, PrizeAllocation, Standing, MatchReport } from '@/lib/types';
+import type { Tournament, Player, Match, Team, PrizeAllocation, Standing, MatchReport, PlayerStats } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
 import { serializeData, toDate } from '@/lib/utils';
 import { getTournamentAwards } from './payouts';
@@ -20,6 +20,9 @@ import { getLatestRound, assertRoundCompleted, getWinnersForRound, getChampionIf
 import { generateCupRound, getRoundName } from '../cup-tournament';
 import { verifyMatchScores } from '@/ai/flows/verify-match-scores';
 import { sendEmail } from '../email';
+import { getStandingsForTournament } from './standings';
+import { getTeamsForTournament } from './team';
+import { checkAndGrantAchievements } from './achievements';
 
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
 
@@ -997,6 +1000,92 @@ export async function cancelReplayRequest(tournamentId: string, matchId: string,
 
     revalidatePath(`/tournaments/${tournamentId}/matches/${matchId}`);
 }
+
+async function finalizePlayerStatsAndAwards(tournamentId: string) {
+    const tournamentDoc = await adminDb.collection('tournaments').doc(tournamentId).get();
+    if (!tournamentDoc.exists) return;
+    const tournament = tournamentDoc.data() as Tournament;
+
+    const standings = await getStandingsForTournament(tournamentId);
+    const teams = await getTeamsForTournament(tournamentId);
+    const teamsMap = new Map(teams.map(t => [t.id, t]));
+
+    const allPlayerIds = new Set<string>();
+    teams.forEach(team => team.players.forEach(p => allPlayerIds.add(p.uid)));
+
+    if (allPlayerIds.size === 0) return;
+
+    // Get all player stats in one go
+    const playerStatsDocs = await adminDb.collection('playerStats').where(adminDb.firestore.FieldPath.documentId(), 'in', Array.from(allPlayerIds)).get();
+    const playerStatsMap = new Map(playerStatsDocs.docs.map(doc => [doc.id, doc.data() as PlayerStats]));
+
+    const batch = adminDb.batch();
+
+    for (const standing of standings) {
+        const team = teamsMap.get(standing.teamId);
+        if (!team || !team.players) continue;
+
+        for (const player of team.players) {
+            const playerStatsRef = adminDb.collection('playerStats').doc(player.uid);
+            const userProfileRef = adminDb.collection('users').doc(player.uid);
+            const existingStats = playerStatsMap.get(player.uid);
+
+            const newPerformancePoint = {
+                tournamentId,
+                tournamentName: tournament.name,
+                goals: standing.goalsFor, // This is team goals, a known limitation.
+                matchesPlayed: standing.matchesPlayed,
+            };
+
+            if (existingStats) {
+                batch.update(playerStatsRef, {
+                    totalMatches: FieldValue.increment(standing.matchesPlayed),
+                    totalWins: FieldValue.increment(standing.wins),
+                    totalLosses: FieldValue.increment(standing.losses),
+                    totalDraws: FieldValue.increment(standing.draws),
+                    totalGoals: FieldValue.increment(standing.goalsFor),
+                    totalConceded: FieldValue.increment(standing.goalsAgainst),
+                    totalCleanSheets: FieldValue.increment(standing.cleanSheets),
+                    performanceHistory: FieldValue.arrayUnion(newPerformancePoint),
+                });
+            } else {
+                 batch.set(playerStatsRef, {
+                    totalMatches: standing.matchesPlayed,
+                    totalWins: standing.wins,
+                    totalLosses: standing.losses,
+                    totalDraws: standing.draws,
+                    totalGoals: standing.goalsFor,
+                    totalConceded: standing.goalsAgainst,
+                    totalCleanSheets: standing.cleanSheets,
+                    performanceHistory: [newPerformancePoint],
+                    avgPossession: 0, totalPassPercentageSum: 0, matchesWithPassStats: 0,
+                    totalShots: 0, totalShotsOnTarget: 0, totalPasses: 0,
+                    totalTackles: 0, totalInterceptions: 0, totalSaves: 0,
+                });
+            }
+
+            if (standing.ranking <= 3) {
+                 const newBadge = {
+                    tournamentName: tournament.name,
+                    tournamentId: tournamentId,
+                    rank: standing.ranking,
+                    date: tournament.endedAt || FieldValue.serverTimestamp()
+                };
+                 batch.update(userProfileRef, { badges: FieldValue.arrayUnion(newBadge) });
+                 if (standing.ranking === 1) {
+                     batch.update(userProfileRef, { tournamentsWon: FieldValue.increment(1) });
+                 }
+            }
+        }
+    }
+    
+    await batch.commit();
+
+    // Now check achievements for all players after stats have been committed
+    for (const playerId of allPlayerIds) {
+        await checkAndGrantAchievements(playerId);
+    }
+}
     
 async function checkAndCompleteTournament(tournamentId: string) {
     const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
@@ -1032,8 +1121,8 @@ async function checkAndCompleteTournament(tournamentId: string) {
             endedAt: FieldValue.serverTimestamp(),
         });
         
-        // Final standings update
         await updateStandings(tournamentId);
+        await finalizePlayerStatsAndAwards(tournamentId);
 
         revalidatePath(`/tournaments/${tournamentId}`);
 
@@ -1064,6 +1153,91 @@ async function checkAndCompleteTournament(tournamentId: string) {
     }
 }
 
+export async function updateStandings(tournamentId: string) {
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    const teamsSnapshot = await tournamentRef.collection('teams').get();
+    const approvedMatchesSnapshot = await tournamentRef.collection('matches').where('status', '==', 'approved').get();
+
+    const teamsMap = new Map<string, { name: string; stats: any }>();
+    teamsSnapshot.forEach(doc => {
+        teamsMap.set(doc.id, {
+            name: doc.data().name,
+            stats: {
+                matchesPlayed: 0, wins: 0, draws: 0, losses: 0,
+                goalsFor: 0, goalsAgainst: 0, points: 0, cleanSheets: 0,
+            }
+        });
+    });
+
+    approvedMatchesSnapshot.forEach(doc => {
+        const match = doc.data() as Match;
+        const homeTeamStats = teamsMap.get(match.homeTeamId)?.stats;
+        const awayTeamStats = teamsMap.get(match.awayTeamId)?.stats;
+
+        if (homeTeamStats && awayTeamStats && typeof match.homeScore === 'number' && typeof match.awayScore === 'number') {
+            homeTeamStats.matchesPlayed++;
+            awayTeamStats.matchesPlayed++;
+            homeTeamStats.goalsFor += match.homeScore;
+            awayTeamStats.goalsFor += match.awayScore;
+            homeTeamStats.goalsAgainst += match.awayScore;
+            awayTeamStats.goalsAgainst += match.homeScore;
+            
+            if (match.awayScore === 0) homeTeamStats.cleanSheets++;
+            if (match.homeScore === 0) awayTeamStats.cleanSheets++;
+
+            if (match.homeScore > match.awayScore) {
+                homeTeamStats.wins++; homeTeamStats.points += 3; awayTeamStats.losses++;
+            } else if (match.awayScore > match.homeScore) {
+                awayTeamStats.wins++; awayTeamStats.points += 3; homeTeamStats.losses++;
+            } else {
+                homeTeamStats.draws++; awayTeamStats.draws++; homeTeamStats.points++; awayTeamStats.points++;
+            }
+        }
+    });
+
+    const standingsData: Omit<Standing, 'ranking' | 'teamName'>[] = Array.from(teamsMap.entries()).map(([teamId, data]) => ({
+        teamId,
+        tournamentId,
+        ...data.stats
+    }));
+
+    standingsData.sort((a, b) => {
+        if (b.points !== a.points) return b.points - a.points;
+        const gdA = a.goalsFor - a.goalsAgainst;
+        const gdB = b.goalsFor - b.goalsAgainst;
+        if (gdB !== gdA) return gdB - gdA;
+        if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
+        if (b.wins !== a.wins) return b.wins - a.wins;
+        return a.teamId.localeCompare(b.teamId);
+    });
+
+    const batch = adminDb.batch();
+    standingsData.forEach((s, index) => {
+        const teamName = teamsMap.get(s.teamId)?.name || 'Unknown';
+        const finalStanding: Standing = {
+            ...s,
+            teamName,
+            ranking: index + 1,
+        };
+        const docRef = adminDb.collection('standings').doc(`${tournamentId}_${s.teamId}`);
+        batch.set(docRef, finalStanding);
+    });
+
+    await batch.commit();
+    revalidatePath(`/tournaments/${tournamentId}`);
+    revalidatePath(`/tournaments/${tournamentId}/standings`);
+}
+
+export async function recalculateStandings(tournamentId: string, organizerId: string) {
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    const tournamentDoc = await tournamentRef.get();
+    if (!tournamentDoc.exists || tournamentDoc.data()?.organizerId !== organizerId) {
+        throw new Error("You are not authorized to perform this action.");
+    }
+
+    await updateStandings(tournamentId);
+    await checkAndCompleteTournament(tournamentId);
+}
 // DEV-ONLY FUNCTIONS
 
 async function autoApproveMatches(matches: Match[], tournamentRef: FirebaseFirestore.DocumentReference<FirebaseFirestore.DocumentData>) {
@@ -1192,89 +1366,4 @@ export async function devAutoRunCupToCompletion(tournamentId: string, organizerI
     
     const finalDoc = await adminDb.collection('tournaments').doc(tournamentId).get();
     return { status: finalDoc.data()?.status, steps };
-}
-export async function updateStandings(tournamentId: string) {
-    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
-    const teamsSnapshot = await tournamentRef.collection('teams').get();
-    const approvedMatchesSnapshot = await tournamentRef.collection('matches').where('status', '==', 'approved').get();
-
-    const teamsMap = new Map<string, { name: string; stats: any }>();
-    teamsSnapshot.forEach(doc => {
-        teamsMap.set(doc.id, {
-            name: doc.data().name,
-            stats: {
-                matchesPlayed: 0, wins: 0, draws: 0, losses: 0,
-                goalsFor: 0, goalsAgainst: 0, points: 0, cleanSheets: 0,
-            }
-        });
-    });
-
-    approvedMatchesSnapshot.forEach(doc => {
-        const match = doc.data() as Match;
-        const homeTeamStats = teamsMap.get(match.homeTeamId)?.stats;
-        const awayTeamStats = teamsMap.get(match.awayTeamId)?.stats;
-
-        if (homeTeamStats && awayTeamStats && typeof match.homeScore === 'number' && typeof match.awayScore === 'number') {
-            homeTeamStats.matchesPlayed++;
-            awayTeamStats.matchesPlayed++;
-            homeTeamStats.goalsFor += match.homeScore;
-            awayTeamStats.goalsFor += match.awayScore;
-            homeTeamStats.goalsAgainst += match.awayScore;
-            awayTeamStats.goalsAgainst += match.homeScore;
-            
-            if (match.awayScore === 0) homeTeamStats.cleanSheets++;
-            if (match.homeScore === 0) awayTeamStats.cleanSheets++;
-
-            if (match.homeScore > match.awayScore) {
-                homeTeamStats.wins++; homeTeamStats.points += 3; awayTeamStats.losses++;
-            } else if (match.awayScore > match.homeScore) {
-                awayTeamStats.wins++; awayTeamStats.points += 3; homeTeamStats.losses++;
-            } else {
-                homeTeamStats.draws++; awayTeamStats.draws++; homeTeamStats.points++; awayTeamStats.points++;
-            }
-        }
-    });
-
-    const standingsData: Omit<Standing, 'ranking' | 'teamName'>[] = Array.from(teamsMap.entries()).map(([teamId, data]) => ({
-        teamId,
-        tournamentId,
-        ...data.stats
-    }));
-
-    standingsData.sort((a, b) => {
-        if (b.points !== a.points) return b.points - a.points;
-        const gdA = a.goalsFor - a.goalsAgainst;
-        const gdB = b.goalsFor - b.goalsAgainst;
-        if (gdB !== gdA) return gdB - gdA;
-        if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
-        if (b.wins !== a.wins) return b.wins - a.wins;
-        return a.teamId.localeCompare(b.teamId);
-    });
-
-    const batch = adminDb.batch();
-    standingsData.forEach((s, index) => {
-        const teamName = teamsMap.get(s.teamId)?.name || 'Unknown';
-        const finalStanding: Standing = {
-            ...s,
-            teamName,
-            ranking: index + 1,
-        };
-        const docRef = adminDb.collection('standings').doc(`${tournamentId}_${s.teamId}`);
-        batch.set(docRef, finalStanding);
-    });
-
-    await batch.commit();
-    revalidatePath(`/tournaments/${tournamentId}`);
-    revalidatePath(`/tournaments/${tournamentId}/standings`);
-}
-
-export async function recalculateStandings(tournamentId: string, organizerId: string) {
-    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
-    const tournamentDoc = await tournamentRef.get();
-    if (!tournamentDoc.exists || tournamentDoc.data()?.organizerId !== organizerId) {
-        throw new Error("You are not authorized to perform this action.");
-    }
-
-    await updateStandings(tournamentId);
-    await checkAndCompleteTournament(tournamentId);
 }

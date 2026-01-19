@@ -7,3 +7,4 @@ export * from './standings';
 export * from './team';
 export * from './tournament';
 export * from './user';
+export * from './achievements';
