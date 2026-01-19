@@ -592,43 +592,28 @@ export function MyMatchesTab({
     if (!userTeam) return [];
 
     const userMatches = matches.filter((m) => m.homeTeamId === userTeam.id || m.awayTeamId === userTeam.id);
-    
-    // Sort by round, then by date. This is the crucial fix.
-    userMatches.sort((a, b) => {
-        const roundRankA = getOverallRoundRank(a.round || '');
-        const roundRankB = getOverallRoundRank(b.round || '');
-        if (roundRankA !== roundRankB) {
-            return roundRankA - roundRankB;
-        }
-        return toDate(a.matchDay).getTime() - toDate(b.matchDay).getTime();
-    });
 
+    const upcomingMatches = userMatches
+        .filter(m => m.status !== 'approved')
+        .sort((a, b) => toDate(a.matchDay).getTime() - toDate(b.matchDay).getTime());
+
+    const playedMatches = userMatches
+        .filter(m => m.status === 'approved')
+        .sort((a, b) => toDate(b.matchDay).getTime() - toDate(a.matchDay).getTime());
+    
     if (showAllMatches) {
-      return userMatches;
-    }
-
-    const now = new Date();
-    
-    // Find the index of the next match that isn't approved yet.
-    const nextMatchIndex = userMatches.findIndex(m => m.status !== 'approved');
-
-    if (nextMatchIndex === -1) {
-      // All matches are completed, show the last 3.
-      return userMatches.slice(-3);
+      // When "View All" is clicked, show upcoming first, then all played matches.
+      return [...upcomingMatches, ...playedMatches];
     }
     
-    // Get the next upcoming match
-    const nextMatch = userMatches[nextMatchIndex];
-    
-    // Get up to 2 most recent completed matches before the next one
-    const pastMatches = userMatches.slice(0, nextMatchIndex).slice(-2);
+    // By default, show the next 2 upcoming and last 2 played matches.
+    const nextFixtures = upcomingMatches.slice(0, 2);
+    const recentResults = playedMatches.slice(0, 2);
 
-    let finalDisplay = [];
-    if(nextMatch) finalDisplay.push(nextMatch);
-    finalDisplay.unshift(...pastMatches);
-    
-    return finalDisplay;
+    return [...nextFixtures, ...recentResults];
+
   }, [matches, userTeam, showAllMatches]);
+
 
   if (!userTeam) {
     return (
@@ -685,5 +670,3 @@ export function MyMatchesTab({
     </div>
   );
 }
-
-    
