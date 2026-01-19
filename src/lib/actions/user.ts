@@ -158,6 +158,77 @@ export async function getConversationsForUser(userId: string): Promise<Conversat
     return serializeData(conversations);
 }
 
+export async function getConversationById(conversationId: string, userId: string): Promise<Conversation | null> {
+    const conversationRef = adminDb.collection('conversations').doc(conversationId);
+    const conversationDoc = await conversationRef.get();
+
+    if (!conversationDoc.exists) {
+        return null;
+    }
+
+    const conversation = conversationDoc.data() as Conversation;
+
+    // Security check: ensure the user is part of this conversation
+    if (!conversation.participantIds.includes(userId)) {
+        // Silently fail to prevent leaking information about conversation existence
+        return null;
+    }
+
+    // Enrich participants' data
+    const enrichedParticipants = await Promise.all(
+        conversation.participantIds.map(id => getUserProfileById(id))
+    );
+    
+    conversation.participants = enrichedParticipants.filter(p => p !== null) as UserProfile[];
+    conversation.id = conversationDoc.id;
+
+    return serializeData(conversation);
+}
+
+export async function postDirectMessage(conversationId: string, message: string, senderId: string) {
+    const conversationRef = adminDb.collection('conversations').doc(conversationId);
+    const userProfile = await getUserProfileById(senderId);
+
+    if (!userProfile) {
+        throw new Error("Sender profile not found.");
+    }
+
+    const timestamp = FieldValue.serverTimestamp();
+
+    const messageData = {
+        message,
+        userId: senderId,
+        username: userProfile.username || userProfile.email,
+        photoURL: userProfile.photoURL || '',
+        timestamp,
+    };
+    
+    // Add to subcollection
+    await conversationRef.collection('messages').add(messageData);
+
+    // Update last message on parent doc for sorting and previews
+    await conversationRef.update({
+        lastMessage: {
+            message: message,
+            timestamp: timestamp,
+        },
+    });
+
+    // Send notification to the other participant
+    const conversationDoc = await conversationRef.get();
+    const conversation = conversationDoc.data() as Conversation;
+    const otherParticipantId = conversation.participantIds.find(id => id !== senderId);
+    
+    if (otherParticipantId) {
+        await sendNotification(otherParticipantId, {
+            userId: otherParticipantId,
+            title: `New message from ${userProfile.username}`,
+            body: message.substring(0, 100),
+            href: `/messages/${conversationId}`,
+        });
+    }
+}
+
 
 export async function findUserByEmail(email: string): Promise<UserProfile | null> {
     const usersRef = adminDb.collection('users');
@@ -200,8 +271,8 @@ export async function startConversation(userId1: string, userId2: string): Promi
         await conversationRef.set({
             participantIds,
             participants: [
-                { uid: user1Profile.uid, username: user1Profile.username, photoURL: user1Profile.photoURL, warnings: user1Profile.warnings || 0 },
-                { uid: user2Profile.uid, username: user2Profile.username, photoURL: user2Profile.photoURL, warnings: user2Profile.warnings || 0 }
+                { uid: user1Profile.uid, username: user1Profile.username, photoURL: user1Profile.photoURL, warnings: userProfile.warnings || 0 },
+                { uid: user2Profile.uid, username: user2Profile.username, photoURL: user2Profile.photoURL, warnings: userProfile.warnings || 0 }
             ],
             createdAt: FieldValue.serverTimestamp(),
         });
