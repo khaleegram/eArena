@@ -64,7 +64,7 @@ export default async function RootLayout({
         <link rel="manifest" href="/manifest.json" />
         <meta name="format-detection" content="telephone=no" />
         <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="theme-color" content="#A67C52" />
+        <meta name="theme-color" content="#172554" />
         <meta name="msapplication-TileColor" content="#0f172a" />
         <meta name="msapplication-config" content="/browserconfig.xml" />
         <meta name="google-site-verification" content="kYYbHnFaEuBUE0-jEPI-67wyMbbq842E2FSIRzm2dD0" />
