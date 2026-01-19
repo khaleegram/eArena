@@ -6,6 +6,7 @@ import { Header } from './header';
 import { Footer } from './footer';
 import { Toaster } from './ui/toaster';
 import type { PlatformSettings } from '@/lib/types';
+import { PushPermissionPrompt } from './push-permission-prompt';
 
 export function Providers({
   children,
@@ -22,6 +23,7 @@ export function Providers({
         <Footer />
       </div>
       <Toaster />
+      <PushPermissionPrompt />
     </AuthProvider>
   );
 }
