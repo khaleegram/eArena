@@ -8,6 +8,7 @@ const withPWA = require('next-pwa')({
   skipWaiting: true,
   sw: 'sw.js',
   disable: process.env.NODE_ENV === 'development',
+  buildExcludes: [/app-build-manifest\.json$/],
 });
 
 // Fix EventEmitter MaxListeners warning in development
