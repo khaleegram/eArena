@@ -8,7 +8,8 @@ import * as z from 'zod';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import type { UserProfile } from '@/lib/types';
-import { getNigerianBanks, verifyBankAccount, saveUserBankDetails, confirmUserDetailsForPayout } from '@/lib/actions';
+import { getNigerianBanks, verifyBankAccount } from '@/lib/actions/payouts';
+import { saveUserBankDetails, confirmUserDetailsForPayout } from '@/lib/actions/user';
 
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
