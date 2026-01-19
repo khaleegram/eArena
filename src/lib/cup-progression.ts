@@ -108,3 +108,10 @@ export function getChampionIfFinalComplete(matches: Match[], tournament: Pick<To
   if (finalMatch.status !== 'approved') return null;
   return getMatchWinnerTeamId(finalMatch, tournament);
 }
+
+export function getRoundName(numTeams: number): string {
+    if (numTeams === 2) return 'Final';
+    if (numTeams === 4) return 'Semi-finals';
+    if (numTeams === 8) return 'Quarter-finals';
+    return `Round of ${numTeams}`;
+}

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -53,7 +54,12 @@ export function PushPermissionPrompt() {
         setIsLoading(true);
 
         try {
-            const swReg = await navigator.serviceWorker.ready;
+            const readyPromise = navigator.serviceWorker.ready;
+            const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error("Service worker took too long to become ready.")), 15000)
+            );
+            const swReg = await Promise.race([readyPromise, timeoutPromise]) as ServiceWorkerRegistration;
+            
             const subscription = await swReg.pushManager.subscribe({
                 userVisibleOnly: true,
                 applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY),
