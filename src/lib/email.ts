@@ -95,8 +95,11 @@ export async function sendEmail({ to, subject, body }: SendEmailParams) {
             message: error?.message,
         });
         
-        // Invalidate the transporter so it can be recreated on next attempt.
-        transporter = null; 
+        // Invalidate the transporter only for specific authentication errors.
+        if (error.code === 'EAUTH' || error.code === 'EENVELOPE') {
+            transporter = null;
+        }
+        
         throw error; // Re-throw original error for full stack trace in dev console
     }
 }
