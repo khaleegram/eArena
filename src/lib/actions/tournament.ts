@@ -3,7 +3,7 @@
 
 import { adminDb } from '@/lib/firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import type { Tournament, Player, Match, Team, PrizeAllocation, Standing } from '@/lib/types';
+import type { Tournament, Player, Match, Team, PrizeAllocation, Standing, MatchReport } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
 import { serializeData, toDate } from '@/lib/utils';
 import { getTournamentAwards } from './payouts';
@@ -643,6 +643,7 @@ export async function requestPlayerReplay(tournamentId: string, matchId: string,
     if (opponentCaptainId) {
         await sendNotification(opponentCaptainId, {
             userId: opponentCaptainId,
+            tournamentId,
             title: "Replay Requested",
             body: `Your opponent has requested a replay for your upcoming match. Reason: ${reason}`,
             href: `/tournaments/${tournamentId}/matches/${matchId}`
@@ -717,6 +718,148 @@ export async function forfeitMatch(tournamentId: string, matchId: string, userId
 }
 
 export async function submitMatchResult(tournamentId: string, matchId: string, teamId: string, userId: string, formData: FormData) {
+    // 1. Get form data
+    const homeScoreRaw = formData.get("homeScore");
+    const awayScoreRaw = formData.get("awayScore");
+    const evidenceFile = formData.get("evidence") as File;
+
+    if (homeScoreRaw === null || awayScoreRaw === null || !evidenceFile || evidenceFile.size === 0) {
+        throw new Error("Missing score or evidence file.");
+    }
+    const homeScore = Number(homeScoreRaw);
+    const awayScore = Number(awayScoreRaw);
+
+    const matchRef = adminDb.collection('tournaments').doc(tournamentId).collection('matches').doc(matchId);
+    const teamRef = adminDb.collection('tournaments').doc(tournamentId).collection('teams').doc(teamId);
+    
+    // 2. Authorization
+    const [matchDoc, teamDoc] = await Promise.all([matchRef.get(), teamRef.get()]);
+
+    if (!matchDoc.exists) throw new Error("Match not found.");
+    if (!teamDoc.exists) throw new Error("Team not found.");
+
+    const match = matchDoc.data() as Match;
+    const team = teamDoc.data() as Team;
+
+    if (team.captainId !== userId && !team.players.some(p => p.uid === userId && p.role === 'co-captain')) {
+        throw new Error("You are not authorized to report scores for this team.");
+    }
+    
+    const isHomeReporting = match.homeTeamId === teamId;
+
+    // 3. Upload evidence
+    const bucket = getStorage().bucket(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
+    const fileName = `tournaments/${tournamentId}/evidence/${matchId}/${userId}_${Date.now()}`;
+    const file = bucket.file(fileName);
+    const buffer = Buffer.from(await evidenceFile.arrayBuffer());
+    
+    await file.save(buffer, { metadata: { contentType: evidenceFile.type } });
+    const [evidenceUrl] = await file.getSignedUrl({ action: 'read', expires: '03-09-2491' });
+
+    // 4. Create report
+    const newReport: MatchReport = {
+        reportedBy: userId,
+        homeScore,
+        awayScore,
+        evidenceUrl,
+        reportedAt: Timestamp.now(),
+    };
+    
+    // 5. Update Firestore
+    const otherReport = isHomeReporting ? match.awayTeamReport : match.homeTeamReport;
+
+    if (!otherReport) {
+        // First report
+        await matchRef.update({
+            [isHomeReporting ? 'homeTeamReport' : 'awayTeamReport']: newReport,
+            status: 'awaiting_confirmation',
+        });
+        // Notify opponent
+        const opponentTeamId = isHomeReporting ? match.awayTeamId : match.homeTeamId;
+        const opponentTeamDoc = await adminDb.collection('tournaments').doc(tournamentId).collection('teams').doc(opponentTeamId).get();
+        if (opponentTeamDoc.exists()) {
+            const opponentCaptainId = opponentTeamDoc.data()?.captainId;
+            if(opponentCaptainId) {
+                await sendNotification(opponentCaptainId, {
+                    userId: opponentCaptainId,
+                    tournamentId,
+                    title: "Score Submitted by Opponent",
+                    body: `Your opponent has reported a score of ${homeScore}-${awayScore}. Please confirm or dispute the result.`,
+                    href: `/tournaments/${tournamentId}/matches/${matchId}`
+                });
+            }
+        }
+    } else {
+        // Second report, compare scores
+        if (otherReport.homeScore === newReport.homeScore && otherReport.awayScore === newReport.awayScore) {
+            // Scores match, approve it
+            await matchRef.update({
+                status: 'approved',
+                homeScore: newReport.homeScore,
+                awayScore: newReport.awayScore,
+                [isHomeReporting ? 'homeTeamReport' : 'awayTeamReport']: newReport,
+                resolutionNotes: 'Scores confirmed by both teams.',
+            });
+            // Trigger standings update
+            await adminDb.collection('tournaments').doc(tournamentId).update({ needsStandingsUpdate: true });
+        } else {
+            // Scores conflict, trigger AI verification
+            await matchRef.update({
+                status: 'disputed',
+                [isHomeReporting ? 'homeTeamReport' : 'awayTeamReport']: newReport,
+            });
+            
+            // Get team names for AI context
+            const [homeTeamDoc, awayTeamDoc] = await Promise.all([
+                 adminDb.collection('tournaments').doc(tournamentId).collection('teams').doc(match.homeTeamId).get(),
+                 adminDb.collection('tournaments').doc(tournamentId).collection('teams').doc(match.awayTeamId).get()
+            ]);
+            const homeTeamName = homeTeamDoc.data()?.name || 'Home Team';
+            const awayTeamName = awayTeamDoc.data()?.name || 'Away Team';
+            
+            // Convert to data URI for Genkit
+            const toDataUri = async (url: string) => {
+                const response = await fetch(url);
+                const blob = await response.blob();
+                const buffer = Buffer.from(await blob.arrayBuffer());
+                return `data:${blob.type};base64,${buffer.toString('base64')}`;
+            }
+
+            const aiInput = {
+                evidence: [
+                    { type: 'match_stats' as const, imageUri: await toDataUri(otherReport.evidenceUrl), teamName: isHomeReporting ? awayTeamName : homeTeamName },
+                    { type: 'match_stats' as const, imageUri: await toDataUri(newReport.evidenceUrl), teamName: isHomeReporting ? homeTeamName : awayTeamName }
+                ],
+                homeTeamName,
+                awayTeamName,
+                scheduledDate: (match.matchDay as Timestamp).toDate().toISOString()
+            };
+            
+            // Call AI flow asynchronously (don't block the user's response)
+            verifyMatchScores(aiInput).then(async (result) => {
+                const updateData: Partial<Match> = {
+                    status: result.verificationStatus,
+                    resolutionNotes: `AI Referee: ${result.reasoning}`,
+                };
+                if (result.verificationStatus === 'verified' && result.verifiedScores) {
+                    updateData.homeScore = result.verifiedScores.homeScore;
+                    updateData.awayScore = result.verifiedScores.awayScore;
+                    updateData.homeTeamStats = result.homeStats;
+                    updateData.awayTeamStats = result.awayStats;
+                }
+                
+                await matchRef.update(updateData);
+
+                if (updateData.status === 'approved' || updateData.status === 'verified') {
+                    await adminDb.collection('tournaments').doc(tournamentId).update({ needsStandingsUpdate: true });
+                }
+            }).catch(error => {
+                console.error("AI score verification failed:", error);
+                // If AI fails, leave it as disputed for manual review
+            });
+        }
+    }
+
     revalidatePath(`/tournaments/${tournamentId}/matches/${matchId}`);
 }
 
