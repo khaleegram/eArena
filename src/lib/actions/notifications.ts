@@ -3,13 +3,14 @@
 
 import { adminDb } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
-import type { Notification } from '@/lib/types';
+import type { Notification, PushSubscription as ClientPushSubscription } from '@/lib/types';
 import webPush from 'web-push';
+import { createHash } from 'crypto';
 
 // Configure web-push with VAPID keys from environment variables
-if (process.env.VAPID_PRIVATE_KEY && process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) {
+if (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
     webPush.setVapidDetails(
-        `mailto:${process.env.SMTP_USERNAME || 'support@example.com'}`, // Using SMTP user as contact email
+        process.env.VAPID_SUBJECT || `mailto:${process.env.SMTP_USERNAME || 'earena.noreply@gmail.com'}`,
         process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
         process.env.VAPID_PRIVATE_KEY
     );
@@ -48,19 +49,25 @@ export async function sendNotification(userId: string, notification: Omit<Notifi
     });
 
     const pushPromises = subscriptionsSnapshot.docs.map(doc => {
-        const sub = doc.data();
-        return webPush.sendNotification(sub as any, payload).catch(error => {
-            if (error.statusCode === 410 || error.statusCode === 404) {
-                // Subscription is no longer valid, remove it.
-                console.log(`Subscription ${sub.endpoint} is no longer valid. Deleting.`);
-                return doc.ref.delete();
-            } else {
-                console.error('Failed to send push notification:', error);
-            }
-        });
+        const sub = doc.data() as ClientPushSubscription;
+        // Validate the subscription object before sending
+        if (sub && typeof sub.endpoint === 'string' && sub.keys && typeof sub.keys.p256dh === 'string' && typeof sub.keys.auth === 'string') {
+            return webPush.sendNotification(sub, payload, { TTL: 60 * 15 }).catch(error => {
+                if (error.statusCode === 410 || error.statusCode === 404) {
+                    // Subscription is no longer valid, remove it.
+                    console.log(`Subscription ${sub.endpoint} is no longer valid. Deleting.`);
+                    return doc.ref.delete();
+                } else {
+                    console.error('Failed to send push notification:', error);
+                }
+            });
+        } else {
+             console.warn(`Invalid subscription format found for user ${userId}. Deleting.`, sub);
+             return doc.ref.delete();
+        }
     });
 
-    await Promise.all(pushPromises);
+    await Promise.allSettled(pushPromises);
 }
 
 export async function markNotificationsAsRead(userId: string) {
@@ -80,11 +87,14 @@ export async function markNotificationsAsRead(userId: string) {
 }
 
 export async function savePushSubscription(userId: string, subscription: any) {
-    const subscriptionRef = adminDb.collection('users').doc(userId).collection('pushSubscriptions').doc(subscription.endpoint.slice(-100)); // Use part of endpoint as ID
+    // Use a hash of the endpoint as the document ID to prevent collisions and illegal characters.
+    const docId = createHash('sha256').update(subscription.endpoint).digest('hex');
+    const subscriptionRef = adminDb.collection('users').doc(userId).collection('pushSubscriptions').doc(docId);
     await subscriptionRef.set(subscription);
 }
 
 export async function deletePushSubscription(userId: string, endpoint: string) {
-    const subscriptionRef = adminDb.collection('users').doc(userId).collection('pushSubscriptions').doc(endpoint.slice(-100));
+    const docId = createHash('sha256').update(endpoint).digest('hex');
+    const subscriptionRef = adminDb.collection('users').doc(userId).collection('pushSubscriptions').doc(docId);
     await subscriptionRef.delete();
 }
