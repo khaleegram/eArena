@@ -78,11 +78,13 @@ function ReportScoreDialog({
   teamToReportFor,
   homeTeamName,
   awayTeamName,
+  tournamentId,
 }: {
   match: Match;
   teamToReportFor: Team;
   homeTeamName: string;
   awayTeamName: string;
+  tournamentId: string;
 }) {
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -106,7 +108,7 @@ function ReportScoreDialog({
 
     setIsSubmitting(true);
     try {
-      await submitMatchResult(match.tournamentId, match.id, teamToReportFor.id, user.uid, formData);
+      await submitMatchResult(tournamentId, match.id, teamToReportFor.id, user.uid, formData);
       toast({ title: "Report submitted ✅", description: "Awaiting verification." });
       setOpen(false);
     } catch (error: any) {
@@ -162,7 +164,7 @@ function ReportScoreDialog({
   );
 }
 
-function RoomCodeManager({ match, isMatchDay }: { match: Match; isMatchDay: boolean }) {
+function RoomCodeManager({ match, isMatchDay, tournamentId }: { match: Match; isMatchDay: boolean; tournamentId: string; }) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -175,7 +177,7 @@ function RoomCodeManager({ match, isMatchDay }: { match: Match; isMatchDay: bool
   const handleSaveCode = async () => {
     setIsLoading(true);
     try {
-      await setMatchRoomCode(match.tournamentId, match.id, code);
+      await setMatchRoomCode(tournamentId, match.id, code);
       toast({ title: "Room code saved ✅" });
       setOpen(false);
     } catch (error: any) {
@@ -246,12 +248,14 @@ function RoomCodeManager({ match, isMatchDay }: { match: Match; isMatchDay: bool
 
 function MatchChatDialog({
   match,
+  tournamentId,
   homeTeamName,
   awayTeamName,
   isMatchDay,
   isOrganizer,
 }: {
   match: Match;
+  tournamentId: string;
   homeTeamName: string;
   awayTeamName: string;
   isMatchDay: boolean;
@@ -263,12 +267,12 @@ function MatchChatDialog({
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const q = query(collection(db, `tournaments/${match.tournamentId}/matches/${match.id}/messages`), orderBy("timestamp", "asc"));
+    const q = query(collection(db, `tournaments/${tournamentId}/matches/${match.id}/messages`), orderBy("timestamp", "asc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setMessages(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
     return () => unsubscribe();
-  }, [match.tournamentId, match.id]);
+  }, [tournamentId, match.id]);
 
   useEffect(() => {
       if (scrollAreaRef.current) {
@@ -282,7 +286,7 @@ function MatchChatDialog({
       return;
     }
     await postMatchMessage(
-      match.tournamentId,
+      tournamentId,
       match.id,
       user.uid,
       userProfile.username || user.email!,
@@ -511,10 +515,10 @@ function MatchCard({
 
         {/* Action Bar */}
         <div className="p-2 border-t bg-muted/20 flex flex-wrap gap-2 justify-end">
-          <MatchChatDialog match={match} homeTeamName={homeTeam.name} awayTeamName={awayTeam.name} isMatchDay={isMatchDay} isOrganizer={isOrganizer}/>
-          {isHostCaptain && <TransferHostButton matchId={match.id} tournamentId={match.tournamentId} />}
-          <RoomCodeManager match={{ ...match, host: getTeam(match.hostId) } as any} isMatchDay={isMatchDay} />
-          {canReport && <ReportScoreDialog match={match} teamToReportFor={isHomeCaptain ? homeTeam : awayTeam} homeTeamName={homeTeam.name} awayTeamName={awayTeam.name} />}
+          <MatchChatDialog match={match} tournamentId={tournament.id} homeTeamName={homeTeam.name} awayTeamName={awayTeam.name} isMatchDay={isMatchDay} isOrganizer={isOrganizer}/>
+          {isHostCaptain && <TransferHostButton matchId={match.id} tournamentId={tournament.id} />}
+          <RoomCodeManager match={{ ...match, host: getTeam(match.hostId) } as any} isMatchDay={isMatchDay} tournamentId={tournament.id}/>
+          {canReport && <ReportScoreDialog match={match} teamToReportFor={isHomeCaptain ? homeTeam : awayTeam} homeTeamName={homeTeam.name} awayTeamName={awayTeam.name} tournamentId={tournament.id}/>}
         </div>
       </CardContent>
     </Card>
@@ -522,7 +526,7 @@ function MatchCard({
 }
 
 
-/* ----------------كنولوجيا Main Tab ----------------------------- */
+/* ----------------------------- Main Tab ----------------------------- */
 
 export function MyMatchesTab({
   tournament,
@@ -682,5 +686,7 @@ export function MyMatchesTab({
     </div>
   );
 }
+
+    
 
     
