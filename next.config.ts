@@ -19,8 +19,8 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: '10mb',
     },
-    serverComponentsExternalPackages: ['zod'],
   },
+  serverExternalPackages: ['zod'],
   typescript: {
     ignoreBuildErrors: true,
   },
