@@ -7,7 +7,6 @@ import { startTournamentAndGenerateFixtures, initiatePayouts } from '@/lib/actio
 import { toDate } from '@/lib/utils';
 import type { Tournament } from '@/lib/types';
 import { addDays, startOfDay } from 'date-fns';
-import { updateStandings } from './standings';
 
 export async function runStartTournamentsJob() {
     const now = new Date();

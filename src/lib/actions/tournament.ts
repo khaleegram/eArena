@@ -12,7 +12,7 @@ import { customAlphabet } from 'nanoid';
 import { getStorage } from 'firebase-admin/storage';
 import { getUserProfileById } from './user';
 import { sendNotification } from './notifications';
-import { addDays, differenceInDays, format, isBefore, isPast, endOfDay } from 'date-fns';
+import { addDays, differenceInDays, format, isBefore, isAfter, isToday, isFuture, isPast, endOfDay } from 'date-fns';
 
 import { generateRoundRobinFixtures } from '../round-robin';
 import { createWorldCupGroups, generateGroupStageFixtures, computeAllGroupStandings, seedKnockoutFromGroups, isGroupRound } from '../group-stage';
@@ -597,8 +597,65 @@ export async function regenerateTournamentFixtures(tournamentId: string, organiz
 }
 
 export async function organizerResolveOverdueMatches(tournamentId: string, organizerId: string) {
-    // Logic to check for overdue matches and assign forfeits
-    revalidatePath(`/tournaments/${tournamentId}`);
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    const tournamentDoc = await tournamentRef.get();
+    if (!tournamentDoc.exists || tournamentDoc.data()?.organizerId !== organizerId) {
+        throw new Error("Unauthorized or tournament not found.");
+    }
+    const tournament = tournamentDoc.data() as Tournament;
+    if (tournament.status !== 'in_progress') {
+        throw new Error("This action can only be performed on tournaments that are in progress.");
+    }
+
+    const matchesRef = tournamentRef.collection('matches');
+    const now = new Date();
+    // A match is overdue if its matchDay is past and it's not approved.
+    const overdueSnapshot = await matchesRef
+        .where('status', 'in', ['scheduled', 'awaiting_confirmation', 'disputed', 'needs_secondary_evidence'])
+        .get();
+
+    const batch = adminDb.batch();
+    let resolvedCount = 0;
+
+    overdueSnapshot.docs.forEach(doc => {
+        const match = doc.data() as Match;
+        if (isPast(endOfDay(toDate(match.matchDay)))) {
+            let resolutionNotes = "Match auto-resolved by organizer due to being overdue. ";
+            let homeScore = 0;
+            let awayScore = 0;
+
+            if (match.homeTeamReport && !match.awayTeamReport) {
+                homeScore = match.homeTeamReport.homeScore;
+                awayScore = match.homeTeamReport.awayScore;
+                resolutionNotes += "Resolved based on home team's report.";
+            } else if (!match.homeTeamReport && match.awayTeamReport) {
+                homeScore = match.awayTeamReport.homeScore;
+                awayScore = match.awayTeamReport.awayScore;
+                resolutionNotes += "Resolved based on away team's report.";
+            } else {
+                // If both or neither reported, it's a 0-0 draw.
+                resolutionNotes += "Resolved as a 0-0 draw as no conclusive report was found.";
+            }
+
+            batch.update(doc.ref, {
+                status: 'approved',
+                homeScore: homeScore,
+                awayScore: awayScore,
+                resolutionNotes: resolutionNotes,
+                wasAutoForfeited: true, // Mark as auto-resolved
+            });
+            resolvedCount++;
+        }
+    });
+
+    if (resolvedCount > 0) {
+        await batch.commit();
+        await updateStandings(tournamentId);
+        await checkAndCompleteTournament(tournamentId);
+        revalidatePath(`/tournaments/${tournamentId}`);
+    }
+
+    return { resolvedCount };
 }
 
 export async function setOrganizerStreamUrl(tournamentId: string, matchId: string, url: string, organizerId: string) {
@@ -712,6 +769,7 @@ export async function forfeitMatch(tournamentId: string, matchId: string, userId
     });
 
     await updateStandings(tournamentId);
+    await checkAndCompleteTournament(tournamentId);
 
     revalidatePath(`/tournaments/${tournamentId}/matches/${matchId}`);
     revalidatePath(`/tournaments/${tournamentId}`);
@@ -801,6 +859,7 @@ export async function submitMatchResult(tournamentId: string, matchId: string, t
                 resolutionNotes: 'Scores confirmed by both teams.',
             });
             await updateStandings(tournamentId);
+            await checkAndCompleteTournament(tournamentId);
         } else {
             // Scores conflict, trigger AI verification
             await matchRef.update({
@@ -851,6 +910,7 @@ export async function submitMatchResult(tournamentId: string, matchId: string, t
 
                 if (updateData.status === 'approved' || updateData.status === 'verified') {
                     await updateStandings(tournamentId);
+                    await checkAndCompleteTournament(tournamentId);
                 }
             }).catch(error => {
                 console.error("AI score verification failed:", error);
@@ -938,6 +998,58 @@ export async function cancelReplayRequest(tournamentId: string, matchId: string,
     revalidatePath(`/tournaments/${tournamentId}/matches/${matchId}`);
 }
     
+async function checkAndCompleteTournament(tournamentId: string) {
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    const tournamentDoc = await tournamentRef.get();
+    if (!tournamentDoc.exists) return;
+    const tournament = tournamentDoc.data() as Tournament;
+
+    // Don't re-complete a tournament
+    if (tournament.status === 'completed') return;
+
+    const matchesSnapshot = await tournamentRef.collection('matches').get();
+    const allMatches = matchesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Match));
+
+    if (allMatches.length === 0) return; // Not started yet
+
+    let isTournamentComplete = false;
+
+    if (tournament.format === 'league') {
+        const allMatchesPlayed = allMatches.every(m => m.status === 'approved');
+        if (allMatchesPlayed) {
+            isTournamentComplete = true;
+        }
+    } else if (tournament.format === 'cup' || tournament.format === 'swiss') {
+        const champion = getChampionIfFinalComplete(allMatches, tournament);
+        if (champion) {
+            isTournamentComplete = true;
+        }
+    }
+    
+    if (isTournamentComplete) {
+        await tournamentRef.update({
+            status: 'completed',
+            endedAt: FieldValue.serverTimestamp(),
+        });
+        
+        // Final standings update
+        await updateStandings(tournamentId);
+
+        revalidatePath(`/tournaments/${tournamentId}`);
+
+        // Notify organizer
+        const organizerProfile = await getUserProfileById(tournament.organizerId);
+        if (organizerProfile) {
+            await sendNotification(organizerProfile.uid, {
+                userId: organizerProfile.uid,
+                title: "Tournament Concluded!",
+                body: `"${tournament.name}" has finished. Final standings and awards are now available.`,
+                href: `/tournaments/${tournamentId}?tab=rewards`
+            });
+        }
+    }
+}
+
 // DEV-ONLY FUNCTIONS
 
 async function autoApproveMatches(matches: Match[], tournamentRef: FirebaseFirestore.DocumentReference<FirebaseFirestore.DocumentData>) {
