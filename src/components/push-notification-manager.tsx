@@ -40,8 +40,9 @@ export function PushNotificationManager() {
                 setIsSupported(true);
                 const checkSubscription = async () => {
                     try {
-                        const swReg = await navigator.serviceWorker.register('/sw.js');
-                        const sub = await swReg.pushManager.getSubscription();
+                        await navigator.serviceWorker.register('/sw.js');
+                        const registration = await navigator.serviceWorker.ready;
+                        const sub = await registration.pushManager.getSubscription();
                         setIsSubscribed(!!sub);
                     } catch (error: any) {
                         console.error("Error checking push subscription:", error);
@@ -68,16 +69,9 @@ export function PushNotificationManager() {
 
         setIsLoading(true);
 
-        const permission = await Notification.requestPermission();
-        if (permission === 'denied') {
-            toast({ variant: 'destructive', title: 'Permission Denied', description: 'Please enable notifications in your browser settings.' });
-            setIsLoading(false);
-            return;
-        }
-
         try {
-            const swReg = await navigator.serviceWorker.register('/sw.js');
-            const existingSubscription = await swReg.pushManager.getSubscription();
+            const registration = await navigator.serviceWorker.ready;
+            const existingSubscription = await registration.pushManager.getSubscription();
 
             if (existingSubscription) {
                 await existingSubscription.unsubscribe();
@@ -85,7 +79,14 @@ export function PushNotificationManager() {
                 setIsSubscribed(false);
                 toast({ title: 'Unsubscribed', description: 'You will no longer receive push notifications.' });
             } else {
-                const newSubscription = await swReg.pushManager.subscribe({
+                const permission = await Notification.requestPermission();
+                if (permission === 'denied') {
+                    toast({ variant: 'destructive', title: 'Permission Denied', description: 'Please enable notifications in your browser settings.' });
+                    setIsLoading(false);
+                    return;
+                }
+
+                const newSubscription = await registration.pushManager.subscribe({
                     userVisibleOnly: true,
                     applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY),
                 });
@@ -102,8 +103,8 @@ export function PushNotificationManager() {
             }
             // Re-check state in case of failure
             try {
-                const swReg = await navigator.serviceWorker.register('/sw.js');
-                const sub = await swReg.pushManager.getSubscription();
+                const registration = await navigator.serviceWorker.ready;
+                const sub = await registration.pushManager.getSubscription();
                 setIsSubscribed(!!sub);
             } catch (recheckError) {
                 console.error("Failed to re-check subscription status:", recheckError);
