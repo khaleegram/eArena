@@ -16,12 +16,14 @@ self.addEventListener("push", (event) => {
     const title = payload.title || "eArena";
     const body = payload.body || "";
     const href = payload?.data?.href || payload?.href || "/";
+    const icon = payload.icon || "/icons/android/android-launchericon-192-192.png";
 
     const options = {
       body,
-      icon: "/icons/android/android-launchericon-192-192.png",
+      icon,
       badge: "/icons/android/android-launchericon-72-72.png",
-      data: { href }
+      data: { href },
+      requireInteraction: true,
     };
 
     await self.registration.showNotification(title, options);
@@ -41,6 +43,7 @@ self.addEventListener("notificationclick", (event) => {
         const url = new URL(client.url);
         if (url.origin === self.location.origin) {
           await client.focus();
+          // If you want to navigate the focused tab:
           await client.navigate(href);
           return;
         }

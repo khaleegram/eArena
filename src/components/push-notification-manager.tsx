@@ -5,9 +5,10 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from './ui/button';
-import { BellRing, BellOff } from 'lucide-react';
+import { BellRing, BellOff, Info } from 'lucide-react';
 import { savePushSubscription, deletePushSubscription } from '@/lib/actions/notifications';
 import { Loader2 } from 'lucide-react';
+import { Alert, AlertDescription } from './ui/alert';
 
 function urlBase64ToUint8Array(base64String: string) {
     const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -29,26 +30,30 @@ export function PushNotificationManager() {
     const [isLoading, setIsLoading] = useState(false);
     const [isSupported, setIsSupported] = useState(false);
     const [isChecking, setIsChecking] = useState(true);
+    const [isIos, setIsIos] = useState(false);
 
     useEffect(() => {
-        if (typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window) {
-            setIsSupported(true);
-            const checkSubscription = async () => {
-                try {
-                    const swReg = await navigator.serviceWorker.ready;
-                    const sub = await swReg.pushManager.getSubscription();
-                    setIsSubscribed(!!sub);
-                } catch (error) {
-                    console.error("Error checking push subscription:", error);
-                    setIsSubscribed(false);
-                } finally {
-                    setIsChecking(false);
-                }
-            };
-            checkSubscription();
-        } else {
-            setIsSupported(false);
-            setIsChecking(false);
+        if (typeof window !== 'undefined') {
+            setIsIos(/iPad|iPhone|iPod/.test(navigator.userAgent));
+            if ('serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window) {
+                setIsSupported(true);
+                const checkSubscription = async () => {
+                    try {
+                        const swReg = await navigator.serviceWorker.ready;
+                        const sub = await swReg.pushManager.getSubscription();
+                        setIsSubscribed(!!sub);
+                    } catch (error) {
+                        console.error("Error checking push subscription:", error);
+                        setIsSubscribed(false);
+                    } finally {
+                        setIsChecking(false);
+                    }
+                };
+                checkSubscription();
+            } else {
+                setIsSupported(false);
+                setIsChecking(false);
+            }
         }
     }, []);
 
@@ -103,6 +108,16 @@ export function PushNotificationManager() {
     };
 
     if (!isSupported) {
+        if (isIos) {
+            return (
+                <Alert variant="default" className="border-primary/20">
+                  <Info className="h-4 w-4" />
+                  <AlertDescription>
+                    To enable notifications on your iPhone/iPad, add eArena to your Home Screen from the Safari share menu, then subscribe from the installed app.
+                  </AlertDescription>
+                </Alert>
+            );
+        }
         return <p className="text-sm text-muted-foreground">Push notifications are not supported on this browser or device.</p>;
     }
 

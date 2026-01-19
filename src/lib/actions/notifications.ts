@@ -41,7 +41,7 @@ export async function sendNotification(userId: string, notification: Omit<Notifi
     const payload = JSON.stringify({
         title: notification.title,
         body: notification.body,
-        icon: '/images/logo-192.png',
+        icon: '/icons/android/android-launchericon-192-192.png',
         data: {
             href: notification.href
         }
