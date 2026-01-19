@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -10,6 +11,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Loader2, Trophy } from "lucide-react";
 import { ReputationAvatar } from "@/components/reputation-avatar";
 import { Bracket } from "@/components/bracket";
+import { computeAllGroupStandings, isGroupRound } from "@/lib/group-stage";
+import { isKnockoutRound } from "@/lib/cup-progression";
 
 type GroupRow = {
   teamId: string;
@@ -22,82 +25,6 @@ type GroupRow = {
   goalDifference: number;
   points: number;
 };
-
-function isGroupRound(round?: string): boolean {
-  return typeof round === 'string' && /^group\s+[a-z]$/i.test(round.trim());
-}
-
-function computeGroupStandings(groupMatches: Match[]): GroupRow[] {
-  const rows = new Map<string, GroupRow>();
-  const ensure = (teamId: string) => {
-    if (!rows.has(teamId)) {
-      rows.set(teamId, {
-        teamId,
-        matchesPlayed: 0,
-        wins: 0,
-        draws: 0,
-        losses: 0,
-        goalsFor: 0,
-        goalsAgainst: 0,
-        goalDifference: 0,
-        points: 0,
-      });
-    }
-    return rows.get(teamId)!;
-  };
-
-  // Ensure teams appear even if no matches have been approved yet.
-  // We derive teams from the fixture list itself (scheduled + approved).
-  for (const match of groupMatches) {
-    ensure(match.homeTeamId);
-    ensure(match.awayTeamId);
-  }
-
-  for (const match of groupMatches) {
-    if (match.status !== 'approved') continue;
-    if (match.homeScore == null || match.awayScore == null) continue;
-
-    const home = ensure(match.homeTeamId);
-    const away = ensure(match.awayTeamId);
-
-    home.matchesPlayed++;
-    away.matchesPlayed++;
-
-    home.goalsFor += match.homeScore;
-    home.goalsAgainst += match.awayScore;
-    away.goalsFor += match.awayScore;
-    away.goalsAgainst += match.homeScore;
-
-    if (match.homeScore > match.awayScore) {
-      home.wins++;
-      home.points += 3;
-      away.losses++;
-    } else if (match.awayScore > match.homeScore) {
-      away.wins++;
-      away.points += 3;
-      home.losses++;
-    } else {
-      home.draws++;
-      away.draws++;
-      home.points += 1;
-      away.points += 1;
-    }
-  }
-
-  const standings = Array.from(rows.values()).map(r => ({
-    ...r,
-    goalDifference: r.goalsFor - r.goalsAgainst,
-  }));
-
-  standings.sort((a, b) => {
-    if (b.points !== a.points) return b.points - a.points;
-    if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
-    if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
-    return a.teamId.localeCompare(b.teamId);
-  });
-
-  return standings;
-}
 
 export function StandingsTab({ tournament }: { tournament: Tournament }) {
   const tournamentId = tournament.id;
@@ -143,20 +70,9 @@ export function StandingsTab({ tournament }: { tournament: Tournament }) {
       unsubMatches = onSnapshot(matchesQuery, (snapshot) => {
           if (!active) return;
           const matchesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Match));
-          const groupMatches = matchesData.filter(m => isGroupRound(m.round));
           const koMatches = matchesData.filter(m => isKnockoutRound(m.round));
 
-          const grouped: Record<string, Match[]> = {};
-          for (const m of groupMatches) {
-            const key = (m.round || 'Group ?').trim();
-            grouped[key] = grouped[key] || [];
-            grouped[key]!.push(m);
-          }
-
-          const tables: Record<string, GroupRow[]> = {};
-          Object.keys(grouped).sort((a, b) => a.localeCompare(b)).forEach(groupName => {
-            tables[groupName] = computeGroupStandings(grouped[groupName]!);
-          });
+          const tables = computeAllGroupStandings(matchesData);
           setGroupTables(tables);
           setKnockoutMatches(koMatches);
           matchesLoaded = true;
@@ -192,11 +108,6 @@ export function StandingsTab({ tournament }: { tournament: Tournament }) {
   }
   
   const isCupStyle = tournament.format === 'cup';
-  const isKnockoutRound = (round?: string) => {
-    if (typeof round !== 'string') return false;
-    const r = round.trim().toLowerCase();
-    return r === 'final' || r === 'semi-finals' || r === 'quarter-finals' || /^round of \d+$/i.test(round.trim());
-  };
 
   return (
     <Card>

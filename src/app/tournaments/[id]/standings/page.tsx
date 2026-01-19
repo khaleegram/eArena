@@ -1,32 +1,126 @@
-import { getTournamentById } from "@/lib/actions/tournament";
-import { getTeamsForTournament } from "@/lib/actions/team";
-import { getStandingsForTournament, getGroupTablesForTournament } from "@/lib/actions/standings";
-import { notFound } from "next/navigation";
+
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useParams, notFound } from 'next/navigation';
+import { db } from '@/lib/firebase';
+import { collection, onSnapshot, query, where, orderBy, doc, getDoc } from 'firebase/firestore';
+import { getTournamentById } from '@/lib/actions/tournament';
+import type { Tournament, Standing, Team, Match } from '@/lib/types';
+import { computeAllGroupStandings } from '@/lib/group-stage';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Trophy } from "lucide-react";
+import { Trophy, Loader2 } from "lucide-react";
 import { ReputationAvatar } from "@/components/reputation-avatar";
 import Link from 'next/link';
 import { ExportStandingsButton } from "./export-standings-button";
+import { Skeleton } from '@/components/ui/skeleton';
 
-export default async function StandingsPage({ params }: { params: { id: string } }) {
-    const tournament = await getTournamentById(params.id);
+export default function StandingsPage() {
+    const params = useParams() as { id: string };
+    const [tournament, setTournament] = useState<Tournament | null>(null);
+    const [standings, setStandings] = useState<Standing[]>([]);
+    const [teams, setTeams] = useState<Team[]>([]);
+    const [groupTables, setGroupTables] = useState<Record<string, any[]>>({});
+    const [loading, setLoading] = useState(true);
 
-    if (!tournament) {
-        notFound();
-    }
+    useEffect(() => {
+        if (!params.id) return;
 
-    const isCupStyle = tournament.format === 'cup';
+        let active = true;
 
-    const [standings, teams, groupTables] = await Promise.all([
-        isCupStyle ? Promise.resolve([]) : getStandingsForTournament(params.id),
-        getTeamsForTournament(params.id),
-        isCupStyle ? getGroupTablesForTournament(params.id) : Promise.resolve({}),
-    ]);
+        const fetchTournamentDetails = async () => {
+            try {
+                const tournamentData = await getTournamentById(params.id);
+                 if (!active) return;
+                if (tournamentData) {
+                    setTournament(tournamentData);
+                } else {
+                    setLoading(false); // Trigger notFound if fetch completes with no data
+                }
+            } catch (error) {
+                console.error("Error fetching tournament details:", error);
+                if(active) setLoading(false);
+            }
+        };
+
+        fetchTournamentDetails();
+
+        return () => { active = false; };
+    }, [params.id]);
+
+    useEffect(() => {
+        if (!tournament) {
+            return;
+        }
+
+        const tournamentId = tournament.id;
+        let teamsLoaded = false;
+        let dataLoaded = false;
+        
+        const checkDone = () => {
+            if (teamsLoaded && dataLoaded) setLoading(false);
+        };
+
+        const unsubTeams = onSnapshot(query(collection(db, `tournaments/${tournamentId}/teams`)), (snapshot) => {
+            const teamsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Team);
+            setTeams(teamsData);
+            teamsLoaded = true;
+            checkDone();
+        });
+
+        let unsubData: () => void;
+        if (tournament.format === 'cup') {
+            const matchesQuery = query(collection(db, `tournaments/${tournamentId}/matches`), orderBy("round", "asc"));
+            unsubData = onSnapshot(matchesQuery, (snapshot) => {
+                const matchesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Match));
+                const tables = computeAllGroupStandings(matchesData);
+                setGroupTables(tables);
+                dataLoaded = true;
+                checkDone();
+            });
+        } else {
+            const standingsQuery = query(collection(db, "standings"), where("tournamentId", "==", tournamentId), orderBy("ranking", "asc"));
+            unsubData = onSnapshot(standingsQuery, (snapshot) => {
+                const standingsData = snapshot.docs.map(doc => doc.data() as Standing);
+                setStandings(standingsData);
+                dataLoaded = true;
+                checkDone();
+            });
+        }
+        
+        return () => {
+            unsubTeams();
+            if(unsubData) unsubData();
+        };
+
+    }, [tournament]);
 
     const getTeamInfo = (teamId: string) => {
-        return teams.find(t => t.id === teamId) || { name: 'Unknown', logoUrl: '' };
+        return teams.find(t => t.id === teamId) || { name: 'Unknown', logoUrl: '', captainId: '' };
     }
+    
+    if (loading) {
+        return (
+            <div className="container py-10">
+                <Card>
+                    <CardHeader>
+                        <Skeleton className="h-8 w-3/5" />
+                        <Skeleton className="h-4 w-4/5" />
+                    </CardHeader>
+                    <CardContent className="flex justify-center items-center h-64">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    </CardContent>
+                </Card>
+            </div>
+        )
+    }
+
+    if (!tournament) {
+        return notFound();
+    }
+    
+    const isCupStyle = tournament.format === 'cup';
 
     return (
         <div className="container py-10">
