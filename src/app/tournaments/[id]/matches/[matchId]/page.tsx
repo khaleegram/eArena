@@ -273,7 +273,7 @@ export default function MatchDetailsPage() {
   const [awayTeam, setAwayTeam] = useState<Team | null>(null);
 
   const [loading, setLoading] = useState(true);
-  const [isCancelling, setIsCancelling] = React.useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
 
   const { toast } = useToast();
 
