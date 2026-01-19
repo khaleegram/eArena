@@ -40,7 +40,7 @@ import { useToast } from '@/hooks/use-toast';
 import { setOrganizerStreamUrl, requestPlayerReplay, respondToPlayerReplay, forfeitMatch } from '@/lib/actions/tournament';
 import { postMatchMessage } from '@/lib/actions/community';
 import { MatchStatusBadge } from '@/components/match-status-badge';
-import { toDate, cn } from '@/lib/utils';
+import { toDate, cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from '@/components/ui/input';
@@ -356,7 +356,7 @@ export default function MatchDetailsPage() {
   
   const canRequestReplay = isMyTeam && !replayRequest && match.status === 'scheduled';
   const canRespondToReplay = user?.uid === opponentCaptainId && replayRequest?.status === 'pending';
-  const canForfeit = (isHomeCaptain || isAwayCaptain) && isToday(toDate(match.matchDay)) && match.status === "scheduled";
+  const canForfeit = (isHomeCaptain || isAwayCaptain) && !isPast(endOfDay(toDate(match.matchDay))) && match.status === "scheduled";
 
   return (
     <div className="max-w-5xl mx-auto p-4 md:p-6 space-y-5">

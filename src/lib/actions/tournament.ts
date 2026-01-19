@@ -12,13 +12,14 @@ import { customAlphabet } from 'nanoid';
 import { getStorage } from 'firebase-admin/storage';
 import { getUserProfileById } from './user';
 import { sendNotification } from './notifications';
-import { addDays, differenceInDays, format, isBefore, isPast } from 'date-fns';
+import { addDays, differenceInDays, format, isBefore, isPast, endOfDay } from 'date-fns';
 
 import { generateRoundRobinFixtures } from '../round-robin';
 import { createWorldCupGroups, generateGroupStageFixtures, computeAllGroupStandings, seedKnockoutFromGroups, isGroupRound } from '../group-stage';
 import { generateSwissRoundFixtures, getMaxSwissRounds, isSwissRound, getSwissRoundNumber } from '../swiss';
 import { getLatestRound, assertRoundCompleted, getWinnersForRound, getChampionIfFinalComplete, isKnockoutRound } from '../cup-progression';
 import { generateCupRound, getRoundName } from '../cup-tournament';
+import { verifyMatchScores } from '@/ai/flows/verify-match-scores';
 
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
 
@@ -598,37 +599,122 @@ export async function organizerResolveOverdueMatches(tournamentId: string, organ
 }
 
 export async function setOrganizerStreamUrl(tournamentId: string, matchId: string, url: string, organizerId: string) {
-    // Logic to set stream URL
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    const tournamentDoc = await tournamentRef.get();
+    if(tournamentDoc.data()?.organizerId !== organizerId) {
+        throw new Error("You are not authorized to set a stream URL.");
+    }
+    
+    const matchRef = tournamentRef.collection('matches').doc(matchId);
+    await matchRef.update({
+        'streamLinks.organizer': {
+            username: 'Official Stream',
+            url: url,
+        }
+    });
+
     revalidatePath(`/tournaments/${tournamentId}/matches/${matchId}`);
 }
 
 export async function requestPlayerReplay(tournamentId: string, matchId: string, userId: string, reason: string) {
-    // Logic to handle replay requests
+    const matchRef = adminDb.collection('tournaments').doc(tournamentId).collection('matches').doc(matchId);
+    const request: ReplayRequest = {
+        requestedBy: userId,
+        reason: reason,
+        status: 'pending',
+    };
+    await matchRef.update({ replayRequest: request });
+
     revalidatePath(`/tournaments/${tournamentId}/matches/${matchId}`);
 }
 
 export async function respondToPlayerReplay(tournamentId: string, matchId: string, userId: string, accepted: boolean) {
-    // Logic to respond to replay requests
+    const matchRef = adminDb.collection('tournaments').doc(tournamentId).collection('matches').doc(matchId);
+    const matchDoc = await matchRef.get();
+    if (!matchDoc.exists) throw new Error("Match not found.");
+    const matchData = matchDoc.data() as Match;
+
+    if (!matchData.replayRequest || matchData.replayRequest.status !== 'pending') {
+        throw new Error("There is no active replay request to respond to.");
+    }
+
+    await matchRef.update({
+        'replayRequest.status': accepted ? 'accepted' : 'rejected',
+        'replayRequest.respondedBy': userId,
+    });
+    
     revalidatePath(`/tournaments/${tournamentId}/matches/${matchId}`);
 }
 
 export async function forfeitMatch(tournamentId: string, matchId: string, userId: string) {
-    // Logic to forfeit a match
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    const matchRef = tournamentRef.collection('matches').doc(matchId);
+
+    const [tournamentDoc, matchDoc] = await Promise.all([tournamentRef.get(), matchRef.get()]);
+    if (!tournamentDoc.exists) throw new Error("Tournament not found.");
+    if (!matchDoc.exists) throw new Error("Match not found.");
+
+    const match = matchDoc.data() as Match;
+    
+    if (match.status !== 'scheduled' || isPast(endOfDay(toDate(match.matchDay)))) {
+        throw new Error("This match is in the past and can no longer be forfeited.");
+    }
+    
+    const teamSnapshot = await tournamentRef.collection('teams').where('playerIds', 'array-contains', userId).limit(1).get();
+    if(teamSnapshot.empty) {
+        throw new Error("You are not part of a team in this match.");
+    }
+    const userTeam = teamSnapshot.docs[0].data() as Team;
+
+    const isHome = userTeam.id === match.homeTeamId;
+    const isAway = userTeam.id === match.awayTeamId;
+
+    if (!isHome && !isAway) {
+        throw new Error("You are not a participant in this match.");
+    }
+
+    const homeScore = isHome ? 0 : 3;
+    const awayScore = isAway ? 0 : 3;
+
+    await matchRef.update({
+        status: 'approved',
+        homeScore,
+        awayScore,
+        wasAutoForfeited: true,
+        resolutionNotes: `Match forfeited by ${userTeam.name}.`
+    });
+
+    await tournamentRef.update({ needsStandingsUpdate: true });
+
     revalidatePath(`/tournaments/${tournamentId}/matches/${matchId}`);
+    revalidatePath(`/tournaments/${tournamentId}`);
 }
 
 export async function submitMatchResult(tournamentId: string, matchId: string, teamId: string, userId: string, formData: FormData) {
-    // Logic to submit match results
     revalidatePath(`/tournaments/${tournamentId}/matches/${matchId}`);
 }
 
 export async function transferHost(tournamentId: string, matchId: string, userId: string) {
-    // Logic to transfer host
+    const matchRef = adminDb.collection('tournaments').doc(tournamentId).collection('matches').doc(matchId);
+    const matchDoc = await matchRef.get();
+    if (!matchDoc.exists) throw new Error("Match not found.");
+    const match = matchDoc.data() as Match;
+    if (match.hostId !== userId) throw new Error("Only the current host can transfer duties.");
+    
+    const newHostId = match.homeTeamId === userId ? match.awayTeamId : match.homeTeamId;
+    await matchRef.update({
+        hostId: newHostId,
+        hostTransferRequested: true,
+    });
     revalidatePath(`/tournaments/${tournamentId}/matches/${matchId}`);
 }
 
 export async function setMatchRoomCode(tournamentId: string, matchId: string, code: string) {
-    // Logic to set room code
+    const matchRef = adminDb.collection('tournaments').doc(tournamentId).collection('matches').doc(matchId);
+    await matchRef.update({
+        roomCode: code,
+        roomCodeSetAt: FieldValue.serverTimestamp(),
+    });
     revalidatePath(`/tournaments/${tournamentId}/matches/${matchId}`);
 }
 
@@ -665,7 +751,7 @@ export async function verifyAndActivateTournament(reference: string) {
         throw new Error('Payment verification failed.');
     }
 }
-
+    
 // DEV-ONLY FUNCTIONS
 
 async function autoApproveMatches(matches: Match[], tournamentRef: FirebaseFirestore.DocumentReference<FirebaseFirestore.DocumentData>) {
