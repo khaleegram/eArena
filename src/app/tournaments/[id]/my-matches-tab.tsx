@@ -479,10 +479,13 @@ function MatchCard({
 
           {/* Scoreboard */}
           <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center">
-            <div className="flex items-center gap-2 min-w-0">
+            {/* Home Team */}
+            <div className="flex items-center gap-2 min-w-0 justify-start">
               <Avatar className="h-8 w-8 sm:h-10 sm:w-10"><AvatarImage src={homeTeam.logoUrl} alt={homeTeam.name} /><AvatarFallback>{homeTeam.name?.[0]?.toUpperCase()}</AvatarFallback></Avatar>
               <div className="min-w-0"><p className="text-sm sm:text-base font-semibold truncate">{homeTeam.name}</p></div>
             </div>
+            
+            {/* Score / VS */}
             <div className="text-center">
               {match.status === "approved" ? (
                 <div className="text-2xl sm:text-3xl font-black tabular-nums">{match.homeScore} <span className="opacity-30">-</span> {match.awayScore}</div>
@@ -490,9 +493,11 @@ function MatchCard({
                 <div className="text-lg sm:text-xl font-black text-muted-foreground uppercase tracking-widest">VS</div>
               )}
             </div>
-            <div className="flex items-center gap-2 min-w-0 flex-row-reverse sm:flex-row">
+
+            {/* Away Team */}
+            <div className="flex items-center gap-2 min-w-0 justify-end">
+                <div className="min-w-0 text-right"><p className="text-sm sm:text-base font-semibold truncate">{awayTeam.name}</p></div>
                 <Avatar className="h-8 w-8 sm:h-10 sm:w-10"><AvatarImage src={awayTeam.logoUrl} alt={awayTeam.name} /><AvatarFallback>{awayTeam.name?.[0]?.toUpperCase()}</AvatarFallback></Avatar>
-                <div className="min-w-0 text-right sm:text-left"><p className="text-sm sm:text-base font-semibold truncate">{awayTeam.name}</p></div>
             </div>
           </div>
           <div className="text-xs text-muted-foreground text-center pt-2">Host: <strong>{hostTeamName}</strong></div>
