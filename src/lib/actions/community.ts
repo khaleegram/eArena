@@ -61,7 +61,15 @@ export async function postTournamentMessage(tournamentId: string, userId: string
 }
 
 export async function postTeamMessage(tournamentId: string, teamId: string, userId: string, username: string, photoURL: string | undefined, message: string) {
-    const messageRef = adminDb.collection('tournaments').doc(tournamentId).collection('teams').doc(teamId).collection('messages').doc();
+    const teamRef = adminDb.collection('tournaments').doc(tournamentId).collection('teams').doc(teamId);
+    const messageRef = teamRef.collection('messages').doc();
+
+    const teamDoc = await teamRef.get();
+    if (!teamDoc.exists) {
+        throw new Error("Team not found");
+    }
+    const teamData = teamDoc.data() as Team;
+
     await messageRef.set({
         userId,
         username,
@@ -69,7 +77,18 @@ export async function postTeamMessage(tournamentId: string, teamId: string, user
         message,
         timestamp: FieldValue.serverTimestamp(),
     });
-    // no revalidation needed for private team chat
+
+    const otherPlayerIds = teamData.playerIds.filter(id => id !== userId);
+
+    for (const playerId of otherPlayerIds) {
+        await sendNotification(playerId, {
+            userId: playerId,
+            tournamentId: tournamentId,
+            title: `New message in "${teamData.name}"`,
+            body: `${username}: ${message.substring(0, 50)}...`,
+            href: `/tournaments/${tournamentId}?tab=chat`,
+        });
+    }
 }
 
 export async function postMatchMessage(tournamentId: string, matchId: string, userId: string, username: string, photoURL: string | undefined, message: string) {
@@ -83,7 +102,6 @@ export async function postMatchMessage(tournamentId: string, matchId: string, us
 
     const matchData = matchDoc.data() as Match;
 
-    // Find the sender's team in this tournament
     const teamsRef = adminDb.collection('tournaments').doc(tournamentId).collection('teams');
     const userTeamQuery = await teamsRef.where('playerIds', 'array-contains', userId).limit(1).get();
     if (userTeamQuery.empty) {
@@ -94,12 +112,6 @@ export async function postMatchMessage(tournamentId: string, matchId: string, us
     const opponentTeamId = matchData.homeTeamId === userTeamId ? matchData.awayTeamId : matchData.homeTeamId;
 
     const opponentTeamDoc = await teamsRef.doc(opponentTeamId).get();
-    if (!opponentTeamDoc.exists) {
-        // This case should be rare but good to handle
-        console.warn(`Could not find opponent team ${opponentTeamId} to send notification.`);
-        return; // Don't throw, just post message
-    }
-    const opponentTeamData = opponentTeamDoc.data() as Team;
 
     await messageRef.set({
         userId,
@@ -109,12 +121,21 @@ export async function postMatchMessage(tournamentId: string, matchId: string, us
         timestamp: FieldValue.serverTimestamp(),
     });
 
-    // Notify opponent captain
-    await sendNotification(opponentTeamData.captainId, {
-        userId: opponentTeamData.captainId,
-        tournamentId,
-        title: `New message for your match`,
-        body: `${username}: ${message.substring(0, 50)}...`,
-        href: `/tournaments/${tournamentId}/matches/${matchId}`,
-    });
+    if (opponentTeamDoc.exists) {
+        const opponentTeamData = opponentTeamDoc.data() as Team;
+        for (const playerId of opponentTeamData.playerIds) {
+            // Don't send a notification to the person who sent the message
+            if (playerId === userId) continue;
+            
+            await sendNotification(playerId, {
+                userId: playerId,
+                tournamentId,
+                title: `New message for your match`,
+                body: `${username}: ${message.substring(0, 50)}...`,
+                href: `/tournaments/${tournamentId}/matches/${matchId}`,
+            });
+        }
+    } else {
+        console.warn(`Could not find opponent team ${opponentTeamId} to send notification.`);
+    }
 }
