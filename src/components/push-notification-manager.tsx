@@ -39,11 +39,20 @@ export function PushNotificationManager() {
                 setIsSupported(true);
                 const checkSubscription = async () => {
                     try {
-                        const swReg = await navigator.serviceWorker.ready;
+                        const readyPromise = navigator.serviceWorker.ready;
+                        const timeoutPromise = new Promise((_, reject) => 
+                            setTimeout(() => reject(new Error("Service worker took too long to become ready.")), 5000)
+                        );
+                        const swReg = await Promise.race([readyPromise, timeoutPromise]) as ServiceWorkerRegistration;
                         const sub = await swReg.pushManager.getSubscription();
                         setIsSubscribed(!!sub);
-                    } catch (error) {
+                    } catch (error: any) {
                         console.error("Error checking push subscription:", error);
+                        toast({
+                            variant: 'destructive',
+                            title: 'Could not check status',
+                            description: error.message || 'Please try refreshing the page.'
+                        });
                         setIsSubscribed(false);
                     } finally {
                         setIsChecking(false);
@@ -55,7 +64,7 @@ export function PushNotificationManager() {
                 setIsChecking(false);
             }
         }
-    }, []);
+    }, [toast]);
 
     const handleSubscription = async () => {
         if (!user || isLoading || !isSupported) return;
