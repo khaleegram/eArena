@@ -6,6 +6,7 @@ const withPWA = require('next-pwa')({
   register: true,
   skipWaiting: true,
   sw: 'sw.js',
+  disable: false,
 });
 
 // Fix EventEmitter MaxListeners warning in development

@@ -1,58 +1,100 @@
-// Service Worker: handles push + notification click
+/**
+ * Copyright 2018 Google Inc. All Rights Reserved.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
-self.addEventListener("push", (event) => {
-  if (!event.data) return;
+// If the loader is already loaded, just stop.
+if (!self.define) {
+  let registry = {};
 
-  event.waitUntil((async () => {
-    let payload;
-    try {
-      payload = event.data.json();
-    } catch {
-      // fallback: accept plain text payloads too
-      const text = await event.data.text();
-      payload = { title: "eArena", body: text };
-    }
+  // Used for `eval` and `importScripts` where we can't get script URL by other means.
+  // In both cases, it's safe to use a global var because those functions are synchronous.
+  let nextDefineUri;
 
-    const title = payload.title || "eArena";
-    const body = payload.body || "";
-    const href = payload?.data?.href || payload?.href || "/";
-
-    const options = {
-      body,
-      icon: payload.icon || "/icons/android/android-launchericon-192-192.png",
-      badge: "/icons/android/android-launchericon-72-72.png",
-      data: { href }
-    };
-
-    await self.registration.showNotification(title, options);
-  })());
-});
-
-self.addEventListener("notificationclick", (event) => {
-  event.notification.close();
-
-  const href = event?.notification?.data?.href || "/";
-  event.waitUntil((async () => {
-    const allClients = await clients.matchAll({ type: "window", includeUncontrolled: true });
-
-    // Try to focus an existing tab with the same origin
-    for (const client of allClients) {
-      try {
-        const url = new URL(client.url);
-        if (url.origin === self.location.origin) {
-          await client.focus();
-          // Navigate the focused tab to the correct URL
-          await client.navigate(href);
-          return;
+  const singleRequire = (uri, parentUri) => {
+    uri = new URL(uri + ".js", parentUri).href;
+    return registry[uri] || (
+      
+        new Promise(resolve => {
+          if ("document" in self) {
+            const script = document.createElement("script");
+            script.src = uri;
+            script.onload = resolve;
+            document.head.appendChild(script);
+          } else {
+            nextDefineUri = uri;
+            importScripts(uri);
+            resolve();
+          }
+        })
+      
+      .then(() => {
+        let promise = registry[uri];
+        if (!promise) {
+          throw new Error(`Module ${uri} didn’t register its module`);
         }
-      } catch {}
+        return promise;
+      })
+    );
+  };
+
+  self.define = (depsNames, factory) => {
+    const uri = nextDefineUri || ("document" in self ? document.currentScript.src : "") || location.href;
+    if (registry[uri]) {
+      // Module is already loading or loaded.
+      return;
     }
+    let exports = {};
+    const require = depUri => singleRequire(depUri, uri);
+    const specialDeps = {
+      module: { uri },
+      exports,
+      require
+    };
+    registry[uri] = Promise.all(depsNames.map(
+      depName => specialDeps[depName] || require(depName)
+    )).then(deps => {
+      factory(...deps);
+      return exports;
+    });
+  };
+}
+define(['./workbox-e43f5367'], (function (workbox) { 'use strict';
 
-    await clients.openWindow(href);
-  })());
-});
+  importScripts();
+  self.skipWaiting();
+  workbox.clientsClaim();
+  workbox.registerRoute("/", new workbox.NetworkFirst({
+    "cacheName": "start-url",
+    plugins: [{
+      cacheWillUpdate: async ({
+        request,
+        response,
+        event,
+        state
+      }) => {
+        if (response && response.type === 'opaqueredirect') {
+          return new Response(response.body, {
+            status: 200,
+            statusText: 'OK',
+            headers: response.headers
+          });
+        }
+        return response;
+      }
+    }]
+  }), 'GET');
+  workbox.registerRoute(/.*/i, new workbox.NetworkOnly({
+    "cacheName": "dev",
+    plugins: []
+  }), 'GET');
 
-// next-pwa support
-self.addEventListener("message", (event) => {
-  if (event?.data?.type === "SKIP_WAITING") self.skipWaiting();
-});
+}));

@@ -41,7 +41,7 @@ export function PushNotificationManager() {
                     try {
                         const readyPromise = navigator.serviceWorker.ready;
                         const timeoutPromise = new Promise((_, reject) => 
-                            setTimeout(() => reject(new Error("Service worker took too long to become ready.")), 5000)
+                            setTimeout(() => reject(new Error("Service worker took too long to become ready.")), 15000)
                         );
                         const swReg = await Promise.race([readyPromise, timeoutPromise]) as ServiceWorkerRegistration;
                         const sub = await swReg.pushManager.getSubscription();
