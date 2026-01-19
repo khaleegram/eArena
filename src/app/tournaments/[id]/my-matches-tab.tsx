@@ -479,7 +479,7 @@ function MatchCard({
           </div>
 
           {/* Scoreboard */}
-          <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center">
+          <div className="grid grid-cols-[1fr_auto_1fr] gap-2 sm:gap-4 items-center">
             {/* Home Team */}
             <div className="flex items-center gap-2 min-w-0 justify-start">
               <Avatar className="h-8 w-8 sm:h-10 sm:w-10"><AvatarImage src={homeTeam.logoUrl} alt={homeTeam.name} /><AvatarFallback>{homeTeam.name?.[0]?.toUpperCase()}</AvatarFallback></Avatar>
@@ -502,7 +502,7 @@ function MatchCard({
 
             {/* Away Team */}
             <div className="flex items-center gap-2 min-w-0 justify-end text-right">
-                <div className="min-w-0"><p className="text-sm sm:text-base font-semibold truncate">{awayTeam.name}</p></div>
+                <div className="min-w-0"><p className="text-sm sm:text-base font-semibold truncate text-right">{awayTeam.name}</p></div>
                 <Avatar className="h-8 w-8 sm:h-10 sm:w-10"><AvatarImage src={awayTeam.logoUrl} alt={awayTeam.name} /><AvatarFallback>{awayTeam.name?.[0]?.toUpperCase()}</AvatarFallback></Avatar>
             </div>
           </div>
