@@ -34,9 +34,11 @@ import {
   Send,
   AlertCircle,
   X,
+  Copy,
+  Check,
 } from 'lucide-react';
 
-import { format, isToday, isPast, endOfDay, formatDistanceToNow } from 'date-fns';
+import { format, isToday, isPast, endOfDay, formatDistanceToNow, isFuture } from 'date-fns';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { setOrganizerStreamUrl, requestPlayerReplay, respondToPlayerReplay, forfeitMatch, cancelReplayRequest } from '@/lib/actions/tournament';
@@ -44,7 +46,7 @@ import { postMatchMessage } from '@/lib/actions/community';
 import { MatchStatusBadge } from '@/components/match-status-badge';
 import { toDate, cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ReputationAvatar } from '@/components/reputation-avatar';
