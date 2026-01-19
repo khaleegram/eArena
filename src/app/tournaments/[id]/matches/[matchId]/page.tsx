@@ -42,7 +42,7 @@ import { postMatchMessage } from '@/lib/actions/community';
 import { MatchStatusBadge } from '@/components/match-status-badge';
 import { toDate, cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ReputationAvatar } from '@/components/reputation-avatar';
@@ -355,7 +355,7 @@ export default function MatchDetailsPage() {
   
   const canRequestReplay = isMyTeam && !replayRequest && match.status === 'scheduled';
   const canRespondToReplay = user?.uid === opponentCaptainId && replayRequest?.status === 'pending';
-  const canForfeit = (isHomeCaptain || isAwayCaptain) && match.status === 'scheduled';
+  const canForfeit = (isHomeCaptain || isAwayCaptain) && isPast(toDate(match.matchDay)) && match.status === 'scheduled';
 
   return (
     <div className="max-w-5xl mx-auto p-4 md:p-6 space-y-5">
@@ -371,11 +371,11 @@ export default function MatchDetailsPage() {
       </div>
 
       {/* Match header */}
-      <Card className="border-2">
+      <Card className="border-2 overflow-hidden">
         <CardContent className="pt-6 space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-4 items-center">
-                <div className="flex items-center gap-3 sm:flex-col sm:text-center">
-                    <Avatar className="h-12 w-12 sm:h-16 sm:w-16"><AvatarImage src={homeTeam.logoUrl} alt={homeTeam.name} /><AvatarFallback>{homeTeam.name?.[0]?.toUpperCase()}</AvatarFallback></Avatar>
+                <div className="flex flex-col items-center gap-2 text-center">
+                    <Avatar className="h-16 w-16"><AvatarImage src={homeTeam.logoUrl} alt={homeTeam.name} /><AvatarFallback>{homeTeam.name?.[0]?.toUpperCase()}</AvatarFallback></Avatar>
                     <div className="min-w-0"><p className="font-black truncate">{homeTeam.name}</p><p className="text-xs text-muted-foreground font-bold uppercase tracking-wider">Home</p></div>
                 </div>
                 <div className="rounded-xl border bg-muted/20 px-5 py-4 text-center">
@@ -392,9 +392,9 @@ export default function MatchDetailsPage() {
                     <div className="mt-2 flex items-center justify-center gap-2 text-xs text-muted-foreground font-semibold"><Calendar className="h-4 w-4" /><span>{format(toDate(match.matchDay), 'PPP p')}</span></div>
                     {match.round ? <div className="mt-1 text-[11px] text-muted-foreground">{match.round}</div> : null}
                 </div>
-                <div className="flex items-center gap-3 sm:flex-col sm:text-center sm:items-end">
-                     <Avatar className="h-12 w-12 sm:h-16 sm:w-16"><AvatarImage src={awayTeam.logoUrl} alt={awayTeam.name} /><AvatarFallback>{awayTeam.name?.[0]?.toUpperCase()}</AvatarFallback></Avatar>
-                    <div className="min-w-0 text-right sm:text-center"><p className="font-black truncate">{awayTeam.name}</p><p className="text-xs text-muted-foreground font-bold uppercase tracking-wider">Away</p></div>
+                <div className="flex flex-col items-center gap-2 text-center">
+                     <Avatar className="h-16 w-16"><AvatarImage src={awayTeam.logoUrl} alt={awayTeam.name} /><AvatarFallback>{awayTeam.name?.[0]?.toUpperCase()}</AvatarFallback></Avatar>
+                    <div className="min-w-0"><p className="font-black truncate">{awayTeam.name}</p><p className="text-xs text-muted-foreground font-bold uppercase tracking-wider">Away</p></div>
                 </div>
             </div>
             <Separator />
@@ -404,10 +404,6 @@ export default function MatchDetailsPage() {
             </div>
         </CardContent>
       </Card>
-      
-      {match.summary && (
-        <Alert className="border-2 border-yellow-500/30 bg-yellow-500/5"><AlertTriangle className="h-5 w-5 text-yellow-500" /><AlertTitle className="font-black">AI Summary</AlertTitle><AlertDescription className="mt-2 text-sm leading-relaxed">{match.summary}</AlertDescription></Alert>
-      )}
       
       {statsAvailable && (
         <Card>
@@ -463,3 +459,5 @@ export default function MatchDetailsPage() {
     </div>
   );
 }
+
+    
