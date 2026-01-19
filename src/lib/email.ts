@@ -39,7 +39,9 @@ function getTransporter() {
     };
     
     transporter = nodemailer.createTransport(smtpConfig);
-    console.log(`[Email] Nodemailer transporter created for ${SMTP_HOST}`);
+    if (process.env.NODE_ENV !== 'production') {
+        console.log(`[Email] Nodemailer transporter created for ${SMTP_HOST}`);
+    }
     return transporter;
 }
 
@@ -82,10 +84,19 @@ export async function sendEmail({ to, subject, body }: SendEmailParams) {
         if (process.env.NODE_ENV !== 'production') {
             console.log(`[Email] Email sent successfully to ${to}`);
         }
-    } catch (error) {
-        console.error('[Email] Failed to send email. Error:', error);
+    } catch (error: any) {
+        console.error("[Email] Nodemailer error:", error);
+        console.error("[Email] Details:", {
+            name: error?.name,
+            code: error?.code,
+            command: error?.command,
+            response: error?.response,
+            responseCode: error?.responseCode,
+            message: error?.message,
+        });
+        
         // Invalidate the transporter so it can be recreated on next attempt.
         transporter = null; 
-        throw new Error('Could not send email due to a server configuration or network issue.');
+        throw error; // Re-throw original error for full stack trace in dev console
     }
 }
