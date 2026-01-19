@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -83,7 +82,12 @@ export function PushNotificationManager() {
         }
 
         try {
-            const swReg = await navigator.serviceWorker.ready;
+            const readyPromise = navigator.serviceWorker.ready;
+            const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error("Service worker took too long to become ready.")), 15000)
+            );
+            const swReg = await Promise.race([readyPromise, timeoutPromise]) as ServiceWorkerRegistration;
+
             const existingSubscription = await swReg.pushManager.getSubscription();
 
             if (existingSubscription) {
@@ -102,14 +106,26 @@ export function PushNotificationManager() {
             }
         } catch (error: any) {
             console.error('Failed to update subscription: ', error);
-            if (error.name === 'NotAllowedError') {
+            if (error.message.includes("Service worker took too long")) {
+                 toast({ variant: 'destructive', title: 'Operation Timed Out', description: 'The service worker is not responding. Please try again later.' });
+            } else if (error.name === 'NotAllowedError') {
                 toast({ variant: 'destructive', title: 'Permission Denied', description: 'You need to allow notifications to subscribe.' });
             } else {
                 toast({ variant: 'destructive', title: 'Subscription Failed', description: 'Could not update your notification settings.' });
             }
             // Re-check state in case of failure
-            const sub = await navigator.serviceWorker.ready.then(reg => reg.pushManager.getSubscription());
-            setIsSubscribed(!!sub);
+            try {
+                const swReady = await navigator.serviceWorker.getRegistration();
+                if (swReady) {
+                  const sub = await swReady.pushManager.getSubscription();
+                  setIsSubscribed(!!sub);
+                } else {
+                  setIsSubscribed(false);
+                }
+            } catch (recheckError) {
+                console.error("Failed to re-check subscription status:", recheckError);
+                setIsSubscribed(false);
+            }
         } finally {
             setIsLoading(false);
         }

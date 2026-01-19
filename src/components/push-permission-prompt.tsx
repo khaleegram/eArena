@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -69,18 +68,19 @@ export function PushPermissionPrompt() {
             setIsVisible(false);
         } catch (error: any) {
             console.error('Failed to subscribe to push notifications:', error);
-            if (error.name === 'NotAllowedError') {
+            
+            // If the service worker timed out, just hide the prompt and don't show an error toast.
+            if (error.message.includes("Service worker took too long")) {
+                setIsVisible(false);
+            } else if (error.name === 'NotAllowedError') {
                 toast({ variant: 'destructive', title: 'Permission Denied', description: 'You have blocked notifications. Please enable them in your browser settings.' });
             } else {
                 toast({ variant: 'destructive', title: 'Subscription Failed', description: 'Could not subscribe to notifications. Please try again later.' });
             }
+
             // If permission is now denied, don't ask again.
             if (Notification.permission === 'denied') {
                 handleDismiss();
-            }
-             // If timed out, just close the prompt
-            if (error.message.includes("Service worker took too long")) {
-                setIsVisible(false);
             }
         } finally {
             setIsLoading(false);
