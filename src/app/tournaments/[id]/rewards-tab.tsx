@@ -1,6 +1,5 @@
 
-
-"use client";
+'use client';
 
 import { useState, useEffect } from "react";
 import { getPrizeDistribution, getTournamentAwards } from "@/lib/actions";
@@ -92,11 +91,13 @@ export function RewardsTab({ tournament }: { tournament: Tournament }) {
     }
 
     const specialAwardsExist = Object.keys(awards).length > 0;
+    const showVirtualRewardInfoCard = tournament.rewardDetails.type === 'virtual' && !(tournament.status === 'completed' && specialAwardsExist);
 
     return (
          <div className="space-y-8">
             <PayoutConfirmationPrompt isWinner={isWinner} bankDetailsConfirmed={bankDetailsConfirmed} />
-            {tournament.rewardDetails.type === 'virtual' ? (
+
+            {showVirtualRewardInfoCard && (
                 <Card>
                     <CardHeader>
                         <CardTitle className="font-headline flex items-center gap-2"><Award className="w-5 h-5"/> Rewards &amp; Prizes</CardTitle>
@@ -109,7 +110,9 @@ export function RewardsTab({ tournament }: { tournament: Tournament }) {
                         </p>
                     </CardContent>
                 </Card>
-            ) : (
+            )}
+
+            {tournament.rewardDetails.type === 'money' && (
                 <Card>
                     <CardHeader>
                         <CardTitle className="font-headline flex items-center gap-2"><Trophy className="w-5 h-5 text-amber-400"/> Prize Pool Distribution</CardTitle>
@@ -160,7 +163,7 @@ export function RewardsTab({ tournament }: { tournament: Tournament }) {
                 </Card>
             )}
 
-            {loading && !specialAwardsExist && (
+            {loading && !specialAwardsExist && tournament.status === 'completed' && (
                 <div className="flex justify-center items-center h-40"><Loader2 className="h-8 w-8 animate-spin text-primary"/></div>
             )}
             
