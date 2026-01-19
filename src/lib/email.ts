@@ -1,6 +1,8 @@
+
 'use server';
 
 import nodemailer from 'nodemailer';
+import type { TransportOptions } from 'nodemailer';
 
 interface SendEmailParams {
     to: string;
@@ -9,30 +11,38 @@ interface SendEmailParams {
 }
 
 export async function sendEmail({ to, subject, body }: SendEmailParams) {
-    const { SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USERNAME, SMTP_PASSWORD } = process.env;
+    const { SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD } = process.env;
 
     const hasSmtpConfig = SMTP_HOST && SMTP_PORT && SMTP_USERNAME && SMTP_PASSWORD;
 
     if (!hasSmtpConfig) {
-        console.error(`[Email] Email not sent to ${to}: SMTP credentials are not fully configured in the .env file.`);
-        // To avoid breaking the user flow, we don't throw an error to the client,
-        // but the links will not be sent. The console warning provides the necessary info.
-        return;
+        console.error(`[Email] Email sending failed: SMTP credentials are not fully configured in the .env file.`);
+        // This makes the failure explicit to the calling function.
+        throw new Error('The email service is not configured on the server. Please contact support.');
     }
 
     // Log the configuration to help with debugging, but NEVER log the password.
     console.log(`[Email] Attempting to send email via ${SMTP_HOST}:${SMTP_PORT} as user ${SMTP_USERNAME}`);
 
     try {
-        const smtpConfig = {
+        const port = Number(SMTP_PORT);
+        if (isNaN(port)) {
+            throw new Error('Invalid SMTP_PORT provided.');
+        }
+
+        // Make the config more robust. Let nodemailer handle STARTTLS for port 587.
+        const smtpConfig: TransportOptions = {
             host: SMTP_HOST,
-            port: Number(SMTP_PORT),
-            secure: SMTP_SECURE === 'true', // true for 465, false for other ports
+            port: port,
             auth: {
                 user: SMTP_USERNAME,
                 pass: SMTP_PASSWORD,
             },
         };
+        
+        if (port === 465) {
+            smtpConfig.secure = true;
+        }
         
         const transporter = nodemailer.createTransport(smtpConfig);
 
