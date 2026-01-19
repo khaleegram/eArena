@@ -4,60 +4,96 @@
 import nodemailer from 'nodemailer';
 import type { TransportOptions } from 'nodemailer';
 
+// --- 1. Create a singleton transporter ---
+let transporter: nodemailer.Transporter | null = null;
+
+function getTransporter() {
+    if (transporter) {
+        return transporter;
+    }
+
+    const { SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD } = process.env;
+    
+    if (!SMTP_HOST || !SMTP_PORT || !SMTP_USERNAME || !SMTP_PASSWORD) {
+        console.error(`[Email] Email sending failed: SMTP credentials are not fully configured.`);
+        // Returning null will cause sendEmail to throw.
+        return null;
+    }
+
+    const port = Number(SMTP_PORT);
+    if (isNaN(port)) {
+        console.error('[Email] Invalid SMTP_PORT provided.');
+        return null;
+    }
+
+    const smtpConfig: TransportOptions = {
+        host: SMTP_HOST,
+        port: port,
+        auth: {
+            user: SMTP_USERNAME,
+            pass: SMTP_PASSWORD,
+        },
+        // --- 2. Add timeouts ---
+        connectionTimeout: 10000, // 10 seconds
+        socketTimeout: 10000, // 10 seconds
+    };
+    
+    if (port === 465) {
+        smtpConfig.secure = true;
+    }
+
+    transporter = nodemailer.createTransport(smtpConfig);
+    console.log(`[Email] Nodemailer transporter created for ${SMTP_HOST}`);
+    return transporter;
+}
+
 interface SendEmailParams {
     to: string;
     subject: string;
     body: string;
 }
 
+// --- 3. HTML Sanitization Helper ---
+function escapeHtml(text: string) {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+
 export async function sendEmail({ to, subject, body }: SendEmailParams) {
-    const { SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD } = process.env;
+    const mailer = getTransporter();
 
-    const hasSmtpConfig = SMTP_HOST && SMTP_PORT && SMTP_USERNAME && SMTP_PASSWORD;
-
-    if (!hasSmtpConfig) {
-        console.error(`[Email] Email sending failed: SMTP credentials are not fully configured in the .env file.`);
-        // This makes the failure explicit to the calling function.
-        throw new Error('The email service is not configured on the server. Please contact support.');
+    if (!mailer) {
+        throw new Error('The email service is not configured correctly on the server. Please contact support.');
     }
+    
+    // --- 4. Use EMAIL_FROM env var ---
+    const fromAddress = process.env.EMAIL_FROM || `"eArena" <${process.env.SMTP_USERNAME}>`;
 
-    // Log the configuration to help with debugging, but NEVER log the password.
-    console.log(`[Email] Attempting to send email via ${SMTP_HOST}:${SMTP_PORT} as user ${SMTP_USERNAME}`);
+    const sanitizedHtmlBody = `<p>${escapeHtml(body).replace(/\n/g, '<br>')}</p>`;
+
+    const mailOptions = {
+        from: fromAddress,
+        to: to,
+        subject: subject,
+        text: body,
+        html: sanitizedHtmlBody,
+    };
 
     try {
-        const port = Number(SMTP_PORT);
-        if (isNaN(port)) {
-            throw new Error('Invalid SMTP_PORT provided.');
+        await mailer.sendMail(mailOptions);
+        // --- 5. Reduced logging for production ---
+        if (process.env.NODE_ENV !== 'production') {
+            console.log(`[Email] Email sent successfully to ${to}`);
         }
-
-        // Make the config more robust. Let nodemailer handle STARTTLS for port 587.
-        const smtpConfig: TransportOptions = {
-            host: SMTP_HOST,
-            port: port,
-            auth: {
-                user: SMTP_USERNAME,
-                pass: SMTP_PASSWORD,
-            },
-        };
-        
-        if (port === 465) {
-            smtpConfig.secure = true;
-        }
-        
-        const transporter = nodemailer.createTransport(smtpConfig);
-
-        const mailOptions = {
-            from: `"eArena" <${SMTP_USERNAME}>`,
-            to: to,
-            subject: subject,
-            text: body,
-            html: `<p>${body.replace(/\n/g, '<br>')}</p>`,
-        };
-
-        await transporter.sendMail(mailOptions);
-        console.log(`[Email] Email sent successfully to ${to}`);
     } catch (error) {
-        console.error('[Email] Failed to send email. Please check your SMTP credentials and server settings in the .env file. Error:', error);
-        throw new Error('Could not send email due to a server configuration issue. Please contact support or check server logs.');
+        console.error('[Email] Failed to send email. Error:', error);
+        // Invalidate the transporter so it can be recreated on next attempt, in case of connection issues.
+        transporter = null; 
+        throw new Error('Could not send email due to a server configuration or network issue.');
     }
 }
