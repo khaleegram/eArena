@@ -1,9 +1,10 @@
 
 
-"use client";
+'use client';
 
 import { useAuth } from '@/hooks/use-auth';
-import { getPlayerStats, getUserProfileById, startConversation, getPlayerPerformanceAnalysis } from '@/lib/actions';
+import { getPlayerStats, getUserProfileById, startConversation } from '@/lib/actions';
+import { analyzePlayerPerformance } from '@/ai/flows/analyze-player-performance';
 import { useToast } from '@/hooks/use-toast';
 import * as React from 'react';
 import Link from 'next/link';
@@ -101,7 +102,7 @@ export default function PublicProfilePage() {
 
         if (statsData && statsData.totalMatches > 0) {
           try {
-            const analysisData = await getPlayerPerformanceAnalysis(statsData);
+            const analysisData = await analyzePlayerPerformance(statsData);
             setAnalysis(analysisData);
           } catch(aiError) {
             console.error("AI analysis failed:", aiError);

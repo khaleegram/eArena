@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { adminDb, adminAuth } from '@/lib/firebase-admin';
@@ -7,7 +8,6 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { revalidatePath } from 'next/cache';
 import { getAdminUids } from './admin';
 import { serializeData } from '@/lib/utils';
-import { getPlayerPerformanceAnalysis } from './index';
 import { sendNotification } from './notifications';
 import { getStorage } from 'firebase-admin/storage';
 import { sendEmail } from '../email';

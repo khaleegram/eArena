@@ -6,7 +6,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAuth } from '@/hooks/use-auth';
-import { updateUserProfile, getPlayerStats, updateUserProfilePhoto, getPlayerPerformanceAnalysis } from '@/lib/actions';
+import { updateUserProfile, getPlayerStats, updateUserProfilePhoto } from '@/lib/actions';
+import { analyzePlayerPerformance } from '@/ai/flows/analyze-player-performance';
 import { useToast } from '@/hooks/use-toast';
 import * as React from 'react';
 import { format } from 'date-fns';
@@ -104,7 +105,7 @@ export default function ProfilePage() {
             .then(async (statsData) => {
                 setStats(statsData);
                 if (statsData && statsData.totalMatches > 0) {
-                    const analysisData = await getPlayerPerformanceAnalysis(statsData);
+                    const analysisData = await analyzePlayerPerformance(statsData);
                     setAnalysis(analysisData);
                 }
             })
