@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -39,18 +40,16 @@ export function PushNotificationManager() {
                 setIsSupported(true);
                 const checkSubscription = async () => {
                     try {
-                        const readyPromise = navigator.serviceWorker.ready;
-                        // This timeout is a safeguard. If the service worker is broken,
-                        // we won't hang the UI forever.
-                        const timeoutPromise = new Promise((_, reject) => 
-                            setTimeout(() => reject(new Error("Service worker took too long to become ready.")), 15000)
-                        );
-                        const swReg = await Promise.race([readyPromise, timeoutPromise]) as ServiceWorkerRegistration;
-                        const sub = await swReg.pushManager.getSubscription();
-                        setIsSubscribed(!!sub);
+                        const swReg = await navigator.serviceWorker.getRegistration();
+                        if (swReg) {
+                            const sub = await swReg.pushManager.getSubscription();
+                            setIsSubscribed(!!sub);
+                        } else {
+                            setIsSubscribed(false);
+                            console.warn("Push Manager: Service worker not registered on page load.");
+                        }
                     } catch (error: any) {
                         console.error("Error checking push subscription:", error);
-                        // Don't toast here as it can be annoying if the SW is just slow on startup
                         setIsSubscribed(false);
                     } finally {
                         setIsChecking(false);
@@ -82,11 +81,10 @@ export function PushNotificationManager() {
         }
 
         try {
-            const readyPromise = navigator.serviceWorker.ready;
-            const timeoutPromise = new Promise((_, reject) => 
-                setTimeout(() => reject(new Error("Service worker took too long to become ready.")), 15000)
-            );
-            const swReg = await Promise.race([readyPromise, timeoutPromise]) as ServiceWorkerRegistration;
+            const swReg = await navigator.serviceWorker.getRegistration();
+            if (!swReg) {
+                throw new Error("Service worker not found. Please refresh the page.");
+            }
 
             const existingSubscription = await swReg.pushManager.getSubscription();
 
@@ -106,18 +104,16 @@ export function PushNotificationManager() {
             }
         } catch (error: any) {
             console.error('Failed to update subscription: ', error);
-            if (error.message.includes("Service worker took too long")) {
-                 toast({ variant: 'destructive', title: 'Operation Timed Out', description: 'The service worker is not responding. Please try again later.' });
-            } else if (error.name === 'NotAllowedError') {
+            if (error.name === 'NotAllowedError') {
                 toast({ variant: 'destructive', title: 'Permission Denied', description: 'You need to allow notifications to subscribe.' });
             } else {
-                toast({ variant: 'destructive', title: 'Subscription Failed', description: 'Could not update your notification settings.' });
+                toast({ variant: 'destructive', title: 'Subscription Failed', description: error.message || 'Could not update your notification settings.' });
             }
             // Re-check state in case of failure
             try {
-                const swReady = await navigator.serviceWorker.getRegistration();
-                if (swReady) {
-                  const sub = await swReady.pushManager.getSubscription();
+                const swReg = await navigator.serviceWorker.getRegistration();
+                if (swReg) {
+                  const sub = await swReg.pushManager.getSubscription();
                   setIsSubscribed(!!sub);
                 } else {
                   setIsSubscribed(false);

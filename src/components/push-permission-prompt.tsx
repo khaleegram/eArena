@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -53,11 +54,10 @@ export function PushPermissionPrompt() {
         setIsLoading(true);
 
         try {
-            const readyPromise = navigator.serviceWorker.ready;
-            const timeoutPromise = new Promise((_, reject) => 
-                setTimeout(() => reject(new Error("Service worker took too long to become ready.")), 15000)
-            );
-            const swReg = await Promise.race([readyPromise, timeoutPromise]) as ServiceWorkerRegistration;
+            const swReg = await navigator.serviceWorker.getRegistration();
+            if (!swReg) {
+                throw new Error("Service worker not found. Please refresh the page.");
+            }
             
             const subscription = await swReg.pushManager.subscribe({
                 userVisibleOnly: true,
@@ -69,18 +69,18 @@ export function PushPermissionPrompt() {
         } catch (error: any) {
             console.error('Failed to subscribe to push notifications:', error);
             
-            // If the service worker timed out, just hide the prompt and don't show an error toast.
-            if (error.message.includes("Service worker took too long")) {
-                setIsVisible(false);
-            } else if (error.name === 'NotAllowedError') {
+            if (error.name === 'NotAllowedError') {
                 toast({ variant: 'destructive', title: 'Permission Denied', description: 'You have blocked notifications. Please enable them in your browser settings.' });
             } else {
-                toast({ variant: 'destructive', title: 'Subscription Failed', description: 'Could not subscribe to notifications. Please try again later.' });
+                toast({ variant: 'destructive', title: 'Subscription Failed', description: error.message || 'Could not subscribe to notifications. Please try again later.' });
             }
 
             // If permission is now denied, don't ask again.
             if (Notification.permission === 'denied') {
                 handleDismiss();
+            } else {
+                // If they just closed the prompt, hide it but allow it to show again later.
+                setIsVisible(false);
             }
         } finally {
             setIsLoading(false);
