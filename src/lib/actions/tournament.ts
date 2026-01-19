@@ -16,10 +16,9 @@ import { addDays, differenceInDays, format, isBefore, isAfter, isToday, isFuture
 import { generateRoundRobinFixtures } from '../round-robin';
 import { createWorldCupGroups, generateGroupStageFixtures, computeAllGroupStandings, seedKnockoutFromGroups, isGroupRound } from '../group-stage';
 import { generateSwissRoundFixtures, getMaxSwissRounds, isSwissRound, getSwissRoundNumber } from '../swiss';
-import { getLatestRound, assertRoundCompleted, getWinnersForRound, getChampionIfFinalComplete, isKnockoutRound } from '../cup-progression';
-import { generateCupRound, getRoundName } from '../cup-tournament';
+import { getLatestRound, assertRoundCompleted, getWinnersForRound, getChampionIfFinalComplete, isKnockoutRound, getRoundName } from '../cup-progression';
+import { generateCupRound } from '../cup-tournament';
 import { verifyMatchScores } from '@/ai/flows/verify-match-scores';
-import { sendEmail } from '../email';
 import { getStandingsForTournament } from './standings';
 import { getTeamsForTournament } from './team';
 import { checkAndGrantAchievements } from './achievements';
@@ -331,4 +330,213 @@ export async function getPublicTournaments(): Promise<Tournament[]> {
     const tournaments = snapshot.docs.map(doc => serializeData({ id: doc.id, ...doc.data() }) as Tournament);
     // Filter out pending tournaments server-side after fetching
     return tournaments.filter(t => t.status !== 'pending');
+}
+
+export async function rescheduleTournament(tournamentId: string, newStartDateISO: string, organizerId: string) {
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    const tournamentDoc = await tournamentRef.get();
+    if (!tournamentDoc.exists) throw new Error("Tournament not found.");
+
+    const tournament = tournamentDoc.data() as Tournament;
+    if (tournament.organizerId !== organizerId) throw new Error("You are not authorized to reschedule this tournament.");
+    if (tournament.status === 'completed') throw new Error("Cannot reschedule a completed tournament.");
+    
+    const newStartDate = toDate(newStartDateISO);
+    const oldStartDate = toDate(tournament.tournamentStartDate);
+
+    const diffInDays = differenceInDays(newStartDate, oldStartDate);
+
+    const oldRegEndDate = toDate(tournament.registrationEndDate);
+    const newRegEndDate = addDays(oldRegEndDate, diffInDays);
+
+    const oldTournamentEndDate = toDate(tournament.tournamentEndDate);
+    const newTournamentEndDate = addDays(oldTournamentEndDate, diffInDays);
+
+    const batch = adminDb.batch();
+
+    batch.update(tournamentRef, {
+        tournamentStartDate: Timestamp.fromDate(newStartDate),
+        tournamentEndDate: Timestamp.fromDate(newTournamentEndDate),
+        registrationEndDate: Timestamp.fromDate(newRegEndDate),
+    });
+
+    const matchesRef = tournamentRef.collection('matches');
+    const matchesSnapshot = await matchesRef.get();
+    if (!matchesSnapshot.empty) {
+        matchesSnapshot.forEach(doc => {
+            const match = doc.data() as Match;
+            const oldMatchDay = toDate(match.matchDay);
+            const newMatchDay = addDays(oldMatchDay, diffInDays);
+            batch.update(doc.ref, { matchDay: Timestamp.fromDate(newMatchDay) });
+        });
+    }
+    
+    await batch.commit();
+    revalidatePath(`/tournaments/${tournamentId}`);
+}
+
+async function generateFixturesForTournament(tournamentRef: FirebaseFirestore.DocumentReference<FirebaseFirestore.DocumentData>, tournament: Tournament) {
+    const teamsSnapshot = await tournamentRef.collection('teams').get();
+    const teamIds = teamsSnapshot.docs.map(doc => doc.id);
+
+    if (teamIds.length < 4) {
+        await tournamentRef.update({ status: 'open_for_registration' }); // Revert status
+        throw new Error("Cannot generate fixtures, not enough teams.");
+    }
+
+    let fixtures: Omit<Match, 'id' | 'tournamentId' | 'matchDay' | 'status'>[] = [];
+    const tournamentStartDate = toDate(tournament.tournamentStartDate);
+    const tournamentEndDate = toDate(tournament.tournamentEndDate);
+    const totalDays = Math.max(1, differenceInDays(tournamentEndDate, tournamentStartDate) + 1);
+
+    switch (tournament.format) {
+        case 'league':
+            fixtures = generateRoundRobinFixtures(teamIds, tournament.homeAndAway);
+            break;
+        case 'cup':
+            const groups = createWorldCupGroups(teamIds);
+            fixtures = generateGroupStageFixtures(groups);
+            break;
+        case 'swiss':
+             fixtures = generateSwissRoundFixtures({ teamIds, roundNumber: 1, standings: [], previousMatches: [] });
+            break;
+        default:
+            throw new Error(`Fixture generation for format "${tournament.format}" is not implemented.`);
+    }
+
+    const scheduledFixtures = scheduleFixtures(fixtures, tournamentStartDate, totalDays);
+
+    const batch = adminDb.batch();
+    for (const fixture of scheduledFixtures) {
+        const matchRef = tournamentRef.collection('matches').doc();
+        batch.set(matchRef, { ...fixture, status: 'scheduled' });
+    }
+    
+    await batch.commit();
+}
+
+
+export async function regenerateTournamentFixtures(tournamentId: string, organizerId: string) {
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    const tournamentDoc = await tournamentRef.get();
+    if (!tournamentDoc.exists) throw new Error("Tournament not found.");
+
+    const tournament = { id: tournamentId, ...tournamentDoc.data() } as Tournament;
+    if (tournament.organizerId !== organizerId) throw new Error("You are not authorized to perform this action.");
+
+    const canRegenerate = ['in_progress', 'ready_to_start'].includes(tournament.status);
+    if (!canRegenerate) {
+        throw new Error("Fixtures can only be regenerated for tournaments that are ready to start or in progress.");
+    }
+    
+    const matchesSnapshot = await tournamentRef.collection('matches').get();
+    const hasPlayedMatches = matchesSnapshot.docs.some(doc => doc.data().status !== 'scheduled');
+    if (hasPlayedMatches) {
+        throw new Error("Cannot regenerate fixtures after matches have been played or reported.");
+    }
+
+    if (!matchesSnapshot.empty) {
+        const deleteBatch = adminDb.batch();
+        matchesSnapshot.forEach(doc => {
+            deleteBatch.delete(doc.ref);
+        });
+        await deleteBatch.commit();
+    }
+    
+    const standingsSnapshot = await adminDb.collection('standings').where('tournamentId', '==', tournamentId).get();
+    if (!standingsSnapshot.empty) {
+        const standingsBatch = adminDb.batch();
+        standingsSnapshot.forEach(doc => {
+            standingsBatch.delete(doc.ref);
+        });
+        await standingsBatch.commit();
+    }
+    
+    await generateFixturesForTournament(tournamentRef, tournament);
+    
+    const teamsSnapshot = await tournamentRef.collection('teams').get();
+    const teams = teamsSnapshot.docs.map(doc => doc.data() as Team);
+    for (const team of teams) {
+        for (const playerId of team.playerIds) {
+            await sendNotification(playerId, {
+                userId: playerId,
+                tournamentId,
+                title: 'Fixtures Regenerated',
+                body: `The match schedule for "${tournament.name}" has been updated by the organizer.`,
+                href: `/tournaments/${tournamentId}?tab=fixtures`
+            });
+        }
+    }
+
+    revalidatePath(`/tournaments/${tournamentId}`);
+}
+
+export async function progressTournamentStage(tournamentId: string, organizerId: string) {
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    const tournamentDoc = await tournamentRef.get();
+    if (!tournamentDoc.exists) throw new Error("Tournament not found.");
+    const tournament = tournamentDoc.data() as Tournament;
+
+    if (tournament.organizerId !== organizerId) throw new Error("You are not authorized.");
+    if (tournament.status !== 'in_progress') throw new Error("Tournament is not in progress.");
+    if (tournament.format !== 'cup' && tournament.format !== 'swiss') {
+        throw new Error("Stage progression is only for Cup and Swiss formats.");
+    }
+    
+    const matchesSnapshot = await tournamentRef.collection('matches').get();
+    const allMatches = matchesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Match);
+
+    const latestRound = getLatestRound(allMatches);
+    
+    assertRoundCompleted(latestRound, allMatches);
+    
+    let newFixtures: Omit<Match, 'id' | 'tournamentId' | 'matchDay' | 'status'>[] = [];
+    const tournamentStartDate = toDate(tournament.tournamentStartDate);
+    const tournamentEndDate = toDate(tournament.tournamentEndDate);
+    const totalDays = Math.max(1, differenceInDays(tournamentEndDate, tournamentStartDate) + 1);
+
+    if (isGroupRound(latestRound)) {
+        const groupTables = computeAllGroupStandings(allMatches);
+        const advancingFixtures = seedKnockoutFromGroups(groupTables);
+        newFixtures = advancingFixtures;
+    } else if (isKnockoutRound(latestRound)) {
+        const winners = getWinnersForRound(allMatches, latestRound, tournament);
+        if(winners.length < 2) {
+            await tournamentRef.update({ status: 'completed', endedAt: FieldValue.serverTimestamp() });
+            return { progressed: false, status: 'completed' };
+        }
+        const newRoundName = getRoundName(winners.length);
+        newFixtures = generateCupRound(winners, newRoundName);
+    } else if (isSwissRound(latestRound)) {
+        const currentRoundNumber = getSwissRoundNumber(latestRound);
+        const teamsSnapshot = await tournamentRef.collection('teams').get();
+        const teamIds = teamsSnapshot.docs.map(doc => doc.id);
+
+        if (currentRoundNumber === null || currentRoundNumber >= getMaxSwissRounds(tournament.teamCount)) {
+            await tournamentRef.update({ status: 'completed', endedAt: FieldValue.serverTimestamp() });
+            return { progressed: false, status: 'completed' };
+        }
+        const standings = await getStandingsForTournament(tournamentId);
+        newFixtures = generateSwissRoundFixtures({
+            teamIds,
+            roundNumber: currentRoundNumber + 1,
+            standings,
+            previousMatches: allMatches,
+        });
+    }
+
+    if (newFixtures.length === 0) {
+        return { progressed: false, status: 'in_progress', reason: 'No new fixtures to generate.' };
+    }
+
+    const scheduledFixtures = scheduleFixtures(newFixtures, new Date(), totalDays);
+    
+    const batch = adminDb.batch();
+    scheduledFixtures.forEach(fixture => {
+        const matchRef = tournamentRef.collection('matches').doc();
+        batch.set(matchRef, { ...fixture, status: 'scheduled' });
+    });
+    await batch.commit();
+
+    return { progressed: true, status: 'in_progress' };
 }
