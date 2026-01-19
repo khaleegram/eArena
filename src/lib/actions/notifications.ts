@@ -1,3 +1,4 @@
+
 'use server';
 
 import { adminDb } from '@/lib/firebase-admin';
@@ -9,7 +10,7 @@ import { createHash } from 'crypto';
 // Configure web-push with VAPID keys from environment variables
 if (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
     webPush.setVapidDetails(
-        process.env.VAPID_SUBJECT || `mailto:${process.env.SMTP_USERNAME || 'earena.noreply@gmail.com'}`,
+        process.env.VAPID_SUBJECT || `mailto:support@e-arena.com`,
         process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
         process.env.VAPID_PRIVATE_KEY
     );
