@@ -2,7 +2,7 @@
 'use server';
 
 import { adminDb } from '@/lib/firebase-admin';
-import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp, FieldPath } from 'firebase-admin/firestore';
 import type { Tournament, Player, Match, Team, PrizeAllocation, Standing, MatchReport, PlayerStats } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
 import { serializeData, toDate } from '@/lib/utils';
@@ -33,6 +33,33 @@ export async function getTournamentById(id: string): Promise<Tournament | null> 
     }
     return serializeData({ id: tournamentDoc.id, ...tournamentDoc.data() }) as Tournament;
 }
+
+export async function getTournamentsByIds(ids: string[]): Promise<Tournament[]> {
+    if (ids.length === 0) {
+        return [];
+    }
+
+    const tournamentsRef = adminDb.collection('tournaments');
+    const tournaments: Tournament[] = [];
+
+    // Firestore 'in' query supports up to 30 elements in this SDK version
+    const chunks: string[][] = [];
+    for (let i = 0; i < ids.length; i += 30) {
+        chunks.push(ids.slice(i, i + 30));
+    }
+
+    for (const chunk of chunks) {
+        if (chunk.length > 0) {
+            const snapshot = await tournamentsRef.where(FieldPath.documentId(), 'in', chunk).get();
+            snapshot.forEach(doc => {
+                tournaments.push(serializeData({ id: doc.id, ...doc.data() }) as Tournament);
+            });
+        }
+    }
+
+    return tournaments;
+}
+
 
 function scheduleFixtures(
     fixtures: Omit<Match, 'id' | 'tournamentId' | 'matchDay' | 'status'>[],
