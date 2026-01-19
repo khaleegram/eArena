@@ -33,12 +33,13 @@ import {
   MessageSquare,
   Send,
   AlertCircle,
+  X,
 } from 'lucide-react';
 
 import { format, isToday, isPast, endOfDay, formatDistanceToNow } from 'date-fns';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import { setOrganizerStreamUrl, requestPlayerReplay, respondToPlayerReplay, forfeitMatch } from '@/lib/actions/tournament';
+import { setOrganizerStreamUrl, requestPlayerReplay, respondToPlayerReplay, forfeitMatch, cancelReplayRequest } from '@/lib/actions/tournament';
 import { postMatchMessage } from '@/lib/actions/community';
 import { MatchStatusBadge } from '@/components/match-status-badge';
 import { toDate, cn } from "@/lib/utils";
@@ -264,6 +265,7 @@ export default function MatchDetailsPage() {
   const matchId = params.matchId as string;
 
   const { user, userProfile } = useAuth();
+  const router = useRouter();
   
   const [match, setMatch] = useState<Match | null>(null);
   const [tournament, setTournament] = useState<Tournament | null>(null);
@@ -271,13 +273,15 @@ export default function MatchDetailsPage() {
   const [awayTeam, setAwayTeam] = useState<Team | null>(null);
 
   const [loading, setLoading] = useState(true);
+  const [isCancelling, setIsCancelling] = React.useState(false);
+
+  const { toast } = useToast();
 
   const isOrganizer = useMemo(() => {
     if (!tournament || !user) return false;
     return (tournament as any).organizerId === user.uid;
   }, [tournament, user]);
   
-  // Combined real-time listener for match and one-time fetch for static data
   useEffect(() => {
     if (!tournamentId || !matchId) return;
 
@@ -327,6 +331,18 @@ export default function MatchDetailsPage() {
     };
   }, [tournamentId, matchId]);
   
+  const handleCancelRequest = async () => {
+    if (!user || !match) return;
+    setIsCancelling(true);
+    try {
+        await cancelReplayRequest(match.tournamentId, match.id, user.uid);
+        toast({ title: "Request Canceled", description: "Your replay request has been withdrawn." });
+    } catch (error: any) {
+        toast({ variant: "destructive", title: "Error", description: error.message });
+    } finally {
+        setIsCancelling(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -360,7 +376,7 @@ export default function MatchDetailsPage() {
   
   const canRequestReplay = isMyTeam && !replayRequest && match.status === 'scheduled';
   const canRespondToReplay = user?.uid === opponentCaptainId && replayRequest?.status === 'pending';
-  const canForfeit = (isHomeCaptain || isAwayCaptain) && isPast(toDate(match.matchDay)) && match.status === 'scheduled';
+  const canForfeit = (isHomeCaptain || isAwayCaptain) && match.status === 'scheduled';
 
   return (
     <div className="max-w-5xl mx-auto p-4 md:p-6 space-y-5">
@@ -378,7 +394,7 @@ export default function MatchDetailsPage() {
       {/* Match header */}
       <Card className="border-2 overflow-hidden">
         <CardContent className="pt-6 space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-4 items-center">
+            <div className="grid grid-cols-[1fr_auto_1fr] gap-4 items-center">
                 <div className="flex flex-col items-center gap-2 text-center">
                     <Avatar className="h-16 w-16"><AvatarImage src={homeTeam.logoUrl} alt={homeTeam.name} /><AvatarFallback>{homeTeam.name?.[0]?.toUpperCase()}</AvatarFallback></Avatar>
                     <div className="min-w-0"><p className="font-black truncate">{homeTeam.name}</p><p className="text-xs text-muted-foreground font-bold uppercase tracking-wider">Home</p></div>
@@ -387,10 +403,6 @@ export default function MatchDetailsPage() {
                     {(() => {
                         if (match.status === 'approved' && match.homeScore !== null && match.awayScore !== null) {
                             return <div className="text-4xl font-black tabular-nums">{match.homeScore} <span className="opacity-30">-</span> {match.awayScore}</div>;
-                        }
-                        const report = match.homeTeamReport || match.awayTeamReport;
-                        if ((match.status === 'awaiting_confirmation' || match.status === 'disputed') && report) {
-                            return <div className="text-4xl font-black tabular-nums">{report.homeScore} <span className="opacity-30">-</span> {report.awayScore}</div>;
                         }
                         return <div className="text-2xl font-black text-muted-foreground uppercase tracking-widest">VS</div>;
                     })()}
@@ -457,6 +469,12 @@ export default function MatchDetailsPage() {
                   <p className="text-sm font-semibold mb-2">Do you agree to a replay?</p>
                   <RespondToReplayDialog match={match} />
                 </div>
+              )}
+               {replayRequest.requestedBy === user?.uid && replayRequest.status === 'pending' && (
+                  <Button variant="outline" size="sm" onClick={handleCancelRequest} disabled={isCancelling}>
+                      {isCancelling ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <X className="h-4 w-4 mr-2" />}
+                      Cancel Request
+                  </Button>
               )}
           </CardContent>
         </Card>

@@ -48,7 +48,7 @@ import {
   Lock,
 } from "lucide-react";
 
-import { format, isToday, isFuture } from "date-fns";
+import { format, isToday, isFuture, endOfDay } from "date-fns";
 
 import Link from "next/link";
 import { toDate, cn } from "@/lib/utils";
@@ -62,7 +62,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
@@ -164,7 +164,7 @@ function ReportScoreDialog({
   );
 }
 
-function RoomCodeManager({ match, isMatchDay, tournamentId }: { match: Match; isMatchDay: boolean; tournamentId: string; }) {
+function RoomCodeManager({ match, tournamentId }: { match: Match; tournamentId: string; }) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -173,6 +173,8 @@ function RoomCodeManager({ match, isMatchDay, tournamentId }: { match: Match; is
   const [hasCopied, setHasCopied] = useState(false);
 
   const isHost = user?.uid === (match as any).host?.captainId;
+  const matchDay = toDate(match.matchDay);
+  const canSetCode = isHost && !isFuture(endOfDay(matchDay));
 
   const handleSaveCode = async () => {
     setIsLoading(true);
@@ -198,7 +200,7 @@ function RoomCodeManager({ match, isMatchDay, tournamentId }: { match: Match; is
     return (
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
-          <Button variant="secondary" size="sm" disabled={!isMatchDay} className="h-8 flex-1">
+          <Button variant="secondary" size="sm" disabled={!canSetCode} className="h-8 flex-1">
             {match.roomCode ? "Edit Code" : "Set Code"}
           </Button>
         </DialogTrigger>
@@ -449,12 +451,13 @@ function MatchCard({
   const matchDay = toDate(match.matchDay);
   const isMatchDay = isToday(matchDay);
   const isMatchLocked = isFuture(matchDay) && !isToday(matchDay);
+  const canInteract = !isFuture(endOfDay(matchDay));
 
   const isHomeCaptain = user.uid === homeTeam.captainId;
   const isAwayCaptain = user.uid === awayTeam.captainId;
 
   const hasReported = isHomeCaptain ? !!match.homeTeamReport : !!match.awayTeamReport;
-  const canReport = (isHomeCaptain || isAwayCaptain) && !hasReported && isMatchDay && match.status === 'scheduled';
+  const canReport = (isHomeCaptain || isAwayCaptain) && !hasReported && (match.status === 'scheduled' || match.status === 'awaiting_confirmation') && canInteract;
   
   const hostTeam = getTeam(match.hostId);
   const hostTeamName = hostTeam?.name || "N/A";
@@ -494,11 +497,7 @@ function MatchCard({
             <div className="text-center">
                 {(() => {
                     if (match.status === 'approved' && match.homeScore !== null && match.awayScore !== null) {
-                    return <div className="text-xl sm:text-3xl font-black tabular-nums">{match.homeScore} <span className="opacity-30">-</span> {match.awayScore}</div>;
-                    }
-                    const report = match.homeTeamReport || match.awayTeamReport;
-                    if ((match.status === 'awaiting_confirmation' || match.status === 'disputed') && report) {
-                    return <div className="text-xl sm:text-3xl font-black tabular-nums">{report.homeScore} <span className="opacity-30">-</span> {report.awayScore}</div>;
+                        return <div className="text-xl sm:text-3xl font-black tabular-nums">{match.homeScore} <span className="opacity-30">-</span> {match.awayScore}</div>;
                     }
                     return <div className="text-base sm:text-xl font-black text-muted-foreground uppercase tracking-widest">VS</div>;
                 })()}
@@ -517,7 +516,7 @@ function MatchCard({
         <div className="p-2 border-t bg-muted/20 flex flex-wrap gap-2 justify-end">
           <MatchChatDialog match={match} tournamentId={tournament.id} homeTeamName={homeTeam.name} awayTeamName={awayTeam.name} isMatchDay={isMatchDay} isOrganizer={isOrganizer}/>
           {isHostCaptain && <TransferHostButton matchId={match.id} tournamentId={tournament.id} />}
-          <RoomCodeManager match={{ ...match, host: getTeam(match.hostId) } as any} isMatchDay={isMatchDay} tournamentId={tournament.id}/>
+          <RoomCodeManager match={{ ...match, host: getTeam(match.hostId) } as any} tournamentId={tournament.id}/>
           {canReport && <ReportScoreDialog match={match} teamToReportFor={isHomeCaptain ? homeTeam : awayTeam} homeTeamName={homeTeam.name} awayTeamName={awayTeam.name} tournamentId={tournament.id}/>}
         </div>
       </CardContent>
@@ -687,6 +686,3 @@ export function MyMatchesTab({
   );
 }
 
-    
-
-    

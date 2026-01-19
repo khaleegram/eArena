@@ -777,7 +777,7 @@ export async function submitMatchResult(tournamentId: string, matchId: string, t
         // Notify opponent
         const opponentTeamId = isHomeReporting ? match.awayTeamId : match.homeTeamId;
         const opponentTeamDoc = await adminDb.collection('tournaments').doc(tournamentId).collection('teams').doc(opponentTeamId).get();
-        if (opponentTeamDoc.exists()) {
+        if (opponentTeamDoc.exists) {
             const opponentCaptainId = opponentTeamDoc.data()?.captainId;
             if(opponentCaptainId) {
                 await sendNotification(opponentCaptainId, {
@@ -919,6 +919,24 @@ export async function verifyAndActivateTournament(reference: string) {
     } else {
         throw new Error('Payment verification failed.');
     }
+}
+
+export async function cancelReplayRequest(tournamentId: string, matchId: string, userId: string) {
+    const matchRef = adminDb.collection('tournaments').doc(tournamentId).collection('matches').doc(matchId);
+    const matchDoc = await matchRef.get();
+    if (!matchDoc.exists) throw new Error('Match not found');
+
+    const matchData = matchDoc.data() as Match;
+
+    if (!matchData.replayRequest || matchData.replayRequest.status !== 'pending' || matchData.replayRequest.requestedBy !== userId) {
+        throw new Error("You do not have an active replay request to cancel.");
+    }
+
+    await matchRef.update({
+        replayRequest: FieldValue.delete(),
+    });
+
+    revalidatePath(`/tournaments/${tournamentId}/matches/${matchId}`);
 }
     
 // DEV-ONLY FUNCTIONS
