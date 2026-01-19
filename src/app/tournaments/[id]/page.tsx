@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getTournamentById, organizerResolveOverdueMatches, extendRegistration, startTournamentAndGenerateFixtures, regenerateTournamentFixtures, devSeedDummyTeams, devAutoApproveCurrentStageMatches, devAutoApproveAndProgress, devAutoRunCupToCompletion, retryTournamentPayment, rescheduleTournament } from '@/lib/actions/tournament';
+import { getTournamentById, organizerResolveOverdueMatches, extendRegistration, startTournamentAndGenerateFixtures, regenerateTournamentFixtures, devSeedDummyTeams, devAutoApproveCurrentStageMatches, devAutoApproveAndProgress, devAutoRunCupToCompletion, retryTournamentPayment, rescheduleTournament, recalculateStandings } from '@/lib/actions';
 import { getUserTeamForTournament, leaveTournament, addTeam } from '@/lib/actions/team';
 import { findUserByEmail } from '@/lib/actions/user';
 import { useAuth } from "@/hooks/use-auth";
@@ -477,11 +477,28 @@ function OrganizerTools({ tournament, user, allMatches, onSuccess }: { tournamen
             setIsLoading(false);
         }
     };
+
+    const handleRecalculateStandings = async () => {
+        setIsLoading(true);
+        try {
+            await recalculateStandings(tournament.id, user.uid);
+            toast({ title: "Standings Recalculated", description: "The leaderboard is now up-to-date." });
+            onSuccess();
+        } catch (error: any) {
+            toast({ variant: "destructive", title: "Error", description: error.message });
+        } finally {
+            setIsLoading(false);
+        }
+    };
     
     return (
         <div className="space-y-3">
              <Button variant="destructive" size="sm" className="w-full justify-start" onClick={handleResolveOverdue} disabled={isLoading}>
                 <AlertCircle className="mr-2" /> {isLoading ? 'Resolving...' : 'Resolve Overdue Matches'}
+            </Button>
+             <Button variant="outline" size="sm" className="w-full justify-start" onClick={handleRecalculateStandings} disabled={isLoading}>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                {isLoading ? 'Recalculating...' : 'Recalculate Standings'}
             </Button>
             <ExtendRegistrationDialog tournament={tournament} organizerId={user.uid} onSuccess={onSuccess} />
             <RescheduleDialog tournament={tournament} organizerId={user.uid} onSuccess={onSuccess} />

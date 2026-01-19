@@ -136,3 +136,13 @@ export async function getGroupTablesForTournament(tournamentId: string) {
     const groupTables = computeAllGroupStandings(allMatches);
     return serializeData(groupTables);
 }
+
+export async function recalculateStandings(tournamentId: string, organizerId: string) {
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    const tournamentDoc = await tournamentRef.get();
+    if (!tournamentDoc.exists || tournamentDoc.data()?.organizerId !== organizerId) {
+        throw new Error("You are not authorized to perform this action.");
+    }
+
+    await updateStandings(tournamentId);
+}
