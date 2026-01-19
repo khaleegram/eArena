@@ -264,7 +264,34 @@ export async function verifyAndActivateTournament(reference: string) {
         throw new Error('Payment verification failed.');
     }
 }
-// ... (rest of the file remains the same)
+
+export async function extendRegistration(tournamentId: string, hours: number, organizerId: string) {
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    const tournamentDoc = await tournamentRef.get();
+
+    if (!tournamentDoc.exists) {
+        throw new Error("Tournament not found.");
+    }
+
+    const tournament = tournamentDoc.data() as Tournament;
+
+    if (tournament.organizerId !== organizerId) {
+        throw new Error("You are not authorized to perform this action.");
+    }
+
+    if (tournament.status !== 'open_for_registration') {
+        throw new Error("Registration can only be extended for tournaments that are open for registration.");
+    }
+    
+    const currentEndDate = toDate(tournament.registrationEndDate);
+    const newEndDate = new Date(currentEndDate.getTime() + hours * 60 * 60 * 1000);
+
+    await tournamentRef.update({
+        registrationEndDate: Timestamp.fromDate(newEndDate),
+    });
+
+    revalidatePath(`/tournaments/${tournamentId}`);
+}
       
 
 export async function getPublicTournaments(): Promise<Tournament[]> {
