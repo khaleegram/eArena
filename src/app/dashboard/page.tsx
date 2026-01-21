@@ -16,6 +16,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { PlusCircle, ArrowRight, Loader2, Gamepad2, Trash2, CheckCircle, Trophy, Users, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
 import { Separator } from '@/components/ui/separator';
+import { OnboardingFlow } from '@/components/onboarding-flow';
 
 const toDate = (timestamp: UnifiedTimestamp): Date => {
     if (typeof timestamp === 'string') {
@@ -116,6 +117,17 @@ export default function MyTournamentsPage() {
   const [organizedTournaments, setOrganizedTournaments] = useState<Tournament[]>([]);
   const [joinedTournaments, setJoinedTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  useEffect(() => {
+    // Check if onboarding has been completed only on the client-side
+    if (typeof window !== 'undefined') {
+      const hasCompleted = localStorage.getItem('hasCompletedOnboarding') === 'true';
+      if (!hasCompleted) {
+        setShowOnboarding(true);
+      }
+    }
+  }, []);
 
 
   useEffect(() => {
@@ -182,6 +194,7 @@ export default function MyTournamentsPage() {
 
   return (
     <div className="space-y-8">
+      {showOnboarding && <OnboardingFlow />}
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold font-headline">My Dashboard</h1>
         {platformSettings.allowNewTournaments && (
