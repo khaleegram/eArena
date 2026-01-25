@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { adminDb } from '@/lib/firebase-admin';
@@ -510,20 +511,36 @@ export async function progressTournamentStage(tournamentId: string, organizerId:
         newFixtures = generateCupRound(winners, newRoundName);
     } else if (isSwissRound(latestRound)) {
         const currentRoundNumber = getSwissRoundNumber(latestRound);
-        const teamsSnapshot = await tournamentRef.collection('teams').get();
-        const teamIds = teamsSnapshot.docs.map(doc => doc.id);
+        
+        if (currentRoundNumber === null || currentRoundNumber < getMaxSwissRounds(tournament.teamCount)) {
+            // This is for progressing from one Swiss round to the next.
+            const teamsSnapshot = await tournamentRef.collection('teams').get();
+            const teamIds = teamsSnapshot.docs.map(doc => doc.id);
+            const standings = await getStandingsForTournament(tournamentId);
+            newFixtures = generateSwissRoundFixtures({
+                teamIds,
+                roundNumber: (currentRoundNumber || 0) + 1,
+                standings,
+                previousMatches: allMatches,
+            });
+        } else {
+            // Last Swiss round is complete, now create knockout stage.
+            const standings = await getStandingsForTournament(tournamentId);
+            const top8Teams = standings.slice(0, 8).map(s => s.teamId);
 
-        if (currentRoundNumber === null || currentRoundNumber >= getMaxSwissRounds(tournament.teamCount)) {
-            await tournamentRef.update({ status: 'completed', endedAt: FieldValue.serverTimestamp() });
-            return { progressed: false, status: 'completed' };
+            if (top8Teams.length < 8) {
+                 throw new Error("Not enough teams to proceed to Quarter-Finals. At least 8 teams must complete the Swiss stage.");
+            }
+
+            // Seed the Quarter-Finals: 1st vs 8th, 2nd vs 7th, etc.
+            const quarterFinalFixtures: Omit<Match, 'id' | 'tournamentId' | 'matchDay' | 'status'>[] = [];
+            quarterFinalFixtures.push({ homeTeamId: top8Teams[0]!, awayTeamId: top8Teams[7]!, round: 'Quarter-finals', hostId: top8Teams[0]!, homeScore: null, awayScore: null, hostTransferRequested: false });
+            quarterFinalFixtures.push({ homeTeamId: top8Teams[1]!, awayTeamId: top8Teams[6]!, round: 'Quarter-finals', hostId: top8Teams[1]!, homeScore: null, awayScore: null, hostTransferRequested: false });
+            quarterFinalFixtures.push({ homeTeamId: top8Teams[2]!, awayTeamId: top8Teams[5]!, round: 'Quarter-finals', hostId: top8Teams[2]!, homeScore: null, awayScore: null, hostTransferRequested: false });
+            quarterFinalFixtures.push({ homeTeamId: top8Teams[3]!, awayTeamId: top8Teams[4]!, round: 'Quarter-finals', hostId: top8Teams[3]!, homeScore: null, awayScore: null, hostTransferRequested: false });
+            
+            newFixtures = quarterFinalFixtures;
         }
-        const standings = await getStandingsForTournament(tournamentId);
-        newFixtures = generateSwissRoundFixtures({
-            teamIds,
-            roundNumber: currentRoundNumber + 1,
-            standings,
-            previousMatches: allMatches,
-        });
     }
 
     if (newFixtures.length === 0) {

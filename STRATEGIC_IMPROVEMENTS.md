@@ -420,9 +420,9 @@ match /{document=**} {
 - **Swiss format** is now implemented
 - Missing round-robin variations
 - No custom bracket support
+- [x] Complete Swiss format (e.g. final knockout stage)
 
 **Action Required:**
-- Complete Swiss format (e.g. final knockout stage)
 - Add more tournament types
 - Custom bracket builder
 - Seeding algorithms

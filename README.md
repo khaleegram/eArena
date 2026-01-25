@@ -67,6 +67,15 @@ The platform's intelligence and automation are powered by a combination of deter
   2.  If `homeAndAway` is true, it generates a second set of fixtures, swapping the home and away teams.
   3.  The output is a structured array of match objects (`{homeTeamId, awayTeamId, round}`), which are then assigned dates and written to the database.
 
+#### `generateSwissRoundFixtures` & Knockout Stage (in `src/lib/actions.ts` & `src/lib/swiss.ts`)
+- **Purpose:** To manage a Swiss-style tournament where teams play a set number of matches against opponents with a similar record, followed by a final knockout stage.
+- **Logic:**
+  1. **Swiss Rounds:** For a set number of rounds (typically 8), teams are paired based on their current points and goal difference. The system avoids rematches where possible.
+  2. **Final Standings:** After the Swiss rounds are complete, a final league table is established.
+  3. **Knockout Stage Transition:** The top 8 teams from the final Swiss standings advance to a knockout bracket.
+  4. **Seeding:** The bracket is seeded in a standard format (1st vs 8th, 2nd vs 7th, etc.).
+  5. **Conclusion:** The tournament proceeds through Quarter-Finals, Semi-Finals, and a Final to determine the ultimate champion.
+
 #### `updateStandings` (in `src/lib/actions.ts`)
 - **Purpose:** Calculates and ranks teams in a tournament based on performance. This function **does not use AI** to ensure accuracy.
 - **Logic:**
