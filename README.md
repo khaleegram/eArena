@@ -128,6 +128,8 @@ This rigorous, step-by-step logic ensures fair and automated resolution for the 
 ### Environment Variables
 To run the application, you'll need to set up your environment variables. Create a `.env.local` file in the root of the project and add the necessary keys from `.env.example`.
 
+**Important for Production:** For social media sharing thumbnails to work correctly, you must set the `NEXT_PUBLIC_BASE_URL` variable in your production environment to your app's public URL (e.g., `https://yourapp.com`). If you deploy to Vercel, this is handled automatically.
+
 ### Cron Jobs (Automated Tasks)
 The application uses a GitHub Action to run automated tasks once per day. For this to work, you must add two "secrets" to your GitHub repository. **You do not need to edit any code for this.**
 

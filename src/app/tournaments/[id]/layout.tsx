@@ -15,7 +15,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     };
   }
 
-  const imageUrl = tournament.flyerUrl || `${process.env.NEXT_PUBLIC_BASE_URL}/images/Tournament.png`;
+  // flyerUrl is absolute. Fallback is relative, which works with metadataBase in the root layout.
+  const imageUrl = tournament.flyerUrl || '/images/Tournament.png';
 
   return {
     title: `${tournament.name} | eArena`,

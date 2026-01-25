@@ -19,7 +19,13 @@ const orbitron = Orbitron({
   variable: '--font-headline',
 });
 
+// Determine the base URL for metadata. Vercel automatically sets NEXT_PUBLIC_VERCEL_URL.
+const baseUrl = process.env.NEXT_PUBLIC_VERCEL_URL
+  ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
+  : process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+
 export const metadata: Metadata = {
+  metadataBase: new URL(baseUrl),
   title: 'eArena: Your eFootball Tournament Platform',
   description: 'Create, manage, and compete in eFootball tournaments.',
   manifest: '/manifest.json',
