@@ -1,36 +1,30 @@
 'use client';
 
 import * as React from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, User, Trophy, Sparkles } from 'lucide-react';
+import { ArrowRight, User, Trophy, Sparkles, X } from 'lucide-react';
 import Link from 'next/link';
+import { cn } from '@/lib/utils';
 
 const onboardingSteps = [
   {
-    icon: <Sparkles className="h-12 w-12 text-primary" />,
+    icon: <Sparkles className="h-10 w-10 text-primary" />,
     title: 'Welcome to eArena!',
-    description: "We're excited to have you. Let's quickly get you set up for your first competition.",
+    description: "We're excited to have you. Here are a couple of quick steps to get you ready for your first competition.",
     action: null,
   },
   {
-    icon: <User className="h-12 w-12 text-primary" />,
+    icon: <User className="h-10 w-10 text-primary" />,
     title: 'Set Up Your Profile',
-    description: 'Your username and avatar are your identity on the platform. Make sure they match your in-game details for easy match reporting and verification.',
+    description: 'Your username and avatar are your identity. Make sure they match your in-game details for easy match verification.',
     action: {
       href: '/profile',
       text: 'Go to Profile',
     },
   },
   {
-    icon: <Trophy className="h-12 w-12 text-primary" />,
+    icon: <Trophy className="h-10 w-10 text-primary" />,
     title: 'Find or Create a Tournament',
     description: "The arena awaits! You can join an existing public tournament or start your own and invite friends.",
     action: {
@@ -38,17 +32,12 @@ const onboardingSteps = [
       text: 'Browse Tournaments',
     },
   },
-  {
-    icon: <Sparkles className="h-12 w-12 text-primary" />,
-    title: "You're All Set!",
-    description: 'You now have everything you need to start competing. Good luck, and have fun!',
-    action: null,
-  },
 ];
+
 
 export function OnboardingFlow() {
   const [step, setStep] = React.useState(0);
-  const [isOpen, setIsOpen] = React.useState(true);
+  const [isVisible, setIsVisible] = React.useState(true);
 
   const handleNext = () => {
     if (step < onboardingSteps.length - 1) {
@@ -64,51 +53,63 @@ export function OnboardingFlow() {
 
   const handleFinish = () => {
     localStorage.setItem('hasCompletedOnboarding', 'true');
-    setIsOpen(false);
+    setIsVisible(false);
   };
+  
+  if (!isVisible) {
+    return null;
+  }
 
   const currentStep = onboardingSteps[step];
   const isLastStep = step === onboardingSteps.length - 1;
-
-  if (!currentStep) return null;
+  const isFirstStep = step === 0;
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && handleFinish()}>
-      <DialogContent className="sm:max-w-md" onInteractOutside={(e) => e.preventDefault()}>
-        <DialogHeader className="text-center items-center pt-4">
-          {currentStep.icon}
-          <DialogTitle className="text-2xl font-headline">{currentStep.title}</DialogTitle>
-          <DialogDescription className="px-4">
-            {currentStep.description}
-          </DialogDescription>
-        </DialogHeader>
-
-        {currentStep.action && (
-          <div className="py-4 text-center">
-            <Link href={currentStep.action.href}>
-                <Button variant="outline">{currentStep.action.text}</Button>
-            </Link>
-          </div>
-        )}
-
-        <DialogFooter className="flex-row justify-between w-full pt-4">
-          {step > 0 ? (
-            <Button variant="ghost" onClick={handleBack}>
-              Back
-            </Button>
-          ) : <div /> /* Placeholder to keep alignment */}
-          
-          {isLastStep ? (
-            <Button onClick={handleFinish}>
-              Start Competing <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          ) : (
-            <Button onClick={handleNext}>
-              Next <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <Card className="mb-8 bg-gradient-to-br from-card to-muted/30 border-primary/20 shadow-lg animate-in fade-in-50 slide-in-from-bottom-10">
+        <div className="relative p-6">
+            <button onClick={handleFinish} className="absolute top-3 right-3 p-1 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
+                <X className="h-4 w-4" />
+                <span className="sr-only">Dismiss</span>
+            </button>
+            <div className="flex flex-col sm:flex-row items-center gap-6 text-center sm:text-left">
+                {currentStep.icon}
+                <div className="flex-grow">
+                    <h2 className="text-xl font-bold font-headline">{currentStep.title}</h2>
+                    <p className="text-muted-foreground mt-1">{currentStep.description}</p>
+                </div>
+                 <div className="flex-shrink-0 flex items-center gap-2">
+                    {!isFirstStep && (
+                       <Button variant="ghost" onClick={handleBack}>Back</Button>
+                    )}
+                    {isLastStep ? (
+                        <Button onClick={handleFinish}>
+                            Get Started <ArrowRight className="ml-2 h-4 w-4" />
+                        </Button>
+                    ) : currentStep.action ? (
+                         <Link href={currentStep.action.href} passHref>
+                            <Button onClick={handleNext}>{currentStep.action.text}</Button>
+                         </Link>
+                    ) : (
+                        <Button onClick={handleNext}>
+                            Next <ArrowRight className="ml-2 h-4 w-4" />
+                        </Button>
+                    )}
+                </div>
+            </div>
+             <div className="flex justify-center gap-2 mt-4">
+                {onboardingSteps.map((_, index) => (
+                    <button
+                        key={index}
+                        onClick={() => setStep(index)}
+                        className={cn(
+                            "h-1.5 w-8 rounded-full transition-colors",
+                            index === step ? "bg-primary" : "bg-muted hover:bg-muted-foreground/50"
+                        )}
+                        aria-label={`Go to step ${index + 1}`}
+                    />
+                ))}
+            </div>
+        </div>
+    </Card>
   );
 }
