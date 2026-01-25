@@ -4,7 +4,6 @@ import { Inter } from 'next/font/google';
 import { Orbitron } from 'next/font/google';
 import './globals.css';
 import { Providers } from '@/components/providers';
-import { ThemeProvider } from '@/components/theme-provider';
 import { cn } from '@/lib/utils';
 import { getPlatformSettings } from '@/lib/settings';
 import { HardHat } from 'lucide-react';
@@ -72,11 +71,9 @@ export default async function RootLayout({
           inter.variable,
           orbitron.variable
         )}>
-        <ThemeProvider>
-          <Providers settings={settings}>
+        <Providers settings={settings}>
             {children}
-          </Providers>
-        </ThemeProvider>
+        </Providers>
       </body>
     </html>
   );

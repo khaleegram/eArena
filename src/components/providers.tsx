@@ -7,6 +7,7 @@ import { Footer } from './footer';
 import { Toaster } from './ui/toaster';
 import type { PlatformSettings } from '@/lib/types';
 import { PushPermissionPrompt } from './push-permission-prompt';
+import { ThemeProvider } from './theme-provider';
 
 export function Providers({
   children,
@@ -16,14 +17,16 @@ export function Providers({
   settings: PlatformSettings;
 }) {
   return (
-    <AuthProvider settings={settings}>
-      <div className="flex min-h-screen flex-col">
-        <Header />
-        <main className="flex-grow">{children}</main>
-        <Footer />
-      </div>
-      <Toaster />
-      <PushPermissionPrompt />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider settings={settings}>
+        <div className="flex min-h-screen flex-col">
+          <Header />
+          <main className="flex-grow">{children}</main>
+          <Footer />
+        </div>
+        <Toaster />
+        <PushPermissionPrompt />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
