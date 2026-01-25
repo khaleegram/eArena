@@ -4,13 +4,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getTournamentById, organizerResolveOverdueMatches, extendRegistration, startTournamentAndGenerateFixtures, regenerateTournamentFixtures, devSeedDummyTeams, devAutoApproveCurrentStageMatches, devAutoApproveAndProgress, devAutoRunCupToCompletion, rescheduleTournament, recalculateStandings, progressTournamentStage } from '@/lib/actions/tournament';
+import { getTournamentById, organizerResolveOverdueMatches, extendRegistration, startTournamentAndGenerateFixtures, regenerateTournamentFixtures, devSeedDummyTeams, devAutoApproveCurrentStageMatches, devAutoApproveAndProgress, devAutoRunCupToCompletion, rescheduleTournament, recalculateStandings, progressTournamentStage, updateTournamentFlyer } from '@/lib/actions/tournament';
 import { retryTournamentPayment } from '@/lib/actions/payouts';
 import { getUserTeamForTournament, leaveTournament, addTeam } from '@/lib/actions/team';
 import { findUserByEmail } from '@/lib/actions/user';
 import { useAuth } from "@/hooks/use-auth";
 import type { Tournament, TournamentStatus, Team, Player, UserProfile, UnifiedTimestamp, Match, Standing } from "@/lib/types";
-import { format, isBefore, isAfter, isToday, isFuture, addDays, differenceInDays, endOfDay, isPast } from "date-fns";
+import { format, isBefore, isAfter, isToday, isFuture, isPast, endOfDay, differenceInDays } from "date-fns";
 import { collection, onSnapshot, query, where, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Calendar, Gamepad2, Info, List, Trophy, Users, Loader2, Lock, Globe, Crown, PlusCircle, BookOpenCheck, Rss, Award, Swords, Timer, Hourglass, Bot, Sparkles, ShieldCheck, History, RefreshCw, AlertCircle, CreditCard } from "lucide-react";
@@ -42,6 +42,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { TournamentPodium } from '@/components/tournament-podium';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { PrizeAllocationEditor } from './prize-allocation';
+import { EditFlyerDialog } from '@/components/edit-flyer-dialog';
+
 
 const CountdownDisplay = ({ days, hours, minutes, seconds }: { days: number, hours: number, minutes: number, seconds: number }) => (
     <div className="flex items-center gap-2 font-mono text-lg">
@@ -764,18 +766,22 @@ export default function TournamentPage() {
   const canJoin = isRegistrationOpen && !userTeam && !isOrganizer && tournament.status === 'open_for_registration';
 
   return (
-    <div className="relative min-h-[calc(100vh-3.5rem)]">
-        <Image
-            src={tournament.flyerUrl || "/images/Tournament.png"}
-            data-ai-hint="esports gaming"
-            alt={tournament.name}
-            fill
-            sizes="100vw"
-            style={{objectFit: 'cover'}}
-            className="absolute inset-0 z-[-1] opacity-10"
-            priority
-        />
-        <div className="container py-10 relative z-10">
+    <div className="space-y-8">
+        <div className="relative w-full h-auto aspect-[21/9] max-h-[400px] rounded-b-lg overflow-hidden bg-muted group">
+            <Image
+                src={tournament.flyerUrl || "/images/Tournament.png"}
+                data-ai-hint="esports gaming"
+                alt={tournament.name}
+                fill
+                sizes="100vw"
+                style={{objectFit: 'cover'}}
+                className="transition-transform group-hover:scale-105"
+                priority
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent" />
+            {isOrganizer && <EditFlyerDialog tournament={tournament} />}
+        </div>
+        <div className="container -mt-24 relative z-10">
             {tournament.status === 'completed' && <TournamentPodium tournament={tournament} matches={allMatches} standings={standings} teams={teams} />}
             
             {isPendingPayment && <PaymentPrompt tournament={tournament} />}

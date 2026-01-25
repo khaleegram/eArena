@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { adminDb } from '@/lib/firebase-admin';
@@ -267,6 +266,52 @@ export async function createTournament(formData: FormData) {
   revalidatePath('/tournaments');
   revalidatePath('/dashboard');
   return { tournamentId: tournamentRef.id };
+}
+
+export async function updateTournamentFlyer(tournamentId: string, organizerId: string, formData: FormData) {
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    const tournamentDoc = await tournamentRef.get();
+    if (!tournamentDoc.exists) throw new Error("Tournament not found.");
+
+    const tournament = tournamentDoc.data() as Tournament;
+    if (tournament.organizerId !== organizerId) {
+        throw new Error("You are not authorized to edit this tournament.");
+    }
+    
+    const flyerFile = formData.get('flyer') as File | null;
+    if (!flyerFile || flyerFile.size === 0) {
+        throw new Error("No flyer image provided.");
+    }
+
+    const MAX_FLYER_SIZE = 5 * 1024 * 1024; // 5MB
+    const ALLOWED_FLYER_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
+    if (flyerFile.size > MAX_FLYER_SIZE) {
+        throw new Error("Flyer image must be less than 5MB.");
+    }
+    if (!ALLOWED_FLYER_TYPES.includes(flyerFile.type)) {
+        throw new Error("Invalid file type. Only JPEG, PNG, and WebP are allowed.");
+    }
+    
+    let flyerUrl = '';
+    const bucket = getStorage().bucket(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
+    const fileName = `tournaments/flyers/${tournamentId}_${Date.now()}_${flyerFile.name}`;
+    const file = bucket.file(fileName);
+    
+    const buffer = Buffer.from(await flyerFile.arrayBuffer());
+    await file.save(buffer, {
+        metadata: { contentType: flyerFile.type },
+    });
+
+    [flyerUrl] = await file.getSignedUrl({
+        action: 'read',
+        expires: '03-09-2491',
+    });
+
+    await tournamentRef.update({ flyerUrl });
+    revalidatePath(`/tournaments/${tournamentId}`);
+
+    return { flyerUrl };
 }
 
 export async function verifyAndActivateTournament(reference: string) {
