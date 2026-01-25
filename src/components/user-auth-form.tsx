@@ -5,7 +5,7 @@ import * as React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
@@ -40,6 +40,7 @@ export function UserAuthForm({ className, mode, ...props }: UserAuthFormProps) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = React.useState<boolean>(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const { register, handleSubmit, formState: { errors } } = useForm<UserFormValue>({
     resolver: zodResolver(formSchema),
@@ -62,7 +63,8 @@ export function UserAuthForm({ className, mode, ...props }: UserAuthFormProps) {
             });
             await handleNewUserSetup(userCredential.user.uid);
         }
-        router.push('/dashboard');
+        const redirectUrl = searchParams.get('redirectUrl');
+        router.push(redirectUrl || '/dashboard');
     } catch (error: any) {
         toast({
             variant: 'destructive',
@@ -111,7 +113,8 @@ export function UserAuthForm({ className, mode, ...props }: UserAuthFormProps) {
             await auth.signOut();
             throw new Error("This account has been suspended by an administrator.");
         }
-        router.push('/dashboard');
+        const redirectUrl = searchParams.get('redirectUrl');
+        router.push(redirectUrl || '/dashboard');
       } else {
         userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
         const user = userCredential.user;
