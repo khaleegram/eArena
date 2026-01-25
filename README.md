@@ -72,9 +72,9 @@ The platform's intelligence and automation are powered by a combination of deter
 - **Logic:**
   1. **Swiss Rounds:** For a set number of rounds (typically 8), teams are paired based on their current points and goal difference. The system avoids rematches where possible.
   2. **Final Standings:** After the Swiss rounds are complete, a final league table is established.
-  3. **Knockout Stage Transition:** The top 8 teams from the final Swiss standings advance to a knockout bracket.
-  4. **Seeding:** The bracket is seeded in a standard format (1st vs 8th, 2nd vs 7th, etc.).
-  5. **Conclusion:** The tournament proceeds through Quarter-Finals, Semi-Finals, and a Final to determine the ultimate champion.
+  3. **Knockout Stage Transition:** The top 16 teams from the final Swiss standings advance to a knockout bracket.
+  4. **Seeding:** The bracket is seeded in a standard format (1st vs 16th, 2nd vs 15th, etc.).
+  5. **Conclusion:** The tournament proceeds through the Round of 16, Quarter-Finals, Semi-Finals, and a Final to determine the ultimate champion.
 
 #### `updateStandings` (in `src/lib/actions.ts`)
 - **Purpose:** Calculates and ranks teams in a tournament based on performance. This function **does not use AI** to ensure accuracy.

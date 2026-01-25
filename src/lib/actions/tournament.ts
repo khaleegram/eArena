@@ -526,20 +526,29 @@ export async function progressTournamentStage(tournamentId: string, organizerId:
         } else {
             // Last Swiss round is complete, now create knockout stage.
             const standings = await getStandingsForTournament(tournamentId);
-            const top8Teams = standings.slice(0, 8).map(s => s.teamId);
+            const top16Teams = standings.slice(0, 16).map(s => s.teamId);
 
-            if (top8Teams.length < 8) {
-                 throw new Error("Not enough teams to proceed to Quarter-Finals. At least 8 teams must complete the Swiss stage.");
+            if (top16Teams.length < 16) {
+                 throw new Error("Not enough teams to proceed to the Round of 16. At least 16 teams must complete the Swiss stage.");
             }
 
-            // Seed the Quarter-Finals: 1st vs 8th, 2nd vs 7th, etc.
-            const quarterFinalFixtures: Omit<Match, 'id' | 'tournamentId' | 'matchDay' | 'status'>[] = [];
-            quarterFinalFixtures.push({ homeTeamId: top8Teams[0]!, awayTeamId: top8Teams[7]!, round: 'Quarter-finals', hostId: top8Teams[0]!, homeScore: null, awayScore: null, hostTransferRequested: false });
-            quarterFinalFixtures.push({ homeTeamId: top8Teams[1]!, awayTeamId: top8Teams[6]!, round: 'Quarter-finals', hostId: top8Teams[1]!, homeScore: null, awayScore: null, hostTransferRequested: false });
-            quarterFinalFixtures.push({ homeTeamId: top8Teams[2]!, awayTeamId: top8Teams[5]!, round: 'Quarter-finals', hostId: top8Teams[2]!, homeScore: null, awayScore: null, hostTransferRequested: false });
-            quarterFinalFixtures.push({ homeTeamId: top8Teams[3]!, awayTeamId: top8Teams[4]!, round: 'Quarter-finals', hostId: top8Teams[3]!, homeScore: null, awayScore: null, hostTransferRequested: false });
+            // Seed the Round of 16: 1st vs 16th, 2nd vs 15th, etc.
+            const roundOf16Fixtures: Omit<Match, 'id' | 'tournamentId' | 'matchDay' | 'status'>[] = [];
+            for (let i = 0; i < 8; i++) {
+                const homeTeamId = top16Teams[i]!;
+                const awayTeamId = top16Teams[15 - i]!;
+                roundOf16Fixtures.push({
+                    homeTeamId: homeTeamId,
+                    awayTeamId: awayTeamId,
+                    round: 'Round of 16',
+                    hostId: homeTeamId, // Higher seed is host
+                    homeScore: null,
+                    awayScore: null,
+                    hostTransferRequested: false,
+                });
+            }
             
-            newFixtures = quarterFinalFixtures;
+            newFixtures = roundOf16Fixtures;
         }
     }
 
