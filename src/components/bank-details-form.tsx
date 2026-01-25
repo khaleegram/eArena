@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import * as React from 'react';
@@ -8,8 +9,7 @@ import * as z from 'zod';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import type { UserProfile } from '@/lib/types';
-import { getNigerianBanks, verifyBankAccount } from '@/lib/actions/payouts';
-import { saveUserBankDetails, confirmUserDetailsForPayout } from '@/lib/actions/user';
+import { getNigerianBanks, verifyBankAccount, saveUserBankDetails, confirmUserDetailsForPayout } from '@/lib/actions/payouts';
 
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
@@ -108,7 +108,7 @@ export function BankDetailsForm({ userProfile }: { userProfile: UserProfile }) {
 
         setIsSaving(true);
         try {
-            await saveUserBankDetails(user.uid, { bankCode, accountNumber });
+            await saveUserBankDetails(user.uid, { bankCode, accountNumber, accountName: verifiedAccountName });
             toast({ title: 'Success!', description: 'Your bank details have been saved.' });
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Error', description: error.message });

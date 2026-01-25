@@ -366,19 +366,3 @@ export async function getLeaderboardByReputation(): Promise<UserProfile[]> {
     const snapshot = await adminDb.collection('users').orderBy('warnings', 'asc').limit(20).get();
     return snapshot.docs.map(doc => serializeData({ ...doc.data() }) as UserProfile);
 }
-
-export async function saveUserBankDetails(uid: string, details: { bankCode: string, accountNumber: string }) {
-    const userRef = adminDb.collection('users').doc(uid);
-    await userRef.update({
-        'bankDetails.bankCode': details.bankCode,
-        'bankDetails.accountNumber': details.accountNumber,
-        'bankDetails.confirmedForPayout': false, // Needs re-confirmation on change
-    });
-    revalidatePath('/profile');
-}
-
-export async function confirmUserDetailsForPayout(uid: string) {
-    const userRef = adminDb.collection('users').doc(uid);
-    await userRef.update({ 'bankDetails.confirmedForPayout': true });
-    revalidatePath('/profile');
-}

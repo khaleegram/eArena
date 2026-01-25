@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { adminDb } from '@/lib/firebase-admin';
@@ -9,6 +10,7 @@ import { getTeamsForTournament } from './team';
 import { sendNotification } from './notifications';
 import { serializeData } from '@/lib/utils';
 import { getUserProfileById } from './user';
+import { revalidatePath } from 'next/cache';
 
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
 
@@ -36,6 +38,47 @@ async function createPaystackRecipient(userProfile: UserProfile): Promise<string
         throw new Error(`Paystack recipient creation failed: ${data.message}`);
     }
     return data.data.recipient_code;
+}
+
+export async function retryTournamentPayment(tournamentId: string, organizerId: string) {
+    if (!PAYSTACK_SECRET_KEY) {
+        throw new Error('Paystack secret key is not configured for paid tournaments.');
+    }
+    
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    const tournamentDoc = await tournamentRef.get();
+    if (!tournamentDoc.exists) throw new Error('Tournament not found.');
+    
+    const tournament = tournamentDoc.data() as Tournament;
+    if (tournament.organizerId !== organizerId) throw new Error('You are not authorized to perform this action.');
+    if (tournament.status !== 'pending') throw new Error('This tournament is not pending payment.');
+
+    const organizerProfile = await getUserProfileById(organizerId);
+    if (!organizerProfile) throw new Error('Organizer profile not found.');
+
+    const response = await fetch('https://api.paystack.co/transaction/initialize', {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            email: organizerProfile.email,
+            amount: tournament.rewardDetails.prizePool * 100, // in kobo
+            reference: tournamentId,
+            callback_url: `${process.env.NEXT_PUBLIC_BASE_URL}/api/paystack/verify`,
+            metadata: {
+                tournamentId: tournamentId,
+                organizerId: organizerId,
+            }
+        }),
+    });
+
+    const data = await response.json();
+    if (!data.status) {
+        throw new Error(`Paystack initialization failed: ${data.message}`);
+    }
+    return { paymentUrl: data.data.authorization_url };
 }
 
 export async function retryPayout(transactionId: string) {
@@ -268,4 +311,39 @@ export async function verifyBankAccount(accountNumber: string, bankCode: string)
         throw new Error(data.message);
     }
     return data.data;
+}
+
+export async function saveUserBankDetails(uid: string, details: { bankCode: string; accountNumber: string; accountName: string; }) {
+    const userRef = adminDb.collection('users').doc(uid);
+    const banks = await getNigerianBanks();
+    const bankName = banks.find(b => b.code === details.bankCode)?.name || '';
+
+    await userRef.update({
+        'bankDetails.bankCode': details.bankCode,
+        'bankDetails.bankName': bankName,
+        'bankDetails.accountNumber': details.accountNumber,
+        'bankDetails.accountName': details.accountName,
+        'bankDetails.confirmedForPayout': false,
+    });
+    revalidatePath('/profile');
+}
+
+export async function confirmUserDetailsForPayout(uid: string) {
+    const userRef = adminDb.collection('users').doc(uid);
+    const userDoc = await userRef.get();
+    if(!userDoc.exists) throw new Error("User not found");
+    const userProfile = userDoc.data() as UserProfile;
+
+    if (!userProfile.bankDetails?.accountNumber || !userProfile.bankDetails?.bankCode) {
+        throw new Error("Bank details are incomplete.");
+    }
+    
+    // Re-verify before confirming
+    const verifiedAccount = await verifyBankAccount(userProfile.bankDetails.accountNumber, userProfile.bankDetails.bankCode);
+
+    await userRef.update({ 
+        'bankDetails.confirmedForPayout': true,
+        'bankDetails.accountName': verifiedAccount.account_name,
+    });
+    revalidatePath('/profile');
 }
