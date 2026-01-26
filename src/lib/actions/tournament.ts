@@ -422,18 +422,22 @@ export async function rescheduleTournament(tournamentId: string, newStartDateISO
 
     const teamsSnapshot = await tournamentRef.collection('teams').get();
     if (!teamsSnapshot.empty) {
-        for (const teamDoc of teamsSnapshot.docs) {
+        const teamDocs = teamsSnapshot.docs;
+        const notificationPromises: Promise<void>[] = [];
+
+        for (const teamDoc of teamDocs) {
             const team = teamDoc.data() as Team;
             for (const playerId of team.playerIds) {
-                await sendNotification(playerId, {
+                notificationPromises.push(sendNotification(playerId, {
                     userId: playerId,
                     tournamentId,
                     title: 'Tournament Rescheduled',
                     body: `The schedule for "${tournament.name}" has been updated.`,
                     href: `/tournaments/${tournamentId}`
-                });
+                }));
             }
         }
+        await Promise.allSettled(notificationPromises);
     }
     
     revalidatePath(`/tournaments/${tournamentId}`);
@@ -520,17 +524,19 @@ export async function regenerateTournamentFixtures(tournamentId: string, organiz
     
     const teamsSnapshot = await tournamentRef.collection('teams').get();
     const teams = teamsSnapshot.docs.map(doc => doc.data() as Team);
+    const notificationPromises: Promise<void>[] = [];
     for (const team of teams) {
         for (const playerId of team.playerIds) {
-            await sendNotification(playerId, {
+            notificationPromises.push(sendNotification(playerId, {
                 userId: playerId,
                 tournamentId,
                 title: 'Fixtures Regenerated',
                 body: `The match schedule for "${tournament.name}" has been updated.`,
                 href: `/tournaments/${tournamentId}?tab=fixtures`
-            });
+            }));
         }
     }
+    await Promise.allSettled(notificationPromises);
 
     revalidatePath(`/tournaments/${tournamentId}`);
 }

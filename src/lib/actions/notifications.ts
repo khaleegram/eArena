@@ -53,7 +53,7 @@ export async function sendNotification(userId: string, notification: Omit<Notifi
         const sub = doc.data() as ClientPushSubscription;
         // Validate the subscription object before sending
         if (sub && typeof sub.endpoint === 'string' && sub.keys && typeof sub.keys.p256dh === 'string' && typeof sub.keys.auth === 'string') {
-            return webPush.sendNotification(sub, payload, { TTL: 60 * 15 }).catch(error => {
+            return webPush.sendNotification(sub, payload, { TTL: 24 * 60 * 60 }).catch(error => {
                 if (error.statusCode === 410 || error.statusCode === 404) {
                     // Subscription is no longer valid, remove it.
                     console.log(`Subscription ${sub.endpoint} is no longer valid. Deleting.`);
