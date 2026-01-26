@@ -428,6 +428,7 @@ export async function rescheduleTournament(tournamentId: string, newStartDateISO
         for (const teamDoc of teamDocs) {
             const team = teamDoc.data() as Team;
             for (const playerId of team.playerIds) {
+                // Send notifications concurrently
                 notificationPromises.push(sendNotification(playerId, {
                     userId: playerId,
                     tournamentId,
