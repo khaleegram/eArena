@@ -9,6 +9,7 @@ self.addEventListener('push', (event) => {
       try {
         payload = event.data.json();
       } catch {
+        // If JSON parsing fails, treat it as plain text.
         payload = { title: 'eArena', body: await event.data.text() };
       }
     }
