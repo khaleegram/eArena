@@ -2,18 +2,29 @@
 declare const self: ServiceWorkerGlobalScope;
 
 self.addEventListener('push', (event) => {
-  const data = event.data?.json();
-  if (!data) return;
+  event.waitUntil((async () => {
+    let payload: any = null;
 
-  const title = data.title || 'eArena';
-  const options: NotificationOptions = {
-    body: data.body || '',
-    icon: data.icon || '/icons/android/android-launchericon-192-192.png',
-    badge: '/icons/android/android-launchericon-72-72.png',
-    data: { href: data.href || '/' },
-  };
+    if (event.data) {
+      try {
+        payload = event.data.json();
+      } catch {
+        payload = { title: 'eArena', body: await event.data.text() };
+      }
+    }
 
-  event.waitUntil(self.registration.showNotification(title, options));
+    if (!payload) return;
+
+    const title = payload.title || 'eArena';
+    const options: NotificationOptions = {
+      body: payload.body || '',
+      icon: payload.icon || '/icons/android/android-launchericon-192-192.png',
+      badge: '/icons/android/android-launchericon-72-72.png',
+      data: { href: payload.href || payload.data?.href || '/' },
+    };
+
+    await self.registration.showNotification(title, options);
+  })());
 });
 
 self.addEventListener('notificationclick', (event) => {
@@ -27,6 +38,7 @@ self.addEventListener('notificationclick', (event) => {
     for (const client of clientsList) {
       // If already open, focus it
       if ('focus' in client) {
+        // Optional: if you want strict match, compare origins + path properly
         return (client as WindowClient).focus();
       }
     }
