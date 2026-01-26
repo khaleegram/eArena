@@ -639,7 +639,8 @@ export default function TournamentPage() {
   const isOrganizer = user?.uid === tournament.organizerId;
   const isRegistrationOpen = tournament.registrationStartDate && tournament.registrationEndDate && isAfter(new Date(), toDate(tournament.registrationStartDate)) && isBefore(new Date(), endOfDay(toDate(tournament.registrationEndDate)));
   const isPendingPayment = tournament.status === 'pending';
-  const canJoin = isRegistrationOpen && !userTeam && !isOrganizer && tournament.status === 'open_for_registration';
+  const canJoin = isRegistrationOpen && !userTeam && tournament.teamCount < tournament.maxTeams && tournament.status === 'open_for_registration';
+
 
   return (
     <div className="space-y-8">
@@ -679,7 +680,7 @@ export default function TournamentPage() {
                     )}
                     
                     <div className="pt-4 border-t">
-                        {userTeam !== undefined && !isOrganizer && (
+                       {userTeam !== undefined && (
                             userTeam ? (
                                 tournament.status === 'open_for_registration' && (
                                     <AlertDialog>
@@ -716,9 +717,11 @@ export default function TournamentPage() {
                                     </Link>
                                 )
                             ) : (
-                                <Button className="w-full" disabled>
-                                    {isPendingPayment ? 'Awaiting Organizer Payment' : (tournament.status === 'open_for_registration' ? 'Tournament is Full' : 'Registration Closed')}
-                                </Button>
+                                !isOrganizer && ( // Only show this disabled button if not the organizer
+                                    <Button className="w-full" disabled>
+                                        {isPendingPayment ? 'Awaiting Organizer Payment' : (tournament.status === 'open_for_registration' ? 'Tournament is Full' : 'Registration Closed')}
+                                    </Button>
+                                )
                             )
                         )}
                     </div>
@@ -771,5 +774,3 @@ export default function TournamentPage() {
     </div>
   );
 }
-
-    
