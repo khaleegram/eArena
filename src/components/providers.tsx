@@ -8,6 +8,7 @@ import { Toaster } from './ui/toaster';
 import type { PlatformSettings } from '@/lib/types';
 import { PushPermissionPrompt } from './push-permission-prompt';
 import { ThemeProvider } from './theme-provider';
+import { IosInstallPrompt } from './ios-install-prompt';
 
 export function Providers({
   children,
@@ -26,6 +27,7 @@ export function Providers({
         </div>
         <Toaster />
         <PushPermissionPrompt />
+        <IosInstallPrompt />
       </AuthProvider>
     </ThemeProvider>
   );
