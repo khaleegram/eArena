@@ -3,7 +3,7 @@
 
 import { adminDb } from '@/lib/firebase-admin';
 import type { Announcement, Article, Match, Team } from '@/lib/types';
-import { FieldValue, orderBy, collection, query, doc, getDoc } from 'firebase-admin/firestore';
+import { FieldValue } from 'firebase-admin/firestore';
 import { sendNotification } from './notifications';
 import { serializeData } from '@/lib/utils';
 import { revalidatePath } from 'next/cache';
@@ -40,8 +40,8 @@ export async function getArticles(): Promise<Article[]> {
 }
 
 export async function getArticleBySlug(slug: string): Promise<Article | null> {
-    const docRef = doc(adminDb, 'articles', slug);
-    const docSnap = await getDoc(docRef);
+    const docRef = adminDb.collection('articles').doc(slug);
+    const docSnap = await docRef.get();
     if (docSnap.exists) {
         return serializeData({ id: docSnap.id, ...docSnap.data() }) as Article;
     }
