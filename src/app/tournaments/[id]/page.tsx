@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -24,6 +23,8 @@ import { RewardsTab } from './rewards-tab';
 import { MyMatchesTab } from './my-matches-tab';
 import { Badge } from '@/components/ui/badge';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
 import { CommunicationHub } from './communication-hub';
@@ -770,3 +771,5 @@ export default function TournamentPage() {
     </div>
   );
 }
+
+    
