@@ -419,6 +419,23 @@ export async function rescheduleTournament(tournamentId: string, newStartDateISO
     }
     
     await batch.commit();
+
+    const teamsSnapshot = await tournamentRef.collection('teams').get();
+    if (!teamsSnapshot.empty) {
+        for (const teamDoc of teamsSnapshot.docs) {
+            const team = teamDoc.data() as Team;
+            for (const playerId of team.playerIds) {
+                await sendNotification(playerId, {
+                    userId: playerId,
+                    tournamentId,
+                    title: 'Tournament Rescheduled',
+                    body: `The schedule for "${tournament.name}" has been updated.`,
+                    href: `/tournaments/${tournamentId}`
+                });
+            }
+        }
+    }
+    
     revalidatePath(`/tournaments/${tournamentId}`);
 }
 
@@ -509,7 +526,7 @@ export async function regenerateTournamentFixtures(tournamentId: string, organiz
                 userId: playerId,
                 tournamentId,
                 title: 'Fixtures Regenerated',
-                body: `The match schedule for "${tournament.name}" has been updated by the organizer.`,
+                body: `The match schedule for "${tournament.name}" has been updated.`,
                 href: `/tournaments/${tournamentId}?tab=fixtures`
             });
         }
