@@ -65,6 +65,7 @@ export default async function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="eArena" />
         <link rel="apple-touch-icon" sizes="180x180" href="/icons/ios/180.png" />
+        <link rel="manifest" href="/manifest.json" />
         <meta name="format-detection" content="telephone=no" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="theme-color" content="#172554" />
