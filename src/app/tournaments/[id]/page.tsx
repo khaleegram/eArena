@@ -7,12 +7,11 @@ import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getTournamentById, organizerResolveOverdueMatches, extendRegistration, startTournamentAndGenerateFixtures, regenerateTournamentFixtures, devSeedDummyTeams, devAutoApproveCurrentStageMatches, devAutoApproveAndProgress, devAutoRunCupToCompletion, rescheduleTournament, recalculateStandings, progressTournamentStage, updateTournamentFlyer } from '@/lib/actions/tournament';
 import { retryTournamentPayment } from '@/lib/actions/payouts';
-import { getUserTeamForTournament, leaveTournament, addTeam } from '@/lib/actions/team';
-import { findUserByEmail } from '@/lib/actions/user';
+import { getUserTeamForTournament, leaveTournament } from '@/lib/actions/team';
 import { useAuth } from "@/hooks/use-auth";
 import type { Tournament, TournamentStatus, Team, Player, UserProfile, UnifiedTimestamp, Match, Standing } from "@/lib/types";
 import { format, isBefore, isAfter, isToday, isFuture, isPast, endOfDay, differenceInDays } from "date-fns";
-import { collection, onSnapshot, query, where, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, orderBy, getDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Calendar, Gamepad2, Info, List, Trophy, Users, Loader2, Lock, Globe, Crown, PlusCircle, BookOpenCheck, Rss, Award, Swords, Timer, Hourglass, Bot, Sparkles, ShieldCheck, History, RefreshCw, AlertCircle, CreditCard } from "lucide-react";
 import { Button } from '@/components/ui/button';
@@ -25,25 +24,19 @@ import { RewardsTab } from './rewards-tab';
 import { MyMatchesTab } from './my-matches-tab';
 import { Badge } from '@/components/ui/badge';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { storage } from '@/lib/firebase';
 import { CommunicationHub } from './communication-hub';
 import { cn, toDate } from "@/lib/utils";
 import { useCountdown } from '@/hooks/use-countdown';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarPicker } from '@/components/ui/calendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Textarea } from '@/components/ui/textarea';
 import { TournamentPodium } from '@/components/tournament-podium';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { PrizeAllocationEditor } from './prize-allocation';
 import { EditFlyerDialog } from '@/components/edit-flyer-dialog';
+import { JoinTournamentDialog } from './join-dialog';
 
 
 const CountdownDisplay = ({ days, hours, minutes, seconds }: { days: number, hours: number, minutes: number, seconds: number }) => (
@@ -299,136 +292,6 @@ function ProgressStageButton({ tournament, organizerId }: { tournament: Tourname
     );
 }
 
-function JoinTournamentDialog({ tournament, user, userProfile, onTeamJoined }: { tournament: Tournament, user: UserProfile, userProfile: UserProfile, onTeamJoined: (team: Team) => void }) {
-    const { toast } = useToast();
-    const [open, setOpen] = useState(false);
-    // Auto-load saved team name from localStorage
-    const [teamName, setTeamName] = useState(() => {
-        if (typeof window !== 'undefined') {
-            return localStorage.getItem('lastTeamName') || '';
-        }
-        return '';
-    });
-    const [teamLogo, setTeamLogo] = useState<File | null>(null);
-    const [previewLogo, setPreviewLogo] = useState<string | null>(userProfile?.photoURL || null);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [captainProfile, setCaptainProfile] = useState<UserProfile | null>(null);
-
-     useEffect(() => {
-        if(user?.uid) {
-            const fetchProfile = async () => {
-                const profile = await findUserByEmail(user.email!);
-                setCaptainProfile(profile);
-            };
-            fetchProfile();
-        }
-    }, [user]);
-
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            setTeamLogo(file);
-            setPreviewLogo(URL.createObjectURL(file));
-        } else {
-            setTeamLogo(null);
-            setPreviewLogo(userProfile?.photoURL || null);
-        }
-    }
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!teamName || !user || !userProfile) {
-            toast({ variant: "destructive", title: "Error", description: "You must be logged in and provide a team name." });
-            return;
-        }
-
-        // Save team name to localStorage for next time
-        if (typeof window !== 'undefined') {
-            localStorage.setItem('lastTeamName', teamName);
-        }
-
-        if(captainProfile?.warnings && captainProfile.warnings >= 5) {
-             toast({ variant: "destructive", title: "Registration Flagged", description: "Your account has multiple warnings. The tournament organizer must manually approve your registration." });
-        }
-
-        setIsSubmitting(true);
-        try {
-            let logoUrl = "";
-            if (teamLogo) {
-                const storageRef = ref(storage, `tournaments/${tournament.id}/logos/${Date.now()}_${teamLogo.name}`);
-                const snapshot = await uploadBytes(storageRef, teamLogo);
-                logoUrl = await getDownloadURL(snapshot.ref);
-            } else if (previewLogo) {
-                logoUrl = previewLogo;
-            }
-
-            const captain: Player = {
-                uid: user.uid,
-                role: 'captain',
-                username: userProfile.username || 'Captain',
-                photoURL: userProfile.photoURL || '',
-            };
-
-            const newTeam = await addTeam(tournament.id, { name: teamName, logoUrl, captainId: user.uid, captain });
-
-            toast({ title: "Success!", description: `Your team "${teamName}" has joined the tournament.` });
-            onTeamJoined(newTeam);
-            setOpen(false);
-        } catch (error: any) {
-            toast({ variant: "destructive", title: "Error", description: error.message || "Failed to create team." });
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
-    
-    return (
-        <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-                <Button className="w-full"><PlusCircle className="mr-2"/>Join Tournament</Button>
-            </DialogTrigger>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Join {tournament.name}</DialogTitle>
-                    <DialogDescription>Create your team to enter the competition.</DialogDescription>
-                </DialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                     <div className="flex items-center gap-4">
-                        <div className="relative h-24 w-24 rounded-full border-2 border-dashed flex items-center justify-center bg-muted/50">
-                            {previewLogo ? (
-                                <Image src={previewLogo} alt="Team logo preview" fill style={{ objectFit: 'cover' }} className="rounded-full" unoptimized/>
-                            ) : (
-                                <Users className="h-10 w-10 text-muted-foreground" />
-                            )}
-                        </div>
-                        <div className="space-y-2 flex-1">
-                            <Label htmlFor="logo">Team Logo (Optional)</Label>
-                            <Input id="logo" type="file" onChange={handleFileChange} accept="image/*" />
-                            <p className="text-xs text-muted-foreground">Defaults to your profile picture.</p>
-                        </div>
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="teamName">Team Name <span className="text-destructive">*</span></Label>
-                        <Input id="teamName" value={teamName} onChange={e => setTeamName(e.target.value)} required placeholder="e.g., The All-Stars" />
-                        <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800">
-                            <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
-                            <p className="text-xs text-blue-800 dark:text-blue-200">
-                                <strong>Important:</strong> Your team name must <strong>exactly match</strong> your in-game team name. 
-                                This is required for AI verification of match screenshots. The system will use this name to verify your submitted evidence.
-                            </p>
-                        </div>
-                    </div>
-                    <DialogFooter>
-                        <Button type="submit" className="w-full" disabled={isSubmitting}>
-                            {isSubmitting ? <Loader2 className="animate-spin mr-2" /> : <PlusCircle className="mr-2" />}
-                            Create Team & Join
-                        </Button>
-                    </DialogFooter>
-                </form>
-            </DialogContent>
-        </Dialog>
-    )
-}
-
 function StartTournamentDialog({ tournament, organizerId, onSuccess }: { tournament: Tournament; organizerId: string; onSuccess: () => void }) {
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(false);
@@ -672,6 +535,8 @@ export default function TournamentPage() {
   const [loading, setLoading] = useState(true);
   const [userTeam, setUserTeam] = useState<Team | null | undefined>(undefined);
   const [isActionLoading, setIsActionLoading] = useState(false);
+  const [isJoinDialogOpen, setIsJoinDialogOpen] = useState(false);
+  const router = useRouter();
 
   const fetchTournament = useCallback(async () => {
     if (!id) return;
@@ -686,10 +551,19 @@ export default function TournamentPage() {
         }
     } catch (error) {
         console.error("Failed to fetch tournament:", error);
-        // Do not toast here as it can be annoying on re-renders
         setTournament(null);
     }
   }, [id, user]);
+
+  // Effect for auto-opening join dialog
+  useEffect(() => {
+    const action = searchParams.get('action');
+    if (action === 'join' && user && !userTeam && tournament && tournament.status === 'open_for_registration') {
+      setIsJoinDialogOpen(true);
+      // Clean the URL by removing the action parameter
+      router.replace(`/tournaments/${tournament.id}`, { scroll: false });
+    }
+  }, [user, userTeam, searchParams, router, tournament]);
 
 
   useEffect(() => {
@@ -803,44 +677,50 @@ export default function TournamentPage() {
                         <StartTournamentDialog tournament={tournament} organizerId={user.uid} onSuccess={fetchTournament} />
                     )}
                     
-                    {user && userProfile && userTeam !== undefined && !isOrganizer && (
-                        <div className="pt-4 border-t">
-                        {userTeam ? (
-                            tournament.status === 'open_for_registration' && (
-                                <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <Button variant="destructive" className="w-full" disabled={isActionLoading}>
-                                    {isActionLoading ? <Loader2 className="animate-spin" /> : "Leave Tournament"}
-                                    </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                    <AlertDialogTitle>Are you sure you want to leave?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                        This will remove your team ({userTeam.name}) from the tournament. This action cannot be undone.
-                                    </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction onClick={handleLeave}>Confirm & Leave</AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                                </AlertDialog>
+                    <div className="pt-4 border-t">
+                        {userTeam !== undefined && !isOrganizer && (
+                            userTeam ? (
+                                tournament.status === 'open_for_registration' && (
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <Button variant="destructive" className="w-full" disabled={isActionLoading}>
+                                                {isActionLoading ? <Loader2 className="animate-spin" /> : "Leave Tournament"}
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>Are you sure you want to leave?</AlertDialogTitle>
+                                                <AlertDialogDescription>This will remove your team ({userTeam.name}) from the tournament. This action cannot be undone.</AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction onClick={handleLeave}>Confirm & Leave</AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                )
+                            ) : canJoin ? (
+                                user && userProfile ? (
+                                    <JoinTournamentDialog 
+                                        tournament={tournament}
+                                        user={user} 
+                                        userProfile={userProfile}
+                                        onTeamJoined={(team) => setUserTeam(team)}
+                                        open={isJoinDialogOpen}
+                                        onOpenChange={setIsJoinDialogOpen}
+                                    />
+                                ) : (
+                                    <Link href={`/login?redirectUrl=${encodeURIComponent(`/tournaments/${tournament.id}`)}&action=join`}>
+                                        <Button className="w-full"><PlusCircle className="mr-2"/>Join Tournament</Button>
+                                    </Link>
+                                )
+                            ) : (
+                                <Button className="w-full" disabled>
+                                    {isPendingPayment ? 'Awaiting Organizer Payment' : (tournament.status === 'open_for_registration' ? 'Tournament is Full' : 'Registration Closed')}
+                                </Button>
                             )
-                        ) : canJoin ? (
-                            <JoinTournamentDialog 
-                            tournament={tournament}
-                            user={user} 
-                            userProfile={userProfile}
-                            onTeamJoined={(team) => setUserTeam(team)}
-                            />
-                        ) : (
-                            <Button className="w-full" disabled>
-                                {isPendingPayment ? 'Awaiting Organizer Payment' : (tournament.status === 'open_for_registration' ? 'Tournament is Full' : 'Registration Closed')}
-                            </Button>
                         )}
-                        </div>
-                    )}
+                    </div>
                      {isOrganizer && <PrizeAllocationEditor tournament={tournament} />}
                 </div>
 

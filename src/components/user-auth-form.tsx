@@ -46,6 +46,21 @@ export function UserAuthForm({ className, mode, ...props }: UserAuthFormProps) {
     resolver: zodResolver(formSchema),
   });
 
+  const handleSuccessfulLogin = (user: UserCredential["user"]) => {
+    const redirectUrl = searchParams.get('redirectUrl');
+    const action = searchParams.get('action');
+
+    if (action === 'join' && redirectUrl) {
+      // If the action is 'join', redirect back to the tournament page with the action parameter
+      // The tournament page will handle opening the join dialog.
+      router.push(`${redirectUrl}?action=join`);
+    } else if (redirectUrl) {
+      router.push(decodeURIComponent(redirectUrl));
+    } else {
+      router.push('/dashboard');
+    }
+  }
+
   const handleGoogleSignInSuccess = async (userCredential: UserCredential) => {
     try {
         const userDocRef = doc(db, 'users', userCredential.user.uid);
@@ -63,8 +78,7 @@ export function UserAuthForm({ className, mode, ...props }: UserAuthFormProps) {
             });
             await handleNewUserSetup(userCredential.user.uid);
         }
-        const redirectUrl = searchParams.get('redirectUrl');
-        router.push(redirectUrl || '/dashboard');
+        handleSuccessfulLogin(userCredential.user);
     } catch (error: any) {
         toast({
             variant: 'destructive',
@@ -77,11 +91,9 @@ export function UserAuthForm({ className, mode, ...props }: UserAuthFormProps) {
   }
 
   const onGoogleSignIn = () => {
-    // DO NOT set loading state here, as it can cause popup blockers.
-    // The popup must be initiated directly from the user's click event.
     signInWithPopup(auth, googleAuthProvider)
       .then((result) => {
-        setIsLoading(true); // Set loading state only after popup is successful.
+        setIsLoading(true);
         handleGoogleSignInSuccess(result);
       })
       .catch((error: any) => {
@@ -113,8 +125,7 @@ export function UserAuthForm({ className, mode, ...props }: UserAuthFormProps) {
             await auth.signOut();
             throw new Error("This account has been suspended by an administrator.");
         }
-        const redirectUrl = searchParams.get('redirectUrl');
-        router.push(redirectUrl || '/dashboard');
+        handleSuccessfulLogin(user);
       } else {
         userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
         const user = userCredential.user;
@@ -122,7 +133,6 @@ export function UserAuthForm({ className, mode, ...props }: UserAuthFormProps) {
         await sendEmailVerification(user);
 
         const username = user.email?.split('@')[0] || `user_${Date.now()}`;
-        // Create a user profile document in Firestore for new users.
         await setDoc(doc(db, 'users', user.uid), {
           uid: user.uid,
           email: user.email,
@@ -132,7 +142,6 @@ export function UserAuthForm({ className, mode, ...props }: UserAuthFormProps) {
           createdAt: serverTimestamp(),
         });
 
-        // Server action to handle admin auto-follow logic
         await handleNewUserSetup(user.uid);
 
         router.push('/verify-email');
@@ -148,7 +157,6 @@ export function UserAuthForm({ className, mode, ...props }: UserAuthFormProps) {
             break;
           case 'auth/email-already-in-use':
             message = 'This email is already registered. If you haven\'t verified your email, a new confirmation link has been sent to your inbox.';
-            // Resend verification email as a helpful action.
             resendVerificationEmail(data.email);
             break;
           case 'auth/user-disabled':
