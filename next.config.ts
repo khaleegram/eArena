@@ -58,7 +58,7 @@ const nextConfig = {
   },
   devIndicators: {
     allowedDevOrigins: [
-      'https://3000-firebase-earena-1768586820469.cluster-cbeiita7rbe7iuwhvjs5zww2i4.cloudworkstations.dev',
+      'https://6000-firebase-studio-1750545756427.cluster-3gc7bglotjgwuxlqpiut7yyqt4.cloudworkstations.dev',
     ],
   },
 };
