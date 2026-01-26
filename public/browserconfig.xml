@@ -2,7 +2,10 @@
 <browserconfig>
     <msapplication>
         <tile>
-            <square150x150logo src="/icons/mstile-150x150.png"/>
+            <square70x70logo src="/icons/android/android-launchericon-72-72.png"/>
+            <square150x150logo src="/icons/android/android-launchericon-192-192.png"/>
+            <wide310x150logo src="/icons/android/android-launchericon-512-512.png"/>
+            <square310x310logo src="/icons/android/android-launchericon-512-512.png"/>
             <TileColor>#0f172a</TileColor>
         </tile>
     </msapplication>
