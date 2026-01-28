@@ -20,18 +20,20 @@ export async function postAnnouncement(tournamentId: string, organizerId: string
     });
 
     const teamsSnapshot = await adminDb.collection('tournaments').doc(tournamentId).collection('teams').get();
-    const allPlayerIds = teamsSnapshot.docs.flatMap(doc => (doc.data() as any).playerIds);
+    const allPlayerIds = teamsSnapshot.docs.flatMap(doc => (doc.data() as Team).playerIds);
     const uniquePlayerIds = [...new Set(allPlayerIds)];
 
-    for (const userId of uniquePlayerIds) {
-        await sendNotification(userId, {
+    const notificationPromises = uniquePlayerIds.map(userId =>
+        sendNotification(userId, {
             userId,
             tournamentId,
             title: `New Announcement: ${title}`,
             body: content.substring(0, 100),
             href: `/tournaments/${tournamentId}?tab=chat`
-        });
-    }
+        })
+    );
+
+    await Promise.allSettled(notificationPromises);
 }
 
 export async function getArticles(): Promise<Article[]> {
@@ -49,7 +51,9 @@ export async function getArticleBySlug(slug: string): Promise<Article | null> {
 }
 
 export async function postTournamentMessage(tournamentId: string, userId: string, username: string, photoURL: string | undefined, message: string) {
-    const messageRef = adminDb.collection('tournaments').doc(tournamentId).collection('messages').doc();
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    const messageRef = tournamentRef.collection('messages').doc();
+    
     await messageRef.set({
         userId,
         username,
@@ -57,6 +61,28 @@ export async function postTournamentMessage(tournamentId: string, userId: string
         message,
         timestamp: FieldValue.serverTimestamp(),
     });
+
+    const tournamentDoc = await tournamentRef.get();
+    const tournamentName = tournamentDoc.data()?.name || 'a tournament';
+
+    const teamsSnapshot = await tournamentRef.collection('teams').get();
+    const allPlayerIds = teamsSnapshot.docs.flatMap(doc => (doc.data() as Team).playerIds);
+    const uniquePlayerIds = [...new Set(allPlayerIds)];
+
+    const notificationPromises = uniquePlayerIds
+        .filter(pId => pId !== userId) // Don't notify the sender
+        .map(pId => 
+            sendNotification(pId, {
+                userId: pId,
+                tournamentId,
+                title: `New message in ${tournamentName}`,
+                body: `${username}: ${message.substring(0, 50)}...`,
+                href: `/tournaments/${tournamentId}?tab=chat`
+            })
+        );
+    
+    await Promise.allSettled(notificationPromises);
+
     revalidatePath(`/tournaments/${tournamentId}`);
 }
 
@@ -80,15 +106,17 @@ export async function postTeamMessage(tournamentId: string, teamId: string, user
 
     const otherPlayerIds = teamData.playerIds.filter(id => id !== userId);
 
-    for (const playerId of otherPlayerIds) {
-        await sendNotification(playerId, {
+    const notificationPromises = otherPlayerIds.map(playerId => 
+        sendNotification(playerId, {
             userId: playerId,
             tournamentId: tournamentId,
             title: `New message in "${teamData.name}"`,
             body: `${username}: ${message.substring(0, 50)}...`,
             href: `/tournaments/${tournamentId}?tab=chat`,
-        });
-    }
+        })
+    );
+
+    await Promise.allSettled(notificationPromises);
 }
 
 export async function postMatchMessage(tournamentId: string, matchId: string, userId: string, username: string, photoURL: string | undefined, message: string) {
@@ -107,7 +135,9 @@ export async function postMatchMessage(tournamentId: string, matchId: string, us
     if (userTeamQuery.empty) {
         throw new Error("You are not part of a team in this tournament.");
     }
-    const userTeamId = userTeamQuery.docs[0].id;
+    const userTeamDoc = userTeamQuery.docs[0];
+    const userTeamData = userTeamDoc.data() as Team;
+    const userTeamId = userTeamDoc.id;
 
     const opponentTeamId = matchData.homeTeamId === userTeamId ? matchData.awayTeamId : matchData.homeTeamId;
 
@@ -120,22 +150,32 @@ export async function postMatchMessage(tournamentId: string, matchId: string, us
         message,
         timestamp: FieldValue.serverTimestamp(),
     });
+    
+    const notificationPayload = {
+        tournamentId,
+        title: `New message for your match`,
+        body: `${username}: ${message.substring(0, 50)}...`,
+        href: `/tournaments/${tournamentId}/matches/${matchId}`,
+    };
 
+    const notificationPromises: Promise<void>[] = [];
+
+    // Notify opponent team
     if (opponentTeamDoc.exists) {
         const opponentTeamData = opponentTeamDoc.data() as Team;
         for (const playerId of opponentTeamData.playerIds) {
-            // Don't send a notification to the person who sent the message
-            if (playerId === userId) continue;
-            
-            await sendNotification(playerId, {
-                userId: playerId,
-                tournamentId,
-                title: `New message for your match`,
-                body: `${username}: ${message.substring(0, 50)}...`,
-                href: `/tournaments/${tournamentId}/matches/${matchId}`,
-            });
+            notificationPromises.push(sendNotification(playerId, { userId: playerId, ...notificationPayload }));
         }
     } else {
         console.warn(`Could not find opponent team ${opponentTeamId} to send notification.`);
     }
+
+    // Notify own teammates (excluding sender)
+    for (const playerId of userTeamData.playerIds) {
+        if (playerId !== userId) {
+            notificationPromises.push(sendNotification(playerId, { userId: playerId, ...notificationPayload }));
+        }
+    }
+    
+    await Promise.allSettled(notificationPromises);
 }
