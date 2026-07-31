@@ -1,15 +1,129 @@
-name: Daily Cron Jobs
+# Calls eArena cron API routes on a schedule.
+# GitHub Actions replaces Vercel Cron (Hobby cannot run hourly jobs).
+#
+# Required repo secrets (Settings → Secrets and variables → Actions):
+#   APP_URL      → https://e-arena.vercel.app   (no trailing slash)
+#   CRON_SECRET  → same value as Vercel env CRON_SECRET
+#
+# If workflows were disabled for inactivity: Actions tab → enable, then
+# run "Cron jobs" → Run workflow once to wake schedules.
+
+name: Cron jobs
+
 on:
   schedule:
-    # Runs at 2 AM UTC every day
+    # Hourly — start due tournaments + registration FOMO
+    - cron: "0 * * * *"
+    # Every 6 hours — payouts
+    - cron: "0 */6 * * *"
+    # Daily — clone recurring tournaments (06:00 UTC)
+    - cron: "0 6 * * *"
+    # Daily — morning match reminders (08:00 UTC)
+    - cron: "0 8 * * *"
+    # Daily — evening match nudge (17:00 UTC)
+    - cron: "0 17 * * *"
+    # Saturday — open tournaments digest (10:00 UTC)
+    - cron: "0 10 * * 6"
+    # Daily bundle fallback (02:00 UTC) — start + payouts + clone
     - cron: "0 2 * * *"
   workflow_dispatch:
+    inputs:
+      job:
+        description: "Which cron to run (or all)"
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - start-tournaments
+          - registration-fomo
+          - trigger-payouts
+          - clone-tournaments
+          - match-reminders
+          - match-evening-nudge
+          - open-tournaments-digest
+          - daily
 
 jobs:
-  run_all_crons:
+  cron:
     runs-on: ubuntu-latest
     steps:
-      - name: Call daily cron endpoint
+      - name: Resolve base URL
+        id: base
         run: |
-          curl -fsS -X POST "${{ secrets.CRON_URL }}" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+          if [ -z "${{ secrets.APP_URL }}" ]; then
+            echo "Missing secret APP_URL (e.g. https://e-arena.vercel.app)"
+            exit 1
+          fi
+          if [ -z "${{ secrets.CRON_SECRET }}" ]; then
+            echo "Missing secret CRON_SECRET"
+            exit 1
+          fi
+          echo "url=${{ secrets.APP_URL }}" >> "$GITHUB_OUTPUT"
+
+      - name: Run scheduled / manual cron calls
+        env:
+          BASE: ${{ secrets.APP_URL }}
+          SECRET: ${{ secrets.CRON_SECRET }}
+          SCHEDULE: ${{ github.event.schedule }}
+          MANUAL: ${{ github.event_name == 'workflow_dispatch' && inputs.job || '' }}
+        run: |
+          set -euo pipefail
+          auth() { curl -fsS -X GET "$1" -H "Authorization: Bearer ${SECRET}"; }
+          auth_post() { curl -fsS -X POST "$1" -H "Authorization: Bearer ${SECRET}"; }
+
+          run_start() { echo "::group::start-tournaments"; auth "${BASE}/api/cron/start-tournaments"; echo; echo "::endgroup::"; }
+          run_fomo() { echo "::group::registration-fomo"; auth "${BASE}/api/cron/registration-fomo"; echo; echo "::endgroup::"; }
+          run_payouts() { echo "::group::trigger-payouts"; auth "${BASE}/api/cron/trigger-payouts"; echo; echo "::endgroup::"; }
+          run_clone() { echo "::group::clone-tournaments"; auth "${BASE}/api/cron/clone-tournaments"; echo; echo "::endgroup::"; }
+          run_reminders() { echo "::group::match-reminders"; auth "${BASE}/api/cron/match-reminders"; echo; echo "::endgroup::"; }
+          run_evening() { echo "::group::match-evening-nudge"; auth "${BASE}/api/cron/match-evening-nudge"; echo; echo "::endgroup::"; }
+          run_digest() { echo "::group::open-tournaments-digest"; auth "${BASE}/api/cron/open-tournaments-digest"; echo; echo "::endgroup::"; }
+          run_daily() { echo "::group::daily"; auth_post "${BASE}/api/cron/daily"; echo; echo "::endgroup::"; }
+
+          if [ -n "${MANUAL}" ]; then
+            case "${MANUAL}" in
+              all)
+                run_start; run_fomo; run_payouts; run_clone; run_reminders; run_evening; run_digest
+                ;;
+              start-tournaments) run_start ;;
+              registration-fomo) run_fomo ;;
+              trigger-payouts) run_payouts ;;
+              clone-tournaments) run_clone ;;
+              match-reminders) run_reminders ;;
+              match-evening-nudge) run_evening ;;
+              open-tournaments-digest) run_digest ;;
+              daily) run_daily ;;
+              *) echo "Unknown job ${MANUAL}"; exit 1 ;;
+            esac
+            exit 0
+          fi
+
+          case "${SCHEDULE}" in
+            "0 * * * *")
+              run_start
+              run_fomo
+              ;;
+            "0 */6 * * *")
+              run_payouts
+              ;;
+            "0 6 * * *")
+              run_clone
+              ;;
+            "0 8 * * *")
+              run_reminders
+              ;;
+            "0 17 * * *")
+              run_evening
+              ;;
+            "0 10 * * 6")
+              run_digest
+              ;;
+            "0 2 * * *")
+              run_daily
+              ;;
+            *)
+              echo "Unhandled schedule: ${SCHEDULE}"
+              exit 1
+              ;;
+          esac
