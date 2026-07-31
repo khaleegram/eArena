@@ -128,27 +128,15 @@ This rigorous, step-by-step logic ensures fair and automated resolution for the 
 ### Environment Variables
 To run the application, you'll need to set up your environment variables. Create a `.env.local` file in the root of the project and add the necessary keys from `.env.example`.
 
-**Important for Production:** For social media sharing thumbnails to work correctly, you must set the `NEXT_PUBLIC_BASE_URL` variable in your production environment to your app's public URL (e.g., `https://yourapp.com`). If you deploy to Vercel, this is handled automatically.
+**Important for Production:** Set `NEXT_PUBLIC_BASE_URL` in Vercel to your public URL (`https://earena.ng`). This is used for Paystack callbacks, Open Graph / share metadata, and correct absolute links.
 
 ### Cron Jobs (Automated Tasks)
-The application uses a GitHub Action to run automated tasks once per day. For this to work, you must add two "secrets" to your GitHub repository. **You do not need to edit any code for this.**
+Scheduled jobs run via GitHub Actions (`.github/workflows/cron.yml`), not Vercel Cron. Add these repository secrets under **Settings → Secrets and variables → Actions**:
 
-**Step-by-Step Instructions:**
+1.  **Name:** `APP_URL`  
+    **Value:** `https://earena.ng` (no trailing slash)
 
-1.  Go to your project's repository on the GitHub website.
-2.  Click the **"Settings"** tab near the top right.
-3.  In the left sidebar, go to **"Secrets and variables"** and then click on **"Actions"**.
-4.  Click the **"New repository secret"** button to add the first secret.
+2.  **Name:** `CRON_SECRET`  
+    **Value:** Same string as `CRON_SECRET` in your Vercel environment variables.
 
-    *   **Name:** `CRON_URL`
-    *   **Value:** `https://e-arena.vercel.app/api/cron/daily`
-
-5.  Click **"Add secret"**.
-6.  Click **"New repository secret"** again to add the second one.
-
-    *   **Name:** `CRON_SECRET`
-    *   **Value:** Create a long, random, secure string (like a password). **Important:** This value must be the **exact same** as the `CRON_SECRET` value you set in your Vercel project's environment variables.
-
-7.  Click **"Add secret"**.
-
-That's it. Your daily automated tasks will now run correctly.
+Then open the **Actions** tab, enable workflows if GitHub disabled them for inactivity, and run **Cron jobs** once manually to verify.

@@ -2,7 +2,7 @@
 # GitHub Actions replaces Vercel Cron (Hobby cannot run hourly jobs).
 #
 # Required repo secrets (Settings → Secrets and variables → Actions):
-#   APP_URL      → https://e-arena.vercel.app   (no trailing slash)
+#   APP_URL      → https://earena.ng   (no trailing slash)
 #   CRON_SECRET  → same value as Vercel env CRON_SECRET
 #
 # If workflows were disabled for inactivity: Actions tab → enable, then
@@ -52,7 +52,7 @@ jobs:
         id: base
         run: |
           if [ -z "${{ secrets.APP_URL }}" ]; then
-            echo "Missing secret APP_URL (e.g. https://e-arena.vercel.app)"
+            echo "Missing secret APP_URL (e.g. https://earena.ng)"
             exit 1
           fi
           if [ -z "${{ secrets.CRON_SECRET }}" ]; then

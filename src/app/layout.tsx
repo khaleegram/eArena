@@ -19,10 +19,12 @@ const orbitron = Orbitron({
   variable: '--font-headline',
 });
 
-// Determine the base URL for metadata. Vercel automatically sets NEXT_PUBLIC_VERCEL_URL.
-const baseUrl = process.env.NEXT_PUBLIC_VERCEL_URL
-  ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
-  : process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+// Prefer the custom domain when set; fall back to Vercel's deployment URL, then local.
+const baseUrl =
+  process.env.NEXT_PUBLIC_BASE_URL ||
+  (process.env.NEXT_PUBLIC_VERCEL_URL
+    ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
+    : 'http://localhost:3000');
 
 export const metadata: Metadata = {
   metadataBase: new URL(baseUrl),

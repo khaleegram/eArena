@@ -20,7 +20,7 @@ const TIER23_DAILY_CAP = 3;
 
 if (process.env.VAPID_PRIVATE_KEY && process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) {
   webpush.setVapidDetails(
-    `mailto:${process.env.SMTP_USERNAME || 'noreply@earena.app'}`,
+    `mailto:${process.env.SMTP_USERNAME || 'noreply@earena.ng'}`,
     process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
     process.env.VAPID_PRIVATE_KEY
   );
