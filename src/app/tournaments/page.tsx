@@ -10,8 +10,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useCountdown } from "@/hooks/use-countdown";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowRight, KeyRound, Users, Calendar, CheckCircle, Shield, Search, Filter, Sparkles, ChevronDown, ChevronUp, Trophy } from "lucide-react";
+import { ArrowRight, KeyRound, Users, Calendar, CheckCircle, Shield, Search, Trophy } from "lucide-react";
 import { format, isBefore, isAfter, endOfDay } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
@@ -26,22 +25,52 @@ const toDate = (timestamp: UnifiedTimestamp): Date => {
   return timestamp as Date;
 };
 
-const statusMeta: Record<TournamentStatus, { label: string; emoji: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
-  open_for_registration: { label: "Open", emoji: "🟢", variant: "default" },
-  ready_to_start: { label: "Ready", emoji: "🟣", variant: "secondary" },
-  in_progress: { label: "Live", emoji: "🔴", variant: "destructive" },
-  completed: { label: "Completed", emoji: "✅", variant: "outline" },
-  draft: { label: "Draft", emoji: "📝", variant: "outline" },
-  private: { label: "Private", emoji: "🔒", variant: "outline" },
-  pending: { label: "Pending", emoji: "🟡", variant: "outline" },
-  generating_fixtures: { label: "Generating", emoji: "🤖", variant: "secondary" },
+const statusMeta: Record<
+  TournamentStatus,
+  { label: string; className: string }
+> = {
+  open_for_registration: {
+    label: "Open",
+    className: "bg-green-100 text-green-800 border-green-300 dark:bg-green-600/15 dark:text-green-400 dark:border-green-500/30",
+  },
+  ready_to_start: {
+    label: "Ready",
+    className: "bg-violet-100 text-violet-800 border-violet-300 dark:bg-violet-600/15 dark:text-violet-300 dark:border-violet-500/30",
+  },
+  in_progress: {
+    label: "Live",
+    className: "bg-red-100 text-red-800 border-red-300 dark:bg-red-600/15 dark:text-red-400 dark:border-red-500/30",
+  },
+  completed: {
+    label: "Done",
+    className: "bg-muted text-muted-foreground border-border",
+  },
+  draft: {
+    label: "Draft",
+    className: "bg-muted text-muted-foreground border-border",
+  },
+  private: {
+    label: "Private",
+    className: "bg-muted text-muted-foreground border-border",
+  },
+  pending: {
+    label: "Pending",
+    className: "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-600/15 dark:text-amber-400 dark:border-amber-500/30",
+  },
+  generating_fixtures: {
+    label: "Generating",
+    className: "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-600/15 dark:text-amber-400 dark:border-amber-500/30",
+  },
 };
 
 function StatusPill({ status }: { status: TournamentStatus }) {
-  const s = statusMeta[status] ?? { label: "Unknown", emoji: "❓", variant: "outline" as const };
+  const s = statusMeta[status] ?? {
+    label: "Unknown",
+    className: "bg-muted text-muted-foreground border-border",
+  };
   return (
-    <Badge variant={s.variant} className="text-[10px] font-black uppercase tracking-wider">
-      {s.emoji} {s.label}
+    <Badge variant="outline" className={cn("text-[10px] font-bold uppercase tracking-wider", s.className)}>
+      {s.label}
     </Badge>
   );
 }
@@ -54,8 +83,8 @@ function RegistrationCountdownBadge({ endDate }: { endDate: UnifiedTimestamp }) 
   if (countdown.days > 0) text = `${countdown.days}d ${text}`;
 
   return (
-    <Badge variant="destructive" className="text-[10px] font-black uppercase tracking-wider">
-      ⏳ {text}
+    <Badge variant="destructive" className="text-[10px] font-bold uppercase tracking-wider tabular-nums">
+      {text} left
     </Badge>
   );
 }
@@ -73,7 +102,7 @@ function Chip({
     <button
       onClick={onClick}
       className={cn(
-        "px-3 py-1.5 rounded-full text-xs font-bold border transition-colors",
+        "shrink-0 px-4 py-2.5 rounded-full text-sm font-bold border transition-colors min-h-11",
         active ? "bg-primary text-primary-foreground border-primary" : "bg-muted/30 border-border hover:bg-muted"
       )}
       type="button"
@@ -89,13 +118,39 @@ function TeamsMiniBar({ current, max }: { current: number; max: number }) {
     <div className="w-full">
       <div className="flex items-center justify-between text-[11px] text-muted-foreground">
         <span className="font-semibold flex items-center gap-1">
-          <Users className="h-3.5 w-3.5" /> {current}/{max}
+          <Users className="h-3.5 w-3.5" /> {current}/{max} teams
         </span>
-        <span className="font-bold">{pct}%</span>
+        <span className="font-bold tabular-nums">{pct}%</span>
       </div>
-      <div className="mt-1 h-1.5 w-full rounded-full bg-muted overflow-hidden">
-        <div className="h-full bg-primary" style={{ width: `${pct}%` }} />
+      <div className="mt-1.5 h-1.5 w-full rounded-full bg-muted overflow-hidden">
+        <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${pct}%` }} />
       </div>
+    </div>
+  );
+}
+
+function FlyerThumb({
+  tournament,
+  className,
+}: {
+  tournament: Tournament;
+  className?: string;
+}) {
+  return (
+    <div className={cn("relative shrink-0 overflow-hidden bg-muted", className)}>
+      {tournament.flyerUrl ? (
+        <Image
+          src={tournament.flyerUrl}
+          alt=""
+          fill
+          sizes="(max-width: 640px) 112px, 100vw"
+          className="object-cover"
+        />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/15 to-primary/5">
+          <Trophy className="h-8 w-8 text-primary/40" />
+        </div>
+      )}
     </div>
   );
 }
@@ -115,50 +170,118 @@ function TournamentCard({
     isAfter(now, toDate(tournament.registrationStartDate)) &&
     isBefore(now, endOfDay(toDate(tournament.registrationEndDate)));
 
+  const startLabel = tournament.tournamentStartDate
+    ? format(toDate(tournament.tournamentStartDate), "MMM d")
+    : null;
+
+  const prize =
+    tournament.rewardDetails?.type === "money" &&
+    tournament.rewardDetails.prizePool > 0
+      ? `₦${tournament.rewardDetails.prizePool.toLocaleString()}`
+      : null;
+
   return (
-    <Card className="overflow-hidden border bg-card/50 hover:bg-card transition-colors rounded-2xl flex flex-col h-full group">
-      <Link href={`/tournaments/${tournament.id}`} className="block h-full flex flex-col">
-        <div className="relative h-56 bg-muted overflow-hidden">
-            {tournament.flyerUrl ? (
-                <Image src={tournament.flyerUrl} alt={tournament.name} fill style={{ objectFit: 'cover' }} className="transition-transform group-hover:scale-105" />
-            ) : (
-                <div className="flex items-center justify-center h-full bg-gradient-to-br from-primary/10 to-primary/20">
-                    <Trophy className="w-10 h-10 text-primary/30" />
-                </div>
+    <Link
+      href={`/tournaments/${tournament.id}`}
+      className="group block rounded-2xl border bg-card transition-colors hover:border-primary/40 hover:bg-card active:scale-[0.99]"
+    >
+      {/* Mobile: horizontal row */}
+      <div className="flex gap-3 p-3 sm:hidden">
+        <FlyerThumb tournament={tournament} className="h-[6.5rem] w-[6.5rem] rounded-xl" />
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <StatusPill status={tournament.status} />
+            {hasJoined && (
+              <Badge
+                variant="outline"
+                className="border-green-600 text-green-700 dark:border-green-500 dark:text-green-400 text-[10px] font-bold uppercase"
+              >
+                Joined
+              </Badge>
             )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
-            <div className="absolute top-2 right-2 flex flex-wrap gap-1 justify-end">
-                <StatusPill status={tournament.status} />
-                {regOpen && tournament.registrationEndDate ? <RegistrationCountdownBadge endDate={tournament.registrationEndDate} /> : null}
+            {regOpen && tournament.registrationEndDate ? (
+              <RegistrationCountdownBadge endDate={tournament.registrationEndDate} />
+            ) : null}
+          </div>
+          <h3 className="font-headline text-[15px] font-bold leading-snug line-clamp-2">
+            {tournament.name}
+          </h3>
+          <p className="text-xs text-muted-foreground truncate">
+            {tournament.game} · {tournament.platform}
+            {tournament.format
+              ? ` · ${tournament.format.replace(/-/g, " ").replace(/^\w/, (c) => c.toUpperCase())}`
+              : ""}
+          </p>
+          <div className="mt-auto flex items-center justify-between gap-2 pt-1">
+            <span className="flex items-center gap-1 text-xs font-semibold text-muted-foreground">
+              <Users className="h-3.5 w-3.5" />
+              {tournament.teamCount}/{tournament.maxTeams}
+            </span>
+            {prize ? (
+              <span className="text-xs font-bold text-primary tabular-nums">{prize}</span>
+            ) : startLabel ? (
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Calendar className="h-3.5 w-3.5" />
+                {startLabel}
+              </span>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      {/* Desktop / tablet: vertical card */}
+      <div className="hidden h-full flex-col sm:flex">
+        <div className="relative aspect-[16/10] overflow-hidden rounded-t-2xl bg-muted">
+          {tournament.flyerUrl ? (
+            <Image
+              src={tournament.flyerUrl}
+              alt={tournament.name}
+              fill
+              sizes="(max-width: 1024px) 50vw, 25vw"
+              className="object-cover transition-transform duration-300 group-hover:scale-105"
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center bg-gradient-to-br from-primary/15 to-primary/5">
+              <Trophy className="h-12 w-12 text-primary/35" />
             </div>
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+          <div className="absolute left-3 right-3 top-3 flex flex-wrap gap-1.5">
+            <StatusPill status={tournament.status} />
+            {regOpen && tournament.registrationEndDate ? (
+              <RegistrationCountdownBadge endDate={tournament.registrationEndDate} />
+            ) : null}
+          </div>
+          {hasJoined && (
+            <div className="absolute bottom-3 left-3">
+              <Badge className="bg-green-600 text-white border-0 text-[10px] font-bold uppercase">
+                <CheckCircle className="mr-1 h-3 w-3" />
+                Joined
+              </Badge>
+            </div>
+          )}
+          {prize && (
+            <div className="absolute bottom-3 right-3 rounded-md bg-black/55 px-2 py-1 text-xs font-bold text-white tabular-nums backdrop-blur-sm">
+              {prize}
+            </div>
+          )}
         </div>
 
-        <CardHeader className="pt-3 pb-2 px-3">
-            <h3 className="font-headline text-base font-black leading-tight line-clamp-2">
-                {tournament.name}
-            </h3>
-            <p className="text-xs text-muted-foreground line-clamp-1">
-                🎮 {tournament.game} • 🖥 {tournament.platform}
-            </p>
-        </CardHeader>
-
-        <CardContent className="px-3 pt-0 pb-3 flex-grow">
-             <p className="text-xs text-muted-foreground line-clamp-2">{tournament.description}</p>
-        </CardContent>
-
-        <CardFooter className="p-3 border-t">
-            <div className="w-full space-y-2">
-              <TeamsMiniBar current={tournament.teamCount} max={tournament.maxTeams} />
-              {hasJoined && (
-                  <Badge variant="outline" className="border-green-500 text-green-500 text-[10px] font-black uppercase tracking-wider w-full justify-center">
-                      <CheckCircle className="w-3 h-3 mr-1" />
-                      Joined
-                  </Badge>
-              )}
-            </div>
-        </CardFooter>
-      </Link>
-    </Card>
+        <div className="flex flex-1 flex-col gap-2 p-4">
+          <h3 className="font-headline text-base font-bold leading-snug line-clamp-2">
+            {tournament.name}
+          </h3>
+          <p className="text-xs text-muted-foreground">
+            {tournament.game} · {tournament.platform}
+            {startLabel ? ` · Starts ${startLabel}` : ""}
+          </p>
+          <p className="text-xs text-muted-foreground line-clamp-2">{tournament.description}</p>
+          <div className="mt-auto pt-2">
+            <TeamsMiniBar current={tournament.teamCount} max={tournament.maxTeams} />
+          </div>
+        </div>
+      </div>
+    </Link>
   );
 }
 
@@ -254,23 +377,23 @@ export default function BrowseTournamentsPage() {
   const completedCount = useMemo(() => allTournaments.filter((t) => completedStatuses.includes(t.status)).length, [allTournaments]);
 
   return (
-    <div className="container py-10">
-      <div className="space-y-8">
+    <div className="container py-6 md:py-10">
+      <div className="space-y-6 md:space-y-8">
         {/* Header */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="space-y-2">
-            <h1 className="text-3xl font-bold font-headline">Browse Public Tournaments</h1>
+          <div className="space-y-1">
+            <h1 className="text-2xl sm:text-3xl font-bold font-headline">Browse Public Tournaments</h1>
             <p className="text-sm text-muted-foreground">Scan fast. Join faster. Less scrolling, more playing.</p>
           </div>
 
           <div className="flex gap-2 w-full md:w-auto">
             <Link href="/tournaments/join" className="flex-1 md:flex-none">
-              <Button variant="outline" className="w-full">
-                <KeyRound className="mr-2" /> Join with Code
+              <Button variant="outline" className="w-full h-11">
+                <KeyRound className="mr-2 h-4 w-4" /> Join with Code
               </Button>
             </Link>
             <Link href="/dashboard/create-tournament" className="flex-1 md:flex-none">
-              <Button className="w-full">
+              <Button className="w-full h-11">
                 Create
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
@@ -278,77 +401,74 @@ export default function BrowseTournamentsPage() {
           </div>
         </div>
 
-        {/* Search + Filters */}
-        <Card className="border bg-muted/10 rounded-2xl">
-          <CardContent className="p-4 space-y-4">
-            <div className="relative">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="text"
-                placeholder="Search tournament, game, platform…"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-8 rounded-xl"
-              />
-            </div>
+        {/* Sticky search + horizontal chips */}
+        <div className="sticky top-14 z-30 -mx-4 border-b border-border/60 bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:static md:mx-0 md:rounded-2xl md:border md:bg-muted/10 md:px-4 md:py-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Search tournament, game, platform…"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="h-11 pl-9 rounded-xl"
+            />
+          </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground font-bold">
-                <Filter className="h-4 w-4" />
-                Filters:
-              </div>
-
-              <Chip active={filter === "active"} onClick={() => setFilter("active")}>
-                Active ({activeCount})
+          <div className="mt-3 flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+            <Chip active={filter === "active"} onClick={() => setFilter("active")}>
+              Active ({activeCount})
+            </Chip>
+            <Chip active={filter === "open"} onClick={() => setFilter("open")}>
+              Open
+            </Chip>
+            <Chip active={filter === "live"} onClick={() => setFilter("live")}>
+              Live
+            </Chip>
+            <Chip active={filter === "ready"} onClick={() => setFilter("ready")}>
+              Ready
+            </Chip>
+            <Chip active={filter === "completed"} onClick={() => setFilter("completed")}>
+              Done ({completedCount})
+            </Chip>
+            <Chip active={filter === "all"} onClick={() => setFilter("all")}>
+              All
+            </Chip>
+            {user ? (
+              <Chip active={joinedOnly} onClick={() => setJoinedOnly((v) => !v)}>
+                {joinedOnly ? "Joined" : "Joined only"}
               </Chip>
-              <Chip active={filter === "open"} onClick={() => setFilter("open")}>
-                Open 🟢
-              </Chip>
-              <Chip active={filter === "live"} onClick={() => setFilter("live")}>
-                Live 🔴
-              </Chip>
-              <Chip active={filter === "ready"} onClick={() => setFilter("ready")}>
-                Ready 🟣
-              </Chip>
-              <Chip active={filter === "completed"} onClick={() => setFilter("completed")}>
-                Completed ({completedCount})
-              </Chip>
-              <Chip active={filter === "all"} onClick={() => setFilter("all")}>
-                All
-              </Chip>
-
-              {user ? (
-                <div className="ml-auto">
-                  <Chip active={joinedOnly} onClick={() => setJoinedOnly((v) => !v)}>
-                    {joinedOnly ? "✅ Joined only" : "Show joined"}
-                  </Chip>
-                </div>
-              ) : null}
-            </div>
-          </CardContent>
-        </Card>
+            ) : null}
+          </div>
+        </div>
 
         {/* Results */}
         {loading ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {[...Array(8)].map((_, i) => (
-              <Card key={i} className="rounded-2xl">
-                <CardHeader>
-                  <Skeleton className="h-5 w-3/4" />
-                  <Skeleton className="h-4 w-1/2" />
-                </CardHeader>
-                <CardContent>
-                  <Skeleton className="h-4 w-full mb-2" />
-                  <Skeleton className="h-4 w-2/3" />
-                </CardContent>
-                <CardFooter>
-                  <Skeleton className="h-10 w-full" />
-                </CardFooter>
-              </Card>
+              <div key={i} className="rounded-2xl border bg-card p-3 sm:p-0 sm:overflow-hidden">
+                <div className="flex gap-3 sm:hidden">
+                  <Skeleton className="h-[6.5rem] w-[6.5rem] shrink-0 rounded-xl" />
+                  <div className="flex flex-1 flex-col gap-2 py-0.5">
+                    <Skeleton className="h-4 w-16" />
+                    <Skeleton className="h-5 w-full" />
+                    <Skeleton className="h-3 w-2/3" />
+                    <Skeleton className="mt-auto h-3 w-1/2" />
+                  </div>
+                </div>
+                <div className="hidden sm:block">
+                  <Skeleton className="aspect-[16/10] w-full rounded-none" />
+                  <div className="space-y-2 p-4">
+                    <Skeleton className="h-5 w-3/4" />
+                    <Skeleton className="h-3 w-1/2" />
+                    <Skeleton className="h-3 w-full" />
+                    <Skeleton className="h-2 w-full" />
+                  </div>
+                </div>
+              </div>
             ))}
           </div>
         ) : filtered.length > 0 ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filtered.map((tournament) => {
               const hasJoined = user ? joinedTournamentIds.includes(tournament.id) : false;
               return <TournamentCard key={tournament.id} tournament={tournament} hasJoined={hasJoined} />;
@@ -359,7 +479,7 @@ export default function BrowseTournamentsPage() {
             <h2 className="text-xl font-semibold">No tournaments found</h2>
             <p className="text-muted-foreground mt-2">Try a different search or create one.</p>
             <Link href="/dashboard/create-tournament" className="mt-4 inline-block">
-              <Button>Create a Tournament</Button>
+              <Button className="h-11">Create a Tournament</Button>
             </Link>
           </div>
         )}

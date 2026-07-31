@@ -1,9 +1,7 @@
-
 'use client';
 
 import { AuthProvider } from './auth-provider';
-import { Header } from './header';
-import { Footer } from './footer';
+import { AppShell } from './app-shell';
 import { Toaster } from './ui/toaster';
 import type { PlatformSettings } from '@/lib/types';
 import { PushPermissionPrompt } from './push-permission-prompt';
@@ -12,7 +10,7 @@ import { IosInstallPrompt } from './ios-install-prompt';
 
 export function Providers({
   children,
-  settings
+  settings,
 }: {
   children: React.ReactNode;
   settings: PlatformSettings;
@@ -20,11 +18,7 @@ export function Providers({
   return (
     <ThemeProvider>
       <AuthProvider settings={settings}>
-        <div className="flex min-h-screen flex-col">
-          <Header />
-          <main className="flex-grow">{children}</main>
-          <Footer />
-        </div>
+        <AppShell>{children}</AppShell>
         <Toaster />
         <PushPermissionPrompt />
         <IosInstallPrompt />

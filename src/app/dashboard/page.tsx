@@ -58,7 +58,7 @@ const TournamentCard = ({ tournament, isOrganizer }: { tournament: Tournament, i
                 <div className="flex items-center justify-between">
                     <CardTitle className="font-headline">{tournament.name}</CardTitle>
                     {isOrganizer ? (
-                        <Trophy className="w-5 h-5 text-amber-400" />
+                        <Trophy className="w-5 h-5 text-amber-700 dark:text-amber-400" />
                     ) : (
                         <CheckCircle className="w-5 h-5 text-green-500" />
                     )}
@@ -210,7 +210,7 @@ export default function MyTournamentsPage() {
       <div className="space-y-8">
         <div>
             <h2 className="text-2xl font-semibold font-headline flex items-center gap-2 mb-4">
-                <Trophy className="text-amber-400" /> Organized Tournaments
+                <Trophy className="text-amber-700 dark:text-amber-400" /> Organized Tournaments
             </h2>
             {organizedTournaments.length === 0 ? (
                 <div className="text-center py-16 border-2 border-dashed border-muted rounded-lg">
@@ -235,7 +235,7 @@ export default function MyTournamentsPage() {
 
          <div>
             <h2 className="text-2xl font-semibold font-headline flex items-center gap-2 mb-4">
-                <Users className="text-blue-400" /> Joined Tournaments
+                <Users className="text-blue-700 dark:text-blue-400" /> Joined Tournaments
             </h2>
             {joinedTournaments.length === 0 ? (
                  <div className="text-center py-16 border-2 border-dashed border-muted rounded-lg">

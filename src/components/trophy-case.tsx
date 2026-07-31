@@ -36,7 +36,7 @@ export function TrophyCase({ profile }: { profile: UserProfile | null }) {
         <Card>
             <CardHeader>
                 <CardTitle className="font-headline text-xl flex items-center gap-2">
-                    <Trophy className="w-5 h-5 text-amber-400" />
+                    <Trophy className="w-5 h-5 text-amber-700 dark:text-amber-400" />
                     Trophy Case
                 </CardTitle>
                 <CardDescription>A collection of 1st place victories.</CardDescription>
@@ -50,7 +50,7 @@ export function TrophyCase({ profile }: { profile: UserProfile | null }) {
                                     <TooltipTrigger asChild>
                                         <Link href={`/tournaments/${badge.tournamentId}`}>
                                             <div className="aspect-square bg-muted/50 rounded-lg flex flex-col items-center justify-center p-2 text-center hover:bg-accent transition-colors">
-                                                <Trophy className="w-10 h-10 text-amber-400" />
+                                                <Trophy className="w-10 h-10 text-amber-700 dark:text-amber-400" />
                                                 <p className="text-xs font-semibold mt-2 line-clamp-2">{badge.tournamentName}</p>
                                             </div>
                                         </Link>

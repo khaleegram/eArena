@@ -381,11 +381,11 @@ export default function MatchDetailsPage() {
   const canForfeit = (isHomeCaptain || isAwayCaptain) && match.status === 'scheduled';
 
   return (
-    <div className="max-w-5xl mx-auto p-4 md:p-6 space-y-5">
+    <div className="max-w-5xl mx-auto p-4 md:p-6 space-y-5 pb-nav md:pb-6">
       {/* Top bar */}
       <div className="flex items-center justify-between gap-3">
         <Link href={`/tournaments/${tournamentId}?tab=my-matches`}>
-          <Button variant="outline" className="h-9">
+          <Button variant="outline" className="h-11">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back
           </Button>
@@ -440,7 +440,7 @@ export default function MatchDetailsPage() {
       )}
       
       {match.resolutionNotes && (
-        <Alert className="border-2 border-blue-500/30 bg-blue-500/5"><FileText className="h-5 w-5 text-blue-400" /><AlertTitle className="font-black">Organizer Verdict</AlertTitle><AlertDescription className="mt-2 text-sm leading-relaxed">{match.resolutionNotes}</AlertDescription></Alert>
+        <Alert className="border-2 border-blue-500/30 bg-blue-50 dark:bg-blue-500/5"><FileText className="h-5 w-5 text-blue-700 dark:text-blue-400" /><AlertTitle className="font-black">Organizer Verdict</AlertTitle><AlertDescription className="mt-2 text-sm leading-relaxed">{match.resolutionNotes}</AlertDescription></Alert>
       )}
 
       <Card>

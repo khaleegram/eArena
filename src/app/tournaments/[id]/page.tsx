@@ -40,6 +40,7 @@ import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { PrizeAllocationEditor } from './prize-allocation';
 import { EditFlyerDialog } from '@/components/edit-flyer-dialog';
 import { JoinTournamentDialog } from './join-dialog';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 
 const CountdownDisplay = ({ days, hours, minutes, seconds }: { days: number, hours: number, minutes: number, seconds: number }) => (
@@ -505,13 +506,13 @@ function PaymentPrompt({ tournament }: { tournament: Tournament }) {
   };
 
   return (
-    <Card className="mb-6 bg-yellow-500/10 border-yellow-500/30">
+    <Card className="mb-6 bg-amber-50 dark:bg-yellow-500/10 border-amber-300 dark:border-yellow-500/30">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-yellow-400">
+        <CardTitle className="flex items-center gap-2 text-amber-800 dark:text-amber-400">
           <Hourglass className="h-5 w-5" />
           Action Required: Complete Payment
         </CardTitle>
-        <CardDescription className="text-yellow-200/80">
+        <CardDescription className="text-amber-900/80 dark:text-amber-200/80">
           This tournament is pending payment for the prize pool. Your tournament will become public and open for registration once the payment is successfully completed.
         </CardDescription>
       </CardHeader>
@@ -528,7 +529,7 @@ function PaymentPrompt({ tournament }: { tournament: Tournament }) {
 export default function TournamentPage() {
   const { id } = useParams() as { id: string };
   const searchParams = useSearchParams();
-  const defaultTab = searchParams.get('tab') || 'overview';
+  const tabFromUrl = searchParams.get('tab');
   
   const { user, userProfile } = useAuth();
   const [tournament, setTournament] = useState<Tournament | null>(null);
@@ -539,7 +540,18 @@ export default function TournamentPage() {
   const [userTeam, setUserTeam] = useState<Team | null | undefined>(undefined);
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [isJoinDialogOpen, setIsJoinDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState(tabFromUrl || 'overview');
   const router = useRouter();
+
+  useEffect(() => {
+    if (tabFromUrl) {
+      setActiveTab(tabFromUrl);
+      return;
+    }
+    if (userTeam) {
+      setActiveTab('my-matches');
+    }
+  }, [userTeam, tabFromUrl]);
 
   const fetchTournament = useCallback(async () => {
     if (!id) return;
@@ -626,12 +638,12 @@ export default function TournamentPage() {
 
   const getStatusBadge = (status: TournamentStatus) => {
     const statusMap = {
-        pending: { label: 'Pending Payment', className: 'bg-yellow-600/10 text-yellow-400 border-yellow-500/20' },
-        open_for_registration: { label: 'Open for Registration', className: 'bg-green-600/10 text-green-400 border-green-500/20' },
-        generating_fixtures: { label: 'Generating Fixtures', className: 'bg-yellow-600/10 text-yellow-400 border-yellow-500/20 animate-pulse' },
-        ready_to_start: { label: 'Ready to Start', className: 'bg-cyan-600/10 text-cyan-400 border-cyan-500/20' },
-        in_progress: { label: 'In Progress', className: 'bg-blue-600/10 text-blue-400 border-blue-500/20' },
-        completed: { label: 'Completed', className: 'bg-gray-600/10 text-gray-400 border-gray-500/20' },
+        pending: { label: 'Pending Payment', className: 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-yellow-600/10 dark:text-yellow-400 dark:border-yellow-500/20' },
+        open_for_registration: { label: 'Open for Registration', className: 'bg-green-100 text-green-800 border-green-300 dark:bg-green-600/10 dark:text-green-400 dark:border-green-500/20' },
+        generating_fixtures: { label: 'Generating Fixtures', className: 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-yellow-600/10 dark:text-yellow-400 dark:border-yellow-500/20 animate-pulse' },
+        ready_to_start: { label: 'Ready to Start', className: 'bg-cyan-100 text-cyan-800 border-cyan-300 dark:bg-cyan-600/10 dark:text-cyan-400 dark:border-cyan-500/20' },
+        in_progress: { label: 'In Progress', className: 'bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-600/10 dark:text-blue-400 dark:border-blue-500/20' },
+        completed: { label: 'Completed', className: 'bg-muted text-muted-foreground border-border' },
     };
     const currentStatus = statusMap[status] || { label: status, className: ''};
 
@@ -645,8 +657,8 @@ export default function TournamentPage() {
 
 
   return (
-    <div className="space-y-8">
-        <div className="relative w-full h-auto aspect-[21/9] max-h-[400px] rounded-b-lg overflow-hidden bg-muted group">
+    <div className="space-y-6 pb-24 md:pb-8">
+        <div className="relative w-full h-auto aspect-[16/9] md:aspect-[21/9] max-h-[400px] overflow-hidden bg-muted group md:rounded-b-lg">
             <Image
                 src={tournament.flyerUrl || "/images/Tournament.png"}
                 data-ai-hint="esports gaming"
@@ -660,13 +672,13 @@ export default function TournamentPage() {
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent" />
             {isOrganizer && <EditFlyerDialog tournament={tournament} />}
         </div>
-        <div className="container -mt-24 relative z-10">
+        <div className="container -mt-16 md:-mt-24 relative z-10">
             {tournament.status === 'completed' && <TournamentPodium tournament={tournament} matches={allMatches} standings={standings} teams={teams} />}
             
             {isPendingPayment && <PaymentPrompt tournament={tournament} />}
 
-            <div className="flex flex-col md:flex-row gap-8 mt-8">
-                <div className="w-full md:w-1/3 lg:w-1/4 space-y-6">
+            <div className="flex flex-col md:flex-row gap-6 md:gap-8 mt-6 md:mt-8">
+                <div className="hidden md:block w-full md:w-1/3 lg:w-1/4 space-y-6">
                     <div className="space-y-4">
                         <div className="space-y-1">{getStatusBadge(tournament.status)}</div>
                         <h1 className="font-headline text-4xl font-bold">{tournament.name}</h1>
@@ -687,7 +699,7 @@ export default function TournamentPage() {
                                 tournament.status === 'open_for_registration' && (
                                     <AlertDialog>
                                         <AlertDialogTrigger asChild>
-                                            <Button variant="destructive" className="w-full" disabled={isActionLoading}>
+                                            <Button variant="destructive" className="w-full h-11" disabled={isActionLoading}>
                                                 {isActionLoading ? <Loader2 className="animate-spin" /> : "Leave Tournament"}
                                             </Button>
                                         </AlertDialogTrigger>
@@ -715,12 +727,12 @@ export default function TournamentPage() {
                                     />
                                 ) : (
                                     <Link href={`/login?redirectUrl=${encodeURIComponent(`/tournaments/${tournament.id}`)}&action=join`}>
-                                        <Button className="w-full"><PlusCircle className="mr-2"/>Join Tournament</Button>
+                                        <Button className="w-full h-11"><PlusCircle className="mr-2"/>Join Tournament</Button>
                                     </Link>
                                 )
                             ) : (
-                                !isOrganizer && ( // Only show this disabled button if not the organizer
-                                    <Button className="w-full" disabled>
+                                !isOrganizer && (
+                                    <Button className="w-full h-11" disabled>
                                         {isPendingPayment ? 'Awaiting Organizer Payment' : (tournament.status === 'open_for_registration' ? 'Tournament is Full' : 'Registration Closed')}
                                     </Button>
                                 )
@@ -730,18 +742,38 @@ export default function TournamentPage() {
                      {isOrganizer && <PrizeAllocationEditor tournament={tournament} />}
                 </div>
 
-                <div className="w-full md:w-2/3 lg:w-3/4">
-                    <Tabs defaultValue={defaultTab} className="w-full">
-                        <div className="relative">
+                <div className="md:hidden space-y-3">
+                    <div className="space-y-1">{getStatusBadge(tournament.status)}</div>
+                    <h1 className="font-headline text-2xl font-bold leading-tight">{tournament.name}</h1>
+                    <TournamentStatusTimers tournament={tournament} />
+                    <Accordion type="single" collapsible className="rounded-xl border bg-card px-3">
+                        <AccordionItem value="details" className="border-0">
+                            <AccordionTrigger className="text-sm font-medium py-3 hover:no-underline">
+                                Tournament details
+                            </AccordionTrigger>
+                            <AccordionContent className="space-y-3 pb-4">
+                                {isOrganizer && user && <OrganizerTools tournament={tournament} user={user} allMatches={allMatches} onSuccess={fetchTournament} />}
+                                {isOrganizer && user && tournament.status === 'ready_to_start' && (
+                                    <StartTournamentDialog tournament={tournament} organizerId={user.uid} onSuccess={fetchTournament} />
+                                )}
+                                {isOrganizer && <PrizeAllocationEditor tournament={tournament} />}
+                            </AccordionContent>
+                        </AccordionItem>
+                    </Accordion>
+                </div>
+
+                <div className="w-full md:w-2/3 lg:w-3/4 min-w-0">
+                    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                        <div className="sticky top-14 z-20 -mx-4 border-b border-border/60 bg-background/95 px-4 py-2 backdrop-blur md:static md:mx-0 md:border-0 md:bg-transparent md:px-0 md:py-0">
                             <ScrollArea>
-                                <TabsList className="grid w-max grid-flow-col">
-                                    <TabsTrigger value="overview"><Info className="w-4 h-4 mr-2 sm:hidden md:inline-block"/>Overview</TabsTrigger>
-                                    {userTeam && <TabsTrigger value="my-matches"><Swords className="w-4 h-4 mr-2 sm:hidden md:inline-block"/>My Matches</TabsTrigger>}
-                                    <TabsTrigger value="teams"><Users className="w-4 h-4 mr-2 sm:hidden md:inline-block"/>Teams</TabsTrigger>
-                                    <TabsTrigger value="fixtures"><BookOpenCheck className="w-4 h-4 mr-2 sm:hidden md:inline-block"/>Fixtures</TabsTrigger>
-                                    <TabsTrigger value="standings"><Trophy className="w-4 h-4 mr-2 sm:hidden md:inline-block"/>Standings</TabsTrigger>
-                                    <TabsTrigger value="rewards"><Award className="w-4 h-4 mr-2 sm:hidden md:inline-block"/>Rewards</TabsTrigger>
-                                    <TabsTrigger value="chat"><Rss className="w-4 h-4 mr-2 sm:hidden md:inline-block"/>Chat</TabsTrigger>
+                                <TabsList className="grid w-max grid-flow-col h-11">
+                                    <TabsTrigger value="overview" className="gap-1.5 px-3"><Info className="w-4 h-4" /><span className="sm:inline">Info</span></TabsTrigger>
+                                    {userTeam && <TabsTrigger value="my-matches" className="gap-1.5 px-3"><Swords className="w-4 h-4" /><span>Matches</span></TabsTrigger>}
+                                    <TabsTrigger value="teams" className="gap-1.5 px-3"><Users className="w-4 h-4" /><span>Teams</span></TabsTrigger>
+                                    <TabsTrigger value="fixtures" className="gap-1.5 px-3"><BookOpenCheck className="w-4 h-4" /><span className="hidden sm:inline">Fixtures</span><span className="sm:hidden">Fix</span></TabsTrigger>
+                                    <TabsTrigger value="standings" className="gap-1.5 px-3"><Trophy className="w-4 h-4" /><span className="hidden sm:inline">Standings</span><span className="sm:hidden">Table</span></TabsTrigger>
+                                    <TabsTrigger value="rewards" className="gap-1.5 px-3"><Award className="w-4 h-4" /><span>Prizes</span></TabsTrigger>
+                                    <TabsTrigger value="chat" className="gap-1.5 px-3"><Rss className="w-4 h-4" /><span>Chat</span></TabsTrigger>
                                 </TabsList>
                                 <ScrollBar orientation="horizontal" />
                             </ScrollArea>
@@ -767,12 +799,63 @@ export default function TournamentPage() {
                         <RewardsTab tournament={tournament} />
                         </TabsContent>
                         <TabsContent value="chat" className="mt-4">
-                        <CommunicationHub tournament={tournament} isOrganizer={isOrganizer} userTeam={userTeam}/>
+                        <CommunicationHub tournament={tournament} isOrganizer={isOrganizer} userTeam={userTeam ?? null}/>
                         </TabsContent>
                     </Tabs>
                 </div>
             </div>
         </div>
+
+        {userTeam !== undefined && !isOrganizer && (
+          <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] z-30 border-t border-border/60 bg-background/95 p-3 backdrop-blur md:hidden">
+            {userTeam ? (
+              tournament.status === 'open_for_registration' ? (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" className="w-full h-12" disabled={isActionLoading}>
+                      {isActionLoading ? <Loader2 className="animate-spin" /> : "Leave Tournament"}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Leave this tournament?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This removes your team ({userTeam.name}). This cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleLeave}>Confirm & Leave</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              ) : (
+                <Button className="w-full h-12" onClick={() => setActiveTab('my-matches')}>
+                  <Swords className="mr-2 h-4 w-4" /> My Matches
+                </Button>
+              )
+            ) : canJoin ? (
+              user && userProfile ? (
+                <JoinTournamentDialog
+                  tournament={tournament}
+                  user={user}
+                  userProfile={userProfile}
+                  onTeamJoined={(team) => setUserTeam(team)}
+                  open={isJoinDialogOpen}
+                  onOpenChange={setIsJoinDialogOpen}
+                />
+              ) : (
+                <Link href={`/login?redirectUrl=${encodeURIComponent(`/tournaments/${tournament.id}`)}&action=join`}>
+                  <Button className="w-full h-12"><PlusCircle className="mr-2"/>Join Tournament</Button>
+                </Link>
+              )
+            ) : (
+              <Button className="w-full h-12" disabled>
+                {isPendingPayment ? 'Awaiting Payment' : (tournament.status === 'open_for_registration' ? 'Tournament Full' : 'Registration Closed')}
+              </Button>
+            )}
+          </div>
+        )}
     </div>
   );
 }

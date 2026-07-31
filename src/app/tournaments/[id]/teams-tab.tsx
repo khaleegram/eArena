@@ -117,6 +117,7 @@ export function TeamsTab({ tournament, isOrganizer }: { tournament: Tournament; 
                 )}
             </div>
         ) : (
+<div className="overflow-x-auto -mx-1 px-1">
           <Table>
             <TableHeader>
               <TableRow>
@@ -138,7 +139,7 @@ export function TeamsTab({ tournament, isOrganizer }: { tournament: Tournament; 
                             <Link href={`/profile/${team.captainId}`} className="flex items-center gap-3 hover:underline">
                                 <ReputationAvatar profile={{ ...captainProfile, photoURL: team.logoUrl }} className="h-8 w-8"/>
                                 <span className="font-medium">{team.name}</span>
-                                {needsApproval && <ShieldAlert className="h-4 w-4 text-yellow-500" title="Needs Approval" />}
+                                {needsApproval && <ShieldAlert className="h-4 w-4 text-amber-600 dark:text-yellow-500" title="Needs Approval" />}
                             </Link>
                         </TableCell>
                         <TableCell className="text-muted-foreground">{captainProfile?.username || 'N/A'}</TableCell>
@@ -160,6 +161,7 @@ export function TeamsTab({ tournament, isOrganizer }: { tournament: Tournament; 
                 })}
             </TableBody>
           </Table>
+          </div>
         )}
       </CardContent>
     </Card>

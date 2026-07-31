@@ -46,9 +46,10 @@ import {
   Crown,
   Zap,
   Lock,
+  MoreHorizontal,
 } from "lucide-react";
 
-import { format, isToday, isFuture, endOfDay } from "date-fns";
+import { format, isToday, isFuture, endOfDay, formatDistanceToNow } from "date-fns";
 
 import Link from "next/link";
 import { toDate, cn } from "@/lib/utils";
@@ -62,6 +63,15 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -79,38 +89,56 @@ function ReportScoreDialog({
   homeTeamName,
   awayTeamName,
   tournamentId,
+  triggerClassName,
 }: {
   match: Match;
   teamToReportFor: Team;
   homeTeamName: string;
   awayTeamName: string;
   tournamentId: string;
+  triggerClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [step, setStep] = useState<1 | 2>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [homeScore, setHomeScore] = useState("");
+  const [awayScore, setAwayScore] = useState("");
+  const [evidence, setEvidence] = useState<File | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
 
-  const handleFormAction = async (formData: FormData) => {
+  const reset = () => {
+    setStep(1);
+    setHomeScore("");
+    setAwayScore("");
+    setEvidence(null);
+  };
+
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (!next) reset();
+  };
+
+  const handleSubmit = async () => {
     if (!user) {
       toast({ variant: "destructive", title: "Error", description: "You must be logged in." });
       return;
     }
-
-    const homeScore = formData.get("homeScore");
-    const awayScore = formData.get("awayScore");
-    const evidence = formData.get("evidence") as File;
-
-    if (homeScore === null || awayScore === null || !evidence || evidence.size === 0) {
+    if (!homeScore || !awayScore || !evidence) {
       toast({ variant: "destructive", title: "Missing info", description: "Enter both scores + upload a screenshot." });
       return;
     }
 
+    const formData = new FormData();
+    formData.set("homeScore", homeScore);
+    formData.set("awayScore", awayScore);
+    formData.set("evidence", evidence);
+
     setIsSubmitting(true);
     try {
       await submitMatchResult(tournamentId, match.id, teamToReportFor.id, user.uid, formData);
-      toast({ title: "Report submitted ✅", description: "Awaiting verification." });
-      setOpen(false);
+      toast({ title: "Report submitted", description: "Awaiting verification." });
+      handleOpenChange(false);
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.message || "Failed to submit result." });
     } finally {
@@ -119,48 +147,85 @@ function ReportScoreDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm" className="h-8">
+    <Sheet open={open} onOpenChange={handleOpenChange}>
+      <SheetTrigger asChild>
+        <Button size="sm" className={cn("h-11", triggerClassName)}>
           <Upload className="h-4 w-4 mr-2" />
           Report Score
         </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Report Match Result 🧾</DialogTitle>
-          <DialogDescription>
-            {homeTeamName} vs {awayTeamName}
-          </DialogDescription>
-        </DialogHeader>
+      </SheetTrigger>
+      <SheetContent side="bottom" className="rounded-t-2xl max-h-[90dvh]">
+        <SheetHeader>
+          <SheetTitle>Report Match Result</SheetTitle>
+          <SheetDescription>
+            Step {step} of 2 — {homeTeamName} vs {awayTeamName}
+          </SheetDescription>
+        </SheetHeader>
 
-        <form action={handleFormAction} className="space-y-5 pt-2">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="homeScore">{homeTeamName} Score</Label>
-              <Input id="homeScore" name="homeScore" type="number" required className="text-center text-xl font-black h-14" />
+        {step === 1 ? (
+          <div className="space-y-5 py-6">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="homeScore">{homeTeamName}</Label>
+                <Input
+                  id="homeScore"
+                  type="number"
+                  inputMode="numeric"
+                  value={homeScore}
+                  onChange={(e) => setHomeScore(e.target.value)}
+                  className="text-center text-2xl font-black h-14"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="awayScore">{awayTeamName}</Label>
+                <Input
+                  id="awayScore"
+                  type="number"
+                  inputMode="numeric"
+                  value={awayScore}
+                  onChange={(e) => setAwayScore(e.target.value)}
+                  className="text-center text-2xl font-black h-14"
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="awayScore">{awayTeamName} Score</Label>
-              <Input id="awayScore" name="awayScore" type="number" required className="text-center text-xl font-black h-14" />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="evidence">Screenshot Evidence (Match Stats)</Label>
-            <Input id="evidence" name="evidence" type="file" accept="image/*" required />
-            <p className="text-xs text-muted-foreground">Screenshot of the final match stats screen is required.</p>
-          </div>
-
-          <DialogFooter>
-            <Button type="submit" disabled={isSubmitting} className="w-full h-11">
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Submit Report
+            <Button
+              className="w-full h-12"
+              disabled={homeScore === "" || awayScore === ""}
+              onClick={() => setStep(2)}
+            >
+              Next: Evidence
             </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+          </div>
+        ) : (
+          <div className="space-y-5 py-6">
+            <div className="rounded-lg border bg-muted/30 p-3 text-center font-headline text-xl font-bold">
+              {homeScore} — {awayScore}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="evidence">Screenshot of match stats</Label>
+              <Input
+                id="evidence"
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={(e) => setEvidence(e.target.files?.[0] || null)}
+                className="h-12"
+              />
+              <p className="text-xs text-muted-foreground">Final match stats screen is required for verification.</p>
+            </div>
+            <SheetFooter className="flex-col gap-2 sm:flex-col">
+              <Button className="w-full h-12" disabled={isSubmitting || !evidence} onClick={handleSubmit}>
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Confirm & Submit
+              </Button>
+              <Button variant="outline" className="w-full h-11" onClick={() => setStep(1)}>
+                Back
+              </Button>
+            </SheetFooter>
+          </div>
+        )}
+      </SheetContent>
+    </Sheet>
   );
 }
 
@@ -200,7 +265,7 @@ function RoomCodeManager({ match, tournamentId }: { match: Match; tournamentId: 
     return (
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
-          <Button variant="secondary" size="sm" disabled={!canSetCode} className="h-8 flex-1">
+          <Button variant="secondary" size="sm" disabled={!canSetCode} className="h-11 flex-1">
             {match.roomCode ? "Edit Code" : "Set Code"}
           </Button>
         </DialogTrigger>
@@ -233,12 +298,12 @@ function RoomCodeManager({ match, tournamentId }: { match: Match; tournamentId: 
 
   if (match.roomCode) {
     return (
-      <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-3 py-2 h-8">
+      <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-3 py-2 min-h-11">
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Code</span>
           <span className="font-mono font-black tracking-widest">{match.roomCode}</span>
         </div>
-        <Button variant="ghost" size="icon" onClick={handleCopy} className="h-7 w-7">
+        <Button variant="ghost" size="icon" onClick={handleCopy} className="h-10 w-10">
           {hasCopied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
         </Button>
       </div>
@@ -300,7 +365,7 @@ function MatchChatDialog({
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" disabled={!isMatchDay} className="h-8 flex-1">
+        <Button variant="outline" size="sm" disabled={!isMatchDay} className="h-11 flex-1">
           <MessageCircle className="h-4 w-4 mr-2" />
           Chat
           {messages.length > 0 && (
@@ -370,7 +435,7 @@ function TransferHostButton({ matchId, tournamentId }: { matchId: string, tourna
     return (
         <AlertDialog>
             <AlertDialogTrigger asChild>
-                <Button variant="outline" size="sm" className="h-8 flex-1">
+                <Button variant="outline" size="sm" className="h-11 flex-1">
                     <ArrowRightLeft className="h-4 w-4 mr-2" />
                     Transfer Host
                 </Button>
@@ -512,12 +577,65 @@ function MatchCard({
           <div className="text-xs text-muted-foreground text-center pt-2">Host: <strong>{hostTeamName}</strong></div>
         </Link>
 
-        {/* Action Bar */}
-        <div className="p-2 border-t bg-muted/20 flex flex-wrap gap-2 justify-end">
-          <MatchChatDialog match={match} tournamentId={tournament.id} homeTeamName={homeTeam.name} awayTeamName={awayTeam.name} isMatchDay={isMatchDay} isOrganizer={isOrganizer}/>
-          {isHostCaptain && <TransferHostButton matchId={match.id} tournamentId={tournament.id} />}
-          <RoomCodeManager match={{ ...match, host: getTeam(match.hostId) } as any} tournamentId={tournament.id}/>
-          {canReport && <ReportScoreDialog match={match} teamToReportFor={isHomeCaptain ? homeTeam : awayTeam} homeTeamName={homeTeam.name} awayTeamName={awayTeam.name} tournamentId={tournament.id}/>}
+        {/* Action Bar — primary CTA + overflow on mobile */}
+        <div className="p-3 border-t bg-muted/20">
+          <div className="hidden md:flex flex-wrap gap-2 justify-end">
+            <MatchChatDialog match={match} tournamentId={tournament.id} homeTeamName={homeTeam.name} awayTeamName={awayTeam.name} isMatchDay={isMatchDay} isOrganizer={isOrganizer}/>
+            {isHostCaptain && <TransferHostButton matchId={match.id} tournamentId={tournament.id} />}
+            <RoomCodeManager match={{ ...match, host: getTeam(match.hostId) } as any} tournamentId={tournament.id}/>
+            {canReport && (
+              <ReportScoreDialog
+                match={match}
+                teamToReportFor={isHomeCaptain ? homeTeam : awayTeam}
+                homeTeamName={homeTeam.name}
+                awayTeamName={awayTeam.name}
+                tournamentId={tournament.id}
+              />
+            )}
+          </div>
+
+          <div className="flex md:hidden gap-2">
+            {canReport ? (
+              <ReportScoreDialog
+                match={match}
+                teamToReportFor={isHomeCaptain ? homeTeam : awayTeam}
+                homeTeamName={homeTeam.name}
+                awayTeamName={awayTeam.name}
+                tournamentId={tournament.id}
+                triggerClassName="flex-1"
+              />
+            ) : (
+              <MatchChatDialog match={match} tournamentId={tournament.id} homeTeamName={homeTeam.name} awayTeamName={awayTeam.name} isMatchDay={isMatchDay} isOrganizer={isOrganizer}/>
+            )}
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="outline" size="icon" className="h-11 w-11 shrink-0" aria-label="More match actions">
+                  <MoreHorizontal className="h-5 w-5" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="bottom" className="rounded-t-2xl">
+                <SheetHeader>
+                  <SheetTitle>Match actions</SheetTitle>
+                  <SheetDescription>{homeTeam.name} vs {awayTeam.name}</SheetDescription>
+                </SheetHeader>
+                <div className="flex flex-col gap-2 py-4">
+                  <MatchChatDialog match={match} tournamentId={tournament.id} homeTeamName={homeTeam.name} awayTeamName={awayTeam.name} isMatchDay={isMatchDay} isOrganizer={isOrganizer}/>
+                  {isHostCaptain && <TransferHostButton matchId={match.id} tournamentId={tournament.id} />}
+                  <RoomCodeManager match={{ ...match, host: getTeam(match.hostId) } as any} tournamentId={tournament.id}/>
+                  {canReport && (
+                    <ReportScoreDialog
+                      match={match}
+                      teamToReportFor={isHomeCaptain ? homeTeam : awayTeam}
+                      homeTeamName={homeTeam.name}
+                      awayTeamName={awayTeam.name}
+                      tournamentId={tournament.id}
+                      triggerClassName="w-full"
+                    />
+                  )}
+                </div>
+              </SheetContent>
+            </Sheet>
+          </div>
         </div>
       </CardContent>
     </Card>

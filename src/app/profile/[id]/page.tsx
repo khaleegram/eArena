@@ -44,24 +44,6 @@ const safeFormatDate = (timestamp: UnifiedTimestamp | undefined): string => {
     }
 };
 
-const AIAnalysisCard = ({ analysis, archetype }: { analysis: string, archetype: string }) => {
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle className="font-headline flex items-center gap-2"><BrainCircuit className="w-5 h-5 text-primary"/> AI Performance Analysis</CardTitle>
-                <CardDescription>
-                    Player archetype: <span className="font-bold text-foreground">{archetype}</span>
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                <p className="text-sm text-muted-foreground italic">
-                    "{analysis}"
-                </p>
-            </CardContent>
-        </Card>
-    );
-};
-
 export default function PublicProfilePage() {
   const params = useParams() as { id: string };
   const { toast } = useToast();
@@ -173,7 +155,7 @@ export default function PublicProfilePage() {
                 <div className="flex items-center gap-2 pt-2">
                     <CardTitle className="font-headline text-2xl">{profile.username}</CardTitle>
                     {profile.activeTitle && (
-                        <Badge variant="outline" className="text-sm font-bold text-amber-400 border-amber-400/50">{profile.activeTitle}</Badge>
+                        <Badge variant="outline" className="text-sm font-bold text-amber-700 border-amber-600/50 dark:text-amber-400 dark:border-amber-400/50">{profile.activeTitle}</Badge>
                     )}
                 </div>
                 <CardDescription>{profile.email}</CardDescription>
@@ -202,13 +184,26 @@ export default function PublicProfilePage() {
                         </Button>
                     </div>
                 )}
+                {analysis && (
+                    <div className="w-full max-w-lg border-t pt-4 space-y-2">
+                        <div className="flex items-center justify-center gap-2 font-headline text-base">
+                            <BrainCircuit className="w-4 h-4 text-primary" />
+                            AI Performance Analysis
+                        </div>
+                        <p className="text-sm">
+                            Archetype: <span className="font-semibold text-foreground">{analysis.archetype}</span>
+                        </p>
+                        <p className="text-sm text-muted-foreground italic">
+                            &ldquo;{analysis.analysis}&rdquo;
+                        </p>
+                    </div>
+                )}
             </CardContent>
         </Card>
 
         <div className="grid lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 space-y-8">
                 <PlayerStats stats={stats} />
-                {analysis && <AIAnalysisCard archetype={analysis.archetype} analysis={analysis.analysis} />}
                  <Card>
                     <CardHeader>
                         <CardTitle className="font-headline flex items-center gap-2"><Medal className="w-5 h-5 text-primary"/> Achievements</CardTitle>

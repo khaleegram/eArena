@@ -18,13 +18,13 @@ const toDate = (timestamp: any): Date => {
 
 const getStatusBadge = (status: string, replayRequestStatus?: string) => {
     if (replayRequestStatus === 'pending' || replayRequestStatus === 'accepted') {
-        return <Badge variant="outline" className="border-cyan-500 text-cyan-500"><History className="mr-1 h-3 w-3"/>Replay Requested</Badge>
+        return <Badge variant="outline" className="border-cyan-600 text-cyan-800 dark:border-cyan-500 dark:text-cyan-400"><History className="mr-1 h-3 w-3"/>Replay Requested</Badge>
     }
     switch (status) {
         case 'disputed':
             return <Badge variant="destructive"><AlertTriangle className="mr-1 h-3 w-3"/>Disputed</Badge>
         case 'needs_secondary_evidence':
-            return <Badge variant="outline" className="border-yellow-500 text-yellow-500"><AlertTriangle className="mr-1 h-3 w-3"/>Needs Evidence</Badge>
+            return <Badge variant="outline" className="border-amber-600 text-amber-800 dark:border-yellow-500 dark:text-yellow-500"><AlertTriangle className="mr-1 h-3 w-3"/>Needs Evidence</Badge>
         default:
             return <Badge variant="secondary">{status}</Badge>
     }

@@ -16,12 +16,12 @@ export function MatchStatusBadge({ status }: { status: MatchStatus }) {
     awaiting_confirmation: {
       icon: <Hourglass className="h-3 w-3" />,
       label: "Reviewing",
-      className: "bg-amber-500/15 text-amber-500 border-amber-500/30",
+      className: "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-500/15 dark:text-amber-400 dark:border-amber-500/30",
     },
     needs_secondary_evidence: {
       icon: <AlertTriangle className="h-3 w-3" />,
       label: "Needs Evidence",
-      className: "bg-yellow-500/15 text-yellow-500 border-yellow-500/30",
+      className: "bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-500/15 dark:text-yellow-400 dark:border-yellow-500/30",
     },
     disputed: {
       icon: <AlertTriangle className="h-3 w-3" />,
@@ -31,7 +31,7 @@ export function MatchStatusBadge({ status }: { status: MatchStatus }) {
     approved: {
       icon: <CheckCircle className="h-3 w-3" />,
       label: "Final",
-      className: "bg-green-600/80 text-primary-foreground border-transparent",
+      className: "bg-green-600 text-white border-transparent",
     },
   };
 

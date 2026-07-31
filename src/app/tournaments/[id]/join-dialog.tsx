@@ -106,7 +106,7 @@ export function JoinTournamentDialog({ tournament, user, userProfile, onTeamJoin
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogTrigger asChild>
-                <Button className="w-full"><PlusCircle className="mr-2"/>Join Tournament</Button>
+                <Button className="w-full h-12"><PlusCircle className="mr-2"/>Join Tournament</Button>
             </DialogTrigger>
             <DialogContent>
                 <DialogHeader>

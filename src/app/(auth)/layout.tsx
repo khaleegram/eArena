@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 
 export default function AuthLayout({
   children,
@@ -6,8 +7,8 @@ export default function AuthLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="container relative flex h-[calc(100vh-3.5rem)] flex-col items-center justify-center md:grid lg:max-w-none lg:grid-cols-2 lg:px-0">
-        <div className="relative hidden h-full flex-col p-10 text-white lg:flex">
+    <div className="relative flex min-h-dvh flex-col items-center justify-center md:grid lg:max-w-none lg:grid-cols-2 lg:px-0">
+        <div className="relative hidden h-full min-h-dvh flex-col p-10 text-white lg:flex">
             <div className="absolute inset-0 z-[-1]">
               <Image 
                 src="/images/MainBackground.png"
@@ -16,12 +17,13 @@ export default function AuthLayout({
                 sizes="50vw"
                 style={{objectFit: 'cover'}}
                 data-ai-hint="esports gaming"
+                priority
               />
               <div className="absolute inset-0 bg-zinc-950/80" />
             </div>
-            <div className="relative z-20 flex items-center text-lg font-medium font-headline">
+            <Link href="/" className="relative z-20 flex items-center text-lg font-medium font-headline">
                 eArena
-            </div>
+            </Link>
             <div className="relative z-20 mt-auto">
                 <blockquote className="space-y-2">
                 <p className="text-lg">
@@ -31,8 +33,11 @@ export default function AuthLayout({
                 </blockquote>
             </div>
         </div>
-        <div className="lg:p-8">
-            <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px]">
+        <div className="flex w-full flex-1 flex-col justify-center px-5 py-10 lg:p-8">
+            <Link href="/" className="mb-8 text-center text-xl font-headline font-bold lg:hidden">
+                eArena
+            </Link>
+            <div className="mx-auto flex w-full max-w-sm flex-col justify-center space-y-6">
                 {children}
             </div>
         </div>

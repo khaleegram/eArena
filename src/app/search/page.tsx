@@ -31,7 +31,7 @@ function UserResultCard({ user }: { user: UserProfile }) {
             </CardHeader>
             <CardContent className="flex justify-between items-center">
                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Trophy className="w-4 h-4 text-amber-400"/>
+                    <Trophy className="w-4 h-4 text-amber-700 dark:text-amber-400"/>
                     <span>{user.tournamentsWon || 0} Wins</span>
                  </div>
                  <Button asChild variant="secondary" size="sm">

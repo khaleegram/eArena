@@ -91,7 +91,7 @@ export function PushPermissionPrompt() {
 
     return (
         <div className={cn(
-            "fixed bottom-4 right-4 z-50 w-full max-w-sm rounded-lg bg-card shadow-lg border p-4 transition-all animate-in slide-in-from-bottom-10 fade-in-50"
+            "fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] md:bottom-4 right-4 left-4 md:left-auto z-50 w-auto max-w-sm rounded-lg bg-card shadow-lg border p-4 transition-all animate-in slide-in-from-bottom-10 fade-in-50"
         )}>
             <div className="flex items-start gap-4">
                 <div className="flex-shrink-0 pt-0.5">

@@ -41,12 +41,12 @@ const PayoutConfirmationPrompt = ({ isWinner, bankDetailsConfirmed }: { isWinner
     if (!isWinner || bankDetailsConfirmed) return null;
 
     return (
-        <Alert className="mb-6 border-amber-500/50 text-amber-500 [&>svg]:text-amber-500">
+        <Alert className="mb-6 border-amber-500/50 text-amber-800 dark:text-amber-400 [&>svg]:text-amber-700 dark:[&>svg]:text-amber-400">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Action Required: Confirm Payout Details</AlertTitle>
             <AlertDescription>
                 Congratulations! You've won a cash prize. Please go to your profile to confirm your bank details to ensure you receive your payout.
-                <Button asChild size="sm" variant="link" className="p-0 h-auto ml-2 text-amber-400">
+                <Button asChild size="sm" variant="link" className="p-0 h-auto ml-2 text-amber-700 dark:text-amber-400">
                     <Link href="/profile">Go to Profile</Link>
                 </Button>
             </AlertDescription>
@@ -104,7 +104,7 @@ export function RewardsTab({ tournament }: { tournament: Tournament }) {
                         <CardDescription>This is a free-to-enter tournament.</CardDescription>
                     </CardHeader>
                     <CardContent className="flex flex-col items-center text-center py-8">
-                         <Trophy className="w-24 h-24 text-amber-400/80 mb-4" />
+                         <Trophy className="w-24 h-24 text-amber-700/80 dark:text-amber-400/80 mb-4" />
                         <p className="text-muted-foreground max-w-sm">
                             Winners will receive virtual trophies and exclusive badges on their profiles to commemorate their achievement.
                         </p>
@@ -115,7 +115,7 @@ export function RewardsTab({ tournament }: { tournament: Tournament }) {
             {tournament.rewardDetails.type === 'money' && (
                 <Card>
                     <CardHeader>
-                        <CardTitle className="font-headline flex items-center gap-2"><Trophy className="w-5 h-5 text-amber-400"/> Prize Pool Distribution</CardTitle>
+                        <CardTitle className="font-headline flex items-center gap-2"><Trophy className="w-5 h-5 text-amber-700 dark:text-amber-400"/> Prize Pool Distribution</CardTitle>
                         <CardDescription>Total Prize Pool: <span className="font-bold text-lg text-foreground">₦{tournament.rewardDetails.prizePool.toLocaleString()}</span></CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -124,6 +124,7 @@ export function RewardsTab({ tournament }: { tournament: Tournament }) {
                                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
                             </div>
                         ) : (
+<div className="overflow-x-auto -mx-1 px-1">
                             <Table>
                                 <TableHeader>
                                     <TableRow>
@@ -158,6 +159,7 @@ export function RewardsTab({ tournament }: { tournament: Tournament }) {
                                     ))}
                                 </TableBody>
                             </Table>
+                            </div>
                         )}
                     </CardContent>
                 </Card>

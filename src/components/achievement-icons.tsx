@@ -38,11 +38,11 @@ const Icon = ({ name, className }: { name: string, className?: string }) => {
 const getTierColor = (tierName: AchievementTier['name']) => {
     switch (tierName) {
         case 'Bronze': return 'text-amber-700';
-        case 'Silver': return 'text-slate-400';
-        case 'Gold': return 'text-amber-400';
-        case 'Platinum': return 'text-cyan-400';
-        case 'Diamond': return 'text-blue-400';
-        case 'Legendary': return 'text-purple-400';
+        case 'Silver': return 'text-slate-600 dark:text-slate-300';
+        case 'Gold': return 'text-amber-700 dark:text-amber-400';
+        case 'Platinum': return 'text-cyan-700 dark:text-cyan-400';
+        case 'Diamond': return 'text-blue-700 dark:text-blue-400';
+        case 'Legendary': return 'text-purple-700 dark:text-purple-400';
         default: return 'text-muted-foreground';
     }
 };

@@ -52,24 +52,6 @@ const safeFormatDate = (date: UnifiedTimestamp | undefined): string => {
     }
 };
 
-const AIAnalysisCard = ({ analysis, archetype }: { analysis: string, archetype: string }) => {
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle className="font-headline flex items-center gap-2"><BrainCircuit className="w-5 h-5 text-primary"/> AI Performance Analysis</CardTitle>
-                <CardDescription>
-                    Your player archetype is: <span className="font-bold text-foreground">{archetype}</span>
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                <p className="text-sm text-muted-foreground italic">
-                    "{analysis}"
-                </p>
-            </CardContent>
-        </Card>
-    );
-};
-
 export default function ProfilePage() {
   const { user, userProfile, loading } = useAuth();
   const { toast } = useToast();
@@ -200,7 +182,7 @@ export default function ProfilePage() {
                 <div className="flex items-center gap-2 pt-2">
                     <CardTitle className="font-headline text-2xl">{userProfile.username}</CardTitle>
                     {userProfile.activeTitle && (
-                        <Badge variant="outline" className="text-sm font-bold text-amber-400 border-amber-400/50">{userProfile.activeTitle}</Badge>
+                        <Badge variant="outline" className="text-sm font-bold text-amber-700 border-amber-600/50 dark:text-amber-400 dark:border-amber-400/50">{userProfile.activeTitle}</Badge>
                     )}
                 </div>
                  <AchievementIcons profile={userProfile} />
@@ -225,6 +207,25 @@ export default function ProfilePage() {
                         <p className="font-semibold">{userProfile?.warnings || 0} Warnings</p>
                         <p className="text-sm text-muted-foreground">Reputation impacts tournament eligibility.</p>
                 </div>
+                {statsLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground pt-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Analyzing performance…
+                    </div>
+                ) : analysis ? (
+                    <div className="w-full max-w-lg border-t pt-4 space-y-2">
+                        <div className="flex items-center justify-center gap-2 font-headline text-base">
+                            <BrainCircuit className="w-4 h-4 text-primary" />
+                            AI Performance Analysis
+                        </div>
+                        <p className="text-sm">
+                            Archetype: <span className="font-semibold text-foreground">{analysis.archetype}</span>
+                        </p>
+                        <p className="text-sm text-muted-foreground italic">
+                            &ldquo;{analysis.analysis}&rdquo;
+                        </p>
+                    </div>
+                ) : null}
             </CardContent>
         </Card>
         
@@ -274,17 +275,6 @@ export default function ProfilePage() {
                 </AccordionContent>
             </AccordionItem>
             
-            {analysis && (
-                 <AccordionItem value="ai-analysis" className="border rounded-lg bg-card text-card-foreground shadow-sm">
-                    <AccordionTrigger className="p-6">
-                         <span className="font-headline text-xl">AI Performance Analysis</span>
-                    </AccordionTrigger>
-                    <AccordionContent className="p-6 pt-0">
-                        <AIAnalysisCard archetype={analysis.archetype} analysis={analysis.analysis} />
-                    </AccordionContent>
-                </AccordionItem>
-            )}
-
             <AccordionItem value="achievements" className="border rounded-lg bg-card text-card-foreground shadow-sm">
                 <AccordionTrigger className="p-6">
                     <span className="font-headline text-xl flex items-center gap-2"><Medal className="w-5 h-5 text-primary"/> Achievements</span>
@@ -315,7 +305,7 @@ export default function ProfilePage() {
             <AccordionItem value="trophy-case" className="border rounded-lg bg-card text-card-foreground shadow-sm">
                 <AccordionTrigger className="p-6">
                     <span className="font-headline text-xl flex items-center gap-2">
-                        <Trophy className="w-5 h-5 text-amber-400" />
+                        <Trophy className="w-5 h-5 text-amber-700 dark:text-amber-400" />
                         Trophy Case
                     </span>
                 </AccordionTrigger>

@@ -188,6 +188,7 @@ export function UserAuthForm({ className, mode, ...props }: UserAuthFormProps) {
               autoComplete="email"
               autoCorrect="off"
               disabled={isLoading}
+              className="h-12"
               {...register('email')}
             />
             {errors?.email && <p className="px-1 text-xs text-destructive">{errors.email.message}</p>}
@@ -201,11 +202,12 @@ export function UserAuthForm({ className, mode, ...props }: UserAuthFormProps) {
               autoCapitalize={mode === 'login' ? "current-password" : "new-password"}
               autoCorrect="off"
               disabled={isLoading}
+              className="h-12"
               {...register('password')}
             />
             {errors?.password && <p className="px-1 text-xs text-destructive">{errors.password.message}</p>}
           </div>
-          <Button type="submit" disabled={isLoading}>
+          <Button type="submit" disabled={isLoading} className="h-12 text-base">
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {mode === 'login' ? 'Sign In' : 'Sign Up'} with Email
           </Button>
@@ -215,7 +217,7 @@ export function UserAuthForm({ className, mode, ...props }: UserAuthFormProps) {
         <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
         <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">Or continue with</span></div>
       </div>
-      <Button variant="outline" type="button" disabled={isLoading} onClick={onGoogleSignIn}>
+      <Button variant="outline" type="button" disabled={isLoading} onClick={onGoogleSignIn} className="h-12 text-base">
         {isLoading ? (
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
         ) : (

@@ -107,7 +107,7 @@ export function PrizeAllocationEditor({ tournament }: { tournament: Tournament }
                       <div className="p-4 rounded-lg bg-muted flex items-center justify-between">
                         <div className="font-semibold text-lg flex items-center gap-2"><Percent/>Total Allocation</div>
                         <div className="text-right">
-                            <p className={`font-bold text-2xl ${totalPercentage === 95 ? 'text-green-400' : 'text-destructive'}`}>{totalPercentage}% / 95%</p>
+                            <p className={`font-bold text-2xl ${totalPercentage === 95 ? 'text-green-700 dark:text-green-400' : 'text-destructive'}`}>{totalPercentage}% / 95%</p>
                             <p className="text-xs text-muted-foreground">Platform Fee: 5%</p>
                         </div>
                       </div>

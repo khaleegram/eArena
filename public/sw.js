@@ -70,7 +70,6 @@ if (!self.define) {
 define(['./workbox-631a4576'], (function (workbox) { 'use strict';
 
   importScripts("/worker-development.js");
-  importScripts("/push-handler.js");
   self.skipWaiting();
   workbox.clientsClaim();
   workbox.registerRoute("/", new workbox.NetworkFirst({

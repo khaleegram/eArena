@@ -103,13 +103,13 @@ export function TournamentPodium({ tournament, matches, standings, teams }: Tour
             <CardContent>
                 {podium.bracketResult?.winner ? (
                     <div className="flex justify-around items-end text-center mb-8">
-                        {podium.bracketResult.runnerUp && <PodiumCard place="Runner-up" team={podium.bracketResult.runnerUp} rank={2} color="text-slate-400" />}
-                        {podium.bracketResult.winner && <PodiumCard place="Champion" team={podium.bracketResult.winner} rank={1} color="text-amber-400" />}
+                        {podium.bracketResult.runnerUp && <PodiumCard place="Runner-up" team={podium.bracketResult.runnerUp} rank={2} color="text-slate-600 dark:text-slate-300" />}
+                        {podium.bracketResult.winner && <PodiumCard place="Champion" team={podium.bracketResult.winner} rank={1} color="text-amber-700 dark:text-amber-400" />}
                     </div>
                 ) : (
                     <div className="flex justify-around items-end text-center mb-8">
-                        {podium.second && podium.second.team && <PodiumCard place="2nd Place" team={podium.second.team} rank={2} color="text-slate-400" />}
-                        {podium.first && podium.first.team && <PodiumCard place="1st Place" team={podium.first.team} rank={1} color="text-amber-400" />}
+                        {podium.second && podium.second.team && <PodiumCard place="2nd Place" team={podium.second.team} rank={2} color="text-slate-600 dark:text-slate-300" />}
+                        {podium.first && podium.first.team && <PodiumCard place="1st Place" team={podium.first.team} rank={1} color="text-amber-700 dark:text-amber-400" />}
                         {podium.third && podium.third.team && <PodiumCard place="3rd Place" team={podium.third.team} rank={3} color="text-amber-700" />}
                     </div>
                 )}

@@ -251,6 +251,7 @@ export function StandingsTab({ tournament }: { tournament: Tournament }) {
                     <h3 className="text-lg font-semibold font-headline">{groupName}</h3>
                     <p className="text-sm text-muted-foreground">Top 2 teams advance to the knockout stage.</p>
                   </div>
+                  <div className="overflow-x-auto -mx-1 px-1">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -292,6 +293,7 @@ export function StandingsTab({ tournament }: { tournament: Tournament }) {
                       })}
                     </TableBody>
                   </Table>
+                  </div>
                 </div>
               ))}
 
@@ -318,6 +320,7 @@ export function StandingsTab({ tournament }: { tournament: Tournament }) {
                   : ' — knockout stage in progress'}
               </p>
             )}
+            <div className="overflow-x-auto -mx-1 px-1">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -367,6 +370,7 @@ export function StandingsTab({ tournament }: { tournament: Tournament }) {
                 })}
               </TableBody>
             </Table>
+            </div>
             {isSwiss && knockoutMatches.length > 0 && (
               <div className="space-y-3">
                 <div>

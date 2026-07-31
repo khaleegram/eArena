@@ -22,7 +22,7 @@
     --secondary-foreground: 224 71.4% 4.1%; /* #0A0E1A */
 
     --muted: 210 40% 96.1%; /* #F0F4F8 */
-    --muted-foreground: 224 20% 40%; /* #5A5F6E */
+    --muted-foreground: 224 16% 32%; /* darker for light-mode readability */
 
     --accent: 35 33% 55%; /* #A67C52 - Brand accent color */
     --accent-foreground: 0 0% 100%; /* #FFFFFF */
@@ -128,5 +128,13 @@
   .no-scrollbar {
       -ms-overflow-style: none;  /* IE and Edge */
       scrollbar-width: none;  /* Firefox */
+  }
+
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .pb-nav {
+    padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
   }
 }

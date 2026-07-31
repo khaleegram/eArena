@@ -27,11 +27,11 @@ const Icon = ({ name, className }: { name: string, className?: string }) => {
 const getTierColor = (tierName: AchievementTier['name']) => {
     switch (tierName) {
         case 'Bronze': return 'text-amber-700 bg-amber-700/10 border-amber-700/20';
-        case 'Silver': return 'text-slate-400 bg-slate-400/10 border-slate-400/20';
-        case 'Gold': return 'text-amber-400 bg-amber-400/10 border-amber-400/20';
-        case 'Platinum': return 'text-cyan-400 bg-cyan-400/10 border-cyan-400/20';
-        case 'Diamond': return 'text-blue-400 bg-blue-400/10 border-blue-400/20';
-        case 'Legendary': return 'text-purple-400 bg-purple-400/10 border-purple-400/20';
+        case 'Silver': return 'text-slate-700 bg-slate-200/80 border-slate-400/40 dark:text-slate-300 dark:bg-slate-400/10 dark:border-slate-400/20';
+        case 'Gold': return 'text-amber-700 bg-amber-100 border-amber-300 dark:text-amber-400 dark:bg-amber-400/10 dark:border-amber-400/20';
+        case 'Platinum': return 'text-cyan-800 bg-cyan-100 border-cyan-300 dark:text-cyan-400 dark:bg-cyan-400/10 dark:border-cyan-400/20';
+        case 'Diamond': return 'text-blue-800 bg-blue-100 border-blue-300 dark:text-blue-400 dark:bg-blue-400/10 dark:border-blue-400/20';
+        case 'Legendary': return 'text-purple-800 bg-purple-100 border-purple-300 dark:text-purple-400 dark:bg-purple-400/10 dark:border-purple-400/20';
         default: return 'text-muted-foreground bg-muted';
     }
 };

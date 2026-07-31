@@ -185,9 +185,9 @@ export function BankDetailsForm({ userProfile }: { userProfile: UserProfile }) {
             </Form>
 
             {verifiedAccountName && !isVerifying && (
-                 <Card className="bg-green-950/50 border-green-500/30 mt-4">
+                 <Card className="bg-green-50 border-green-300 dark:bg-green-950/50 dark:border-green-500/30 mt-4">
                     <CardContent className="pt-6">
-                        <p className="text-sm font-semibold text-green-400">Verified Account Name: <span className="text-white">{verifiedAccountName}</span></p>
+                        <p className="text-sm font-semibold text-green-800 dark:text-green-400">Verified Account Name: <span className="text-foreground font-bold">{verifiedAccountName}</span></p>
                     </CardContent>
                 </Card>
             )}
