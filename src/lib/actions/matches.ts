@@ -26,7 +26,7 @@ import { sendNotification } from './notifications';
 import { generateMatchSummary, type GenerateMatchSummaryInput } from '@/ai/flows/generate-match-summary';
 import { isSwissRound } from '@/lib/swiss';
 
-export const toAdminDate = (timestamp: UnifiedTimestamp): Date => {
+function toAdminDate(timestamp: UnifiedTimestamp): Date {
     if (typeof timestamp === 'string') {
         return new Date(timestamp);
     }
@@ -37,7 +37,7 @@ export const toAdminDate = (timestamp: UnifiedTimestamp): Date => {
       return timestamp;
     }
     throw new Error('Invalid timestamp format for server-side processing.');
-};
+}
 
 export async function notifyNextRoundCaptains(
   tournamentId: string,
