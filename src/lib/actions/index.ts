@@ -7,6 +7,8 @@ export * from './payouts';
 export * from './standings';
 export * from './team';
 export * from './tournament';
+export * from './matches';
+export * from './dev-tools';
 export * from './user';
 export * from './achievements';
 export * from './settings';

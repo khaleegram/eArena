@@ -2,15 +2,19 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import type { Tournament, UnifiedTimestamp } from "@/lib/types";
-import { FileText, ClipboardCopy, Check, Info, Crown, Globe, Lock, Gamepad2, Users, Trophy, Calendar, Share2 } from "lucide-react";
+import type { Team, Tournament } from "@/lib/types";
+import { FileText, ClipboardCopy, Check, Info, Crown, Globe, Lock, Gamepad2, Users, Trophy, Calendar, Share2, Rocket } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { toDate } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { collection, onSnapshot, query } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { useAuth } from "@/hooks/use-auth";
+import { StartTournamentButton } from "./teams-tab";
 
 const RuleItem = ({ label, value }: { label: string; value: string | number | boolean }) => {
     const displayValue = typeof value === 'boolean' ? (value ? 'Yes' : 'No') : value;
@@ -22,10 +26,20 @@ const RuleItem = ({ label, value }: { label: string; value: string | number | bo
     );
 };
 
-export function OverviewTab({ tournament }: { tournament: Tournament }) {
+export function OverviewTab({ tournament, isOrganizer = false }: { tournament: Tournament; isOrganizer?: boolean }) {
     const { toast } = useToast();
+    const { user } = useAuth();
     const [copiedCode, setCopiedCode] = useState(false);
     const [copiedLink, setCopiedLink] = useState(false);
+    const [teams, setTeams] = useState<Team[]>([]);
+
+    useEffect(() => {
+        const q = query(collection(db, `tournaments/${tournament.id}/teams`));
+        const unsub = onSnapshot(q, (snapshot) => {
+            setTeams(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Team)));
+        });
+        return () => unsub();
+    }, [tournament.id]);
 
     const handleCopyCode = () => {
         if (!tournament.code) return;
@@ -44,9 +58,64 @@ export function OverviewTab({ tournament }: { tournament: Tournament }) {
         setTimeout(() => setCopiedLink(false), 2000);
     };
 
+    const approvedCount = teams.filter(t => t.isApproved === true).length;
+    const pendingCount = teams.filter(t => t.isApproved === false).length;
+    const needsMoreApproved = approvedCount < 4;
+
     return (
         <div className="grid md:grid-cols-2 gap-8">
             <div className="space-y-8">
+                {isOrganizer && user && (
+                    <Card className="border-primary/30 bg-primary/5">
+                        <CardHeader>
+                            <CardTitle className="font-headline flex items-center gap-2">
+                                <Rocket className="w-5 h-5 text-primary"/> Next Steps
+                            </CardTitle>
+                            <CardDescription>What you need to do to get this tournament running.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                            {tournament.status === 'open_for_registration' && (
+                                <>
+                                    <p className="text-sm flex items-center gap-2">
+                                        <Users className="h-4 w-4" />
+                                        Approved teams: <strong>{approvedCount}</strong> / {tournament.maxTeams}
+                                        {pendingCount > 0 && (
+                                            <span className="text-muted-foreground">({pendingCount} pending approval)</span>
+                                        )}
+                                    </p>
+                                    {needsMoreApproved ? (
+                                        <p className="text-sm text-muted-foreground">
+                                            Share the tournament link or code. You need at least <strong>4 approved teams</strong> before you can start.
+                                        </p>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            <p className="text-sm">You have enough approved teams. Generate fixtures when you are ready.</p>
+                                            <StartTournamentButton tournamentId={tournament.id} organizerId={user.uid} />
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                            {tournament.status === 'ready_to_start' && (
+                                <p className="text-sm">
+                                    Fixtures are ready. Use <strong>Start Immediately</strong> in the sidebar to go live (or reschedule the start date).
+                                </p>
+                            )}
+                            {tournament.status === 'in_progress' && (
+                                <p className="text-sm">
+                                    Tournament is live. Approve match results, then use <strong>Progress to Next Stage</strong> when a round is complete
+                                    {tournament.format === 'swiss' || tournament.format === 'cup' ? ' (Swiss/Cup stages).' : '.'}
+                                </p>
+                            )}
+                            {tournament.status === 'generating_fixtures' && (
+                                <p className="text-sm text-muted-foreground">Generating fixtures… refresh in a moment.</p>
+                            )}
+                            {tournament.status === 'completed' && (
+                                <p className="text-sm">This tournament is complete. Check Standings and Rewards.</p>
+                            )}
+                        </CardContent>
+                    </Card>
+                )}
+
                  <Card>
                     <CardHeader>
                         <CardTitle className="font-headline flex items-center gap-2"><Trophy className="w-5 h-5"/> At a Glance</CardTitle>

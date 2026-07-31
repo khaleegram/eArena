@@ -23,6 +23,7 @@ import { getStandingsForTournament } from './standings';
 import { getTeamsForTournament } from './team';
 import { checkAndGrantAchievements } from './achievements';
 import { fullTournamentDelete } from './helpers';
+import { notifyNextRoundCaptains, updateStandings } from './matches';
 
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
 
@@ -186,7 +187,7 @@ export async function createTournament(formData: FormData) {
     rules: rawData.rules || '',
     organizerId,
     organizerUsername: organizerProfile.username,
-    createdAt: FieldValue.serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp() as any,
     status: 'open_for_registration',
     teamCount: 0,
     code: tournamentCode,
@@ -444,9 +445,14 @@ export async function rescheduleTournament(tournamentId: string, newStartDateISO
     revalidatePath(`/tournaments/${tournamentId}`);
 }
 
-async function generateFixturesForTournament(tournamentRef: FirebaseFirestore.DocumentReference<FirebaseFirestore.DocumentData>, tournament: Tournament) {
-    const teamsSnapshot = await tournamentRef.collection('teams').get();
-    const teamIds = teamsSnapshot.docs.map(doc => doc.id);
+async function generateFixturesForTournament(
+  tournamentRef: FirebaseFirestore.DocumentReference<FirebaseFirestore.DocumentData>,
+  tournament: Tournament,
+  approvedTeamIds?: string[]
+) {
+    const teamIds =
+      approvedTeamIds ??
+      (await tournamentRef.collection('teams').get()).docs.map((doc) => doc.id);
 
     if (teamIds.length < 4) {
         await tournamentRef.update({ status: 'open_for_registration' }); // Revert status
@@ -478,7 +484,7 @@ async function generateFixturesForTournament(tournamentRef: FirebaseFirestore.Do
     const batch = adminDb.batch();
     for (const fixture of scheduledFixtures) {
         const matchRef = tournamentRef.collection('matches').doc();
-        batch.set(matchRef, { ...fixture, status: 'scheduled' });
+        batch.set(matchRef, { ...fixture, tournamentId: tournamentRef.id, status: 'scheduled' });
     }
     
     await batch.commit();
@@ -635,6 +641,8 @@ export async function progressTournamentStage(tournamentId: string, organizerId:
     });
     await batch.commit();
 
+    void notifyNextRoundCaptains(tournamentId, scheduledFixtures);
+
     return { progressed: true, status: 'in_progress' };
 }
 
@@ -650,59 +658,107 @@ export async function savePrizeAllocation(tournamentId: string, allocation: Priz
     revalidatePath(`/tournaments/${tournamentId}`);
 }
 
-export async function submitMatchResult(tournamentId: string, matchId: string, teamId: string, userId: string, formData: FormData) {
-    // This is a placeholder for a more complex implementation
-    // For now, it will just acknowledge the submission.
-    console.log(`Result submitted for match ${matchId} by user ${userId}`);
-    return { success: true };
-}
-
-export async function setOrganizerStreamUrl(tournamentId: string, matchId: string, url: string, organizerId: string) {
-    // Placeholder
-    console.log(`Stream URL set for match ${matchId} by organizer ${organizerId}`);
-}
-
-export async function forfeitMatch(tournamentId: string, matchId: string, userId: string) {
-    // Placeholder
-    console.log(`Match ${matchId} forfeited by user ${userId}`);
-}
-
-export async function requestPlayerReplay(tournamentId: string, matchId: string, userId: string, reason: string) {
-    // Placeholder
-    console.log(`Replay requested for match ${matchId} by user ${userId} for reason: ${reason}`);
-}
-
-export async function respondToPlayerReplay(tournamentId: string, matchId: string, userId: string, accepted: boolean) {
-    // Placeholder
-    console.log(`User ${userId} ${accepted ? 'accepted' : 'rejected'} replay for match ${matchId}`);
-}
-
-export async function cancelReplayRequest(tournamentId: string, matchId: string, userId: string) {
-    // Placeholder
-    console.log(`Replay request for match ${matchId} cancelled by user ${userId}`);
-}
-
-export async function setMatchRoomCode(tournamentId: string, matchId: string, code: string) {
-    // Placeholder
-    console.log(`Room code for match ${matchId} set to ${code}`);
-}
-
-export async function transferHost(tournamentId: string, matchId: string, userId: string) {
-    // Placeholder
-    console.log(`Host for match ${matchId} transferred by user ${userId}`);
-}
-
 export async function startTournamentAndGenerateFixtures(tournamentId: string, organizerId: string, fromCron: boolean = false) {
-    // Placeholder
-    console.log(`Tournament ${tournamentId} started by organizer ${organizerId}`);
-}
+    const tournamentRef = adminDb.collection('tournaments').doc(tournamentId);
+    const tournamentDoc = await tournamentRef.get();
+    if (!tournamentDoc.exists) throw new Error("Tournament not found");
+    const tournament = { id: tournamentId, ...tournamentDoc.data() } as Tournament;
 
-export async function organizerResolveOverdueMatches(tournamentId: string, organizerId: string) {
-    // Placeholder
-    console.log(`Overdue matches for tournament ${tournamentId} resolved by organizer ${organizerId}`);
+    if (!fromCron && tournament.organizerId !== organizerId) {
+        throw new Error("You are not authorized to perform this action.");
+    }
+
+    // Path A: Organizer generates fixtures from open registration
+    if (tournament.status === 'open_for_registration') {
+      if (fromCron) {
+        throw new Error('Cannot auto-start a tournament still open for registration.');
+      }
+
+      const teamsSnapshot = await tournamentRef.collection('teams').where('isApproved', '==', true).get();
+      if (teamsSnapshot.docs.length < 4) {
+          throw new Error("A minimum of 4 approved teams is required to start the tournament.");
+      }
+
+      await tournamentRef.update({ status: 'generating_fixtures' });
+      revalidatePath(`/tournaments/${tournamentId}`);
+
+      try {
+        const teamIds = teamsSnapshot.docs.map(doc => doc.id);
+        if (tournament.format === 'swiss' && teamIds.length % 2 !== 0) {
+          throw new Error(`Swiss needs an even number of approved teams. You have ${teamIds.length}.`);
+        }
+
+        const tournamentForGen = { ...tournament, teamCount: teamIds.length };
+        await generateFixturesForTournament(tournamentRef, tournamentForGen, teamIds);
+
+        const playStartDate = toDate(tournament.tournamentStartDate);
+        const isReadyEarly = isBefore(new Date(), playStartDate);
+        const newStatus = isReadyEarly ? 'ready_to_start' : 'in_progress';
+        await tournamentRef.update({ status: newStatus, teamCount: teamIds.length });
+
+        if (newStatus === 'in_progress') {
+          const allPlayerIds = teamsSnapshot.docs.flatMap(doc => (doc.data() as Team).playerIds || []);
+          const uniquePlayerIds = [...new Set(allPlayerIds)];
+          await Promise.allSettled(
+            uniquePlayerIds.map((userId) =>
+              sendNotification(userId, {
+                userId,
+                tournamentId,
+                title: `"${tournament.name}" has started!`,
+                body: 'The fixtures have been generated. Check your schedule now.',
+                href: `/tournaments/${tournamentId}?tab=my-matches`,
+              })
+            )
+          );
+          const matchesSnap = await tournamentRef.collection('matches').get();
+          const fixtures = matchesSnap.docs.map(d => d.data() as Match);
+          void notifyNextRoundCaptains(tournamentId, fixtures);
+        }
+
+        revalidatePath(`/tournaments/${tournamentId}`);
+        return;
+      } catch (e) {
+        await tournamentRef.update({ status: 'open_for_registration' });
+        revalidatePath(`/tournaments/${tournamentId}`);
+        throw e;
+      }
+    }
+
+    // Path B: Go live from ready_to_start (cron or organizer start-immediately)
+    if (tournament.status === 'ready_to_start') {
+      const playStartDate = toDate(tournament.tournamentStartDate);
+      if (fromCron && isBefore(new Date(), playStartDate)) {
+        return; // not time yet
+      }
+      await tournamentRef.update({ status: 'in_progress' });
+      const teamsSnapshot = await tournamentRef.collection('teams').get();
+      const allPlayerIds = teamsSnapshot.docs.flatMap(doc => (doc.data() as Team).playerIds || []);
+      const uniquePlayerIds = [...new Set(allPlayerIds)];
+      await Promise.allSettled(
+        uniquePlayerIds.map((userId) =>
+          sendNotification(userId, {
+            userId,
+            tournamentId,
+            title: `"${tournament.name}" has started!`,
+            body: 'Play is live. Check your schedule now.',
+            href: `/tournaments/${tournamentId}?tab=my-matches`,
+          })
+        )
+      );
+      revalidatePath(`/tournaments/${tournamentId}`);
+      return;
+    }
+
+    throw new Error(`Cannot start tournament from status "${tournament.status}".`);
 }
 
 export async function recalculateStandings(tournamentId: string, userId: string) {
-    // Placeholder
-    console.log(`Standings for tournament ${tournamentId} recalculated by user ${userId}`);
+  const tournamentDoc = await adminDb.collection('tournaments').doc(tournamentId).get();
+  if (!tournamentDoc.exists) throw new Error('Tournament not found.');
+  const tournament = tournamentDoc.data() as Tournament;
+  if (tournament.organizerId !== userId) {
+    throw new Error('Only the organizer can recalculate standings.');
+  }
+  await updateStandings(tournamentId);
+  revalidatePath(`/tournaments/${tournamentId}`);
 }

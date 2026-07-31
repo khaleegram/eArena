@@ -8,6 +8,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { revalidatePath } from 'next/cache';
 import { serializeData } from '@/lib/utils';
 import { findUserByEmail } from './user';
+import { notifyUser } from '@/lib/push-notify';
 
 export async function getTeamsForTournament(tournamentId: string): Promise<Team[]> {
     const teamsSnapshot = await adminDb.collection('tournaments').doc(tournamentId).collection('teams').get();
@@ -166,6 +167,20 @@ export async function approveTeamRegistration(tournamentId: string, teamId: stri
 
     const teamRef = tournamentRef.collection('teams').doc(teamId);
     await teamRef.update({ isApproved: true });
+
+    const team = (await teamRef.get()).data() as Team | undefined;
+    if (team?.captainId) {
+      await notifyUser(
+        team.captainId,
+        {
+          tournamentId,
+          title: "You're approved!",
+          body: `Your team "${team.name}" is in the tournament roster.`,
+          href: `/tournaments/${tournamentId}`,
+        },
+        2
+      );
+    }
 
     revalidatePath(`/tournaments/${tournamentId}`);
 }

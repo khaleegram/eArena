@@ -4,7 +4,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getTournamentById, organizerResolveOverdueMatches, extendRegistration, startTournamentAndGenerateFixtures, regenerateTournamentFixtures, devSeedDummyTeams, devAutoApproveCurrentStageMatches, devAutoApproveAndProgress, devAutoRunCupToCompletion, rescheduleTournament, recalculateStandings, progressTournamentStage, updateTournamentFlyer } from '@/lib/actions/tournament';
+import { getTournamentById, extendRegistration, startTournamentAndGenerateFixtures, regenerateTournamentFixtures, rescheduleTournament, recalculateStandings, progressTournamentStage, updateTournamentFlyer } from '@/lib/actions/tournament';
+import { organizerResolveOverdueMatches } from '@/lib/actions/matches';
+import { devSeedDummyTeams, devAutoApproveCurrentStageMatches, devAutoApproveAndProgress, devAutoRunCupToCompletion } from '@/lib/actions/dev-tools';
 import { retryTournamentPayment } from '@/lib/actions/payouts';
 import { getUserTeamForTournament, leaveTournament } from '@/lib/actions/team';
 import { useAuth } from "@/hooks/use-auth";
@@ -745,7 +747,7 @@ export default function TournamentPage() {
                             </ScrollArea>
                         </div>
                         <TabsContent value="overview" className="mt-4">
-                        <OverviewTab tournament={tournament} />
+                        <OverviewTab tournament={tournament} isOrganizer={isOrganizer} />
                         </TabsContent>
                         {userTeam && 
                             <TabsContent value="my-matches" className="mt-4">

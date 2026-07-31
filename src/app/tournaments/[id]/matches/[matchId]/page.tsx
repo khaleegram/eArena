@@ -41,7 +41,7 @@ import {
 import { format, isToday, isPast, endOfDay, formatDistanceToNow, isFuture } from 'date-fns';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import { setOrganizerStreamUrl, requestPlayerReplay, respondToPlayerReplay, forfeitMatch, cancelReplayRequest } from '@/lib/actions/tournament';
+import { setOrganizerStreamUrl, requestPlayerReplay, respondToPlayerReplay, forfeitMatch, cancelReplayRequest } from '@/lib/actions/matches';
 import { postMatchMessage } from '@/lib/actions/community';
 import { MatchStatusBadge } from '@/components/match-status-badge';
 import { toDate, cn } from "@/lib/utils";
