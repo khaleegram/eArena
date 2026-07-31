@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useForm } from 'react-hook-form';
@@ -7,10 +6,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
-import { createTournament, updateTournamentFlyer } from '@/lib/actions';
+import { createTournament } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 import { addDays, format, startOfDay } from 'date-fns';
-import { Calendar as CalendarIcon, Loader2, Sparkles, Trophy, Info, Users, CalendarDays, Settings, Award, Send, CreditCard, Repeat, HelpCircle, Image as ImageIcon } from 'lucide-react';
+import { Calendar as CalendarIcon, Loader2, Sparkles, Trophy, Info, Users, CalendarDays, Settings, Award, Send, CreditCard, Repeat, HelpCircle } from 'lucide-react';
 import * as React from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -26,21 +25,24 @@ import type { TournamentFormat } from '@/lib/types';
 import { Switch } from '@/components/ui/switch';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage } from '@/lib/firebase';
+import {
+  getMaxSwissRounds,
+  getSwissKnockoutQualifierCount,
+  getSwissStageCount,
+} from '@/lib/swiss';
+import { getRoundName } from '@/lib/cup-tournament';
 
 const formatOptions: Record<TournamentFormat, number[]> = {
     league: [4, 6, 8, 10, 12, 14, 16, 18, 20],
     cup: [8, 16, 32],
-    swiss: [8, 12, 16, 20, 24, 32, 64, 128],
+    swiss: [8, 16, 24, 32, 48, 64, 96, 128],
     'double-elimination': [8, 16, 32],
 };
 
-type SchedulingPreset = 'custom' | '1-day-cup' | 'weekend-knockout' | 'week-long-league' | '1-day-league-blitz';
-
 const MAX_FLYER_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_FLYER_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
+type SchedulingPreset = 'custom' | '1-day-cup' | 'weekend-knockout' | 'week-long-league' | '1-day-league-blitz' | 'swiss-league-phase';
 
 const tournamentSchema = z.object({
   name: z.string().min(3, { message: "Tournament name must be at least 3 characters." }),
@@ -141,6 +143,9 @@ export default function CreateTournamentPage() {
   });
 
   const selectedFormat = form.watch("format");
+  const maxTeams = form.watch("maxTeams");
+  const registrationEndDate = form.watch("registrationDates.to");
+  const isStartDateManual = React.useRef(false);
   const teamCountOptions = React.useMemo(() => {
       return formatOptions[selectedFormat] || [];
   }, [selectedFormat]);
@@ -152,34 +157,72 @@ export default function CreateTournamentPage() {
       }
   }, [teamCountOptions, form]);
 
+  // Auto duration for Swiss from stage count
+  React.useEffect(() => {
+    if (selectedFormat === 'swiss' && maxTeams) {
+      form.setValue('duration', getSwissStageCount(maxTeams));
+    }
+  }, [selectedFormat, maxTeams, form]);
+
+  // Default: play starts the day after registration ends (until user edits start date)
+  React.useEffect(() => {
+    if (isStartDateManual.current) return;
+    if (!registrationEndDate) return;
+    form.setValue('tournamentDates.from', addDays(startOfDay(registrationEndDate), 1));
+  }, [registrationEndDate, form]);
+
   const preset = form.watch('schedulingPreset');
   const tournamentStartDate = form.watch('tournamentDates.from');
   const duration = form.watch('duration');
+
+  const swissPlanHelper = React.useMemo(() => {
+    if (selectedFormat !== 'swiss' || !maxTeams) return null;
+    const swissRounds = getMaxSwissRounds(maxTeams);
+    const qualifiers = getSwissKnockoutQualifierCount(maxTeams);
+    const stages = getSwissStageCount(maxTeams);
+    const firstKo = getRoundName(qualifiers);
+    const roundsPerDay = duration > 0 ? (stages / duration).toFixed(1) : '—';
+    return `${stages} stages: ${swissRounds} Swiss rounds plus ${firstKo} through Final (top ${qualifiers}). Over ${duration} day${duration === 1 ? '' : 's'} that is about ${roundsPerDay} rounds per day.`;
+  }, [selectedFormat, maxTeams, duration]);
 
   React.useEffect(() => {
     const today = startOfDay(new Date());
     switch(preset) {
         case '1-day-cup':
+            isStartDateManual.current = true;
             form.setValue('registrationDates', { from: today, to: addDays(today, 2) });
             form.setValue('tournamentDates.from', addDays(today, 3));
             form.setValue('duration', 1);
             break;
         case 'weekend-knockout':
+            isStartDateManual.current = true;
             form.setValue('registrationDates', { from: today, to: addDays(today, 5) });
             form.setValue('tournamentDates.from', addDays(today, 6));
             form.setValue('duration', 3);
             break;
         case 'week-long-league':
+            isStartDateManual.current = true;
             form.setValue('registrationDates', { from: today, to: addDays(today, 7) });
             form.setValue('tournamentDates.from', addDays(today, 8));
             form.setValue('duration', 7);
             break;
         case '1-day-league-blitz':
+            isStartDateManual.current = true;
             form.setValue('format', 'league');
             form.setValue('registrationDates', { from: today, to: today });
             form.setValue('tournamentDates.from', today);
             form.setValue('duration', 1);
             break;
+        case 'swiss-league-phase': {
+            isStartDateManual.current = false;
+            form.setValue('format', 'swiss');
+            const teams = form.getValues('maxTeams') || 128;
+            const stageDays = getSwissStageCount(teams);
+            form.setValue('registrationDates', { from: today, to: addDays(today, 7) });
+            form.setValue('tournamentDates.from', addDays(today, 8));
+            form.setValue('duration', stageDays);
+            break;
+        }
         case 'custom':
         default:
             // Do nothing, let user control manually
@@ -201,11 +244,11 @@ export default function CreateTournamentPage() {
       return;
     }
     setIsLoading(true);
-    
+
     const formData = new FormData();
     Object.entries(values).forEach(([key, value]) => {
         if (key === 'flyer' || key === 'schedulingPreset' || key === 'duration') return;
-        if(typeof value === 'object' && value !== null) {
+        if (typeof value === 'object' && value !== null) {
             Object.entries(value).forEach(([subKey, subValue]) => {
                 formData.append(`${key}.${subKey}`, (subValue as any).toString());
             });
@@ -213,14 +256,13 @@ export default function CreateTournamentPage() {
             formData.append(key, String(value));
         }
     });
-    
+
     const flyerFile = values.flyer;
     if (flyerFile) {
         formData.append('flyer', flyerFile);
     }
 
     formData.append('organizerId', user.uid);
-
 
     try {
       const result = await createTournament(formData);
@@ -259,30 +301,30 @@ export default function CreateTournamentPage() {
                 </CardHeader>
                 <CardContent className="space-y-6">
                     <FormField
-                        control={form.control}
-                        name="name"
-                        render={({ field }) => (
-                            <FormItem>
-                            <FormLabel>Tournament Name</FormLabel>
-                            <FormControl>
-                                <Input placeholder="e.g., Sunday Night League" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                            </FormItem>
-                        )}
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Tournament Name</FormLabel>
+                        <FormControl>
+                            <Input placeholder="e.g., Sunday Night League" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
                     />
                     <FormField
-                        control={form.control}
-                        name="description"
-                        render={({ field }) => (
-                            <FormItem>
-                            <FormLabel>Description</FormLabel>
-                            <FormControl>
-                                <Textarea placeholder="A brief description of your tournament." {...field} />
-                            </FormControl>
-                            <FormMessage />
-                            </FormItem>
-                        )}
+                    control={form.control}
+                    name="description"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Description</FormLabel>
+                        <FormControl>
+                            <Textarea placeholder="A brief description of your tournament." {...field} />
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
                     />
                     <FormField
                         control={form.control}
@@ -314,7 +356,7 @@ export default function CreateTournamentPage() {
                                 <SelectContent>
                                     <SelectItem value="league">League (Round-Robin)</SelectItem>
                                     <SelectItem value="cup">Cup (Groups + Knockout)</SelectItem>
-                                    <SelectItem value="swiss">Swiss System</SelectItem>
+                                    <SelectItem value="swiss">Swiss (League Phase + Knockout)</SelectItem>
                                 </SelectContent>
                                 </Select>
                                 <FormDescription>Choose the structure of your competition.</FormDescription>
@@ -369,6 +411,7 @@ export default function CreateTournamentPage() {
                                     <SelectItem value="1-day-league-blitz">1-Day League Blitz</SelectItem>
                                     <SelectItem value="weekend-knockout">Weekend Knockout</SelectItem>
                                     <SelectItem value="week-long-league">Week-Long League</SelectItem>
+                                    <SelectItem value="swiss-league-phase">Swiss League + Knockout</SelectItem>
                                 </SelectContent>
                             </Select>
                             <FormDescription>Select a template to auto-fill dates or choose "Custom" for manual entry.</FormDescription>
@@ -432,7 +475,14 @@ export default function CreateTournamentPage() {
                                         </FormControl>
                                     </PopoverTrigger>
                                     <PopoverContent className="w-auto p-0">
-                                        <Calendar mode="single" selected={field.value} onSelect={field.onChange} />
+                                        <Calendar
+                                          mode="single"
+                                          selected={field.value}
+                                          onSelect={(date) => {
+                                            isStartDateManual.current = true;
+                                            field.onChange(date);
+                                          }}
+                                        />
                                     </PopoverContent>
                                     </Popover>
                                     <FormMessage />
@@ -446,7 +496,9 @@ export default function CreateTournamentPage() {
                                     <FormItem className="flex flex-col">
                                         <FormLabel>Duration</FormLabel>
                                         <Input type="number" min={1} {...field} className="h-10" disabled={preset !== 'custom'} onChange={e => field.onChange(Number(e.target.value))} />
-                                        <FormDescription className="text-xs">In days</FormDescription>
+                                        <FormDescription className="text-xs">
+                                          {swissPlanHelper || 'In days'}
+                                        </FormDescription>
                                     </FormItem>
                                 )}
                             />
@@ -747,5 +799,3 @@ export default function CreateTournamentPage() {
     </div>
   );
 }
-
-    

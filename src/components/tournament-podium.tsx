@@ -20,7 +20,7 @@ export function TournamentPodium({ tournament, matches, standings, teams }: Tour
         const getTeamInfo = (teamId: string) => teams.find(t => t.id === teamId);
 
         const finalMatch = matches.find(m => (m.round || '').toLowerCase() === 'final' && m.status === 'approved');
-        const isBracketFormat = ['cup', 'double-elimination'].includes(tournament.format);
+        const isBracketFormat = ['cup', 'swiss', 'double-elimination'].includes(tournament.format);
 
         const bracketResult = (() => {
             if (!isBracketFormat || !finalMatch) return null;

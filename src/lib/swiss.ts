@@ -18,6 +18,48 @@ export function getMaxSwissRounds(teamCount: number): number {
   return Math.min(8, Math.max(1, teamCount - 1));
 }
 
+/**
+ * Largest power of two at or below teamCount / 2, capped at 16, floor of 4.
+ * 128 teams -> top 16; 32 teams -> top 16; 16 teams -> top 8; 8 teams -> top 4.
+ */
+export function getSwissKnockoutQualifierCount(teamCount: number): number {
+  if (teamCount < 4) return 4;
+  const half = Math.floor(teamCount / 2);
+  let n = 1;
+  while (n * 2 <= half && n * 2 <= 16) {
+    n *= 2;
+  }
+  return Math.max(4, n);
+}
+
+/** Highest Swiss round number present in matches, or 0 if none. */
+export function getCurrentSwissRoundNumber(matches: Match[]): number {
+  let max = 0;
+  for (const m of matches) {
+    const n = getSwissRoundNumber(m.round);
+    if (n != null && n > max) max = n;
+  }
+  return max;
+}
+
+/** Swiss rounds + knockout rounds (log2 of qualifier count). */
+export function getSwissStageCount(teamCount: number): number {
+  const swissRounds = getMaxSwissRounds(teamCount);
+  const qualifiers = getSwissKnockoutQualifierCount(teamCount);
+  const knockoutRounds = Math.log2(qualifiers); // 4->2, 8->3, 16->4
+  return swissRounds + knockoutRounds;
+}
+
+/**
+ * Spread stageIndex (0-based) evenly across a tournament window.
+ * stage 0 -> day 0; last stage -> day durationDays-1.
+ */
+export function getStageDayOffset(stageIndex: number, totalStages: number, durationDays: number): number {
+  if (durationDays <= 1 || totalStages <= 1) return 0;
+  const clamped = Math.max(0, Math.min(stageIndex, totalStages - 1));
+  return Math.floor(clamped * (durationDays - 1) / Math.max(1, totalStages - 1));
+}
+
 type TeamRanking = {
   teamId: string;
   points: number;

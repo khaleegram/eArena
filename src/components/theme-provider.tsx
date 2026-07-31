@@ -11,34 +11,34 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
+// Renamed from 'theme' so the old key, which was written on every page load,
+// no longer keeps returning visitors on the previous dark default.
+export const THEME_STORAGE_KEY = 'earena-theme';
+export const DEFAULT_THEME: Theme = 'light';
+
+export function applyTheme(newTheme: Theme) {
+  const root = document.documentElement;
+  root.classList.toggle('dark', newTheme === 'dark');
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>('dark');
+  const [theme, setTheme] = useState<Theme>(DEFAULT_THEME);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    // Get saved theme from localStorage or default to dark
-    const savedTheme = localStorage.getItem('theme') as Theme | null;
-    const preferredTheme = savedTheme || 'dark';
-    
+    const savedTheme = localStorage.getItem(THEME_STORAGE_KEY) as Theme | null;
+    const preferredTheme = savedTheme || DEFAULT_THEME;
+
     setTheme(preferredTheme);
     applyTheme(preferredTheme);
     setMounted(true);
   }, []);
 
-  const applyTheme = (newTheme: Theme) => {
-    const root = document.documentElement;
-    if (newTheme === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
-    localStorage.setItem('theme', newTheme);
-  };
-
   const toggleTheme = () => {
     const newTheme = theme === 'dark' ? 'light' : 'dark';
     setTheme(newTheme);
     applyTheme(newTheme);
+    localStorage.setItem(THEME_STORAGE_KEY, newTheme);
   };
 
   // Prevent hydration mismatch
@@ -61,25 +61,19 @@ export function useTheme() {
 
 export function ThemeToggle() {
   const [mounted, setMounted] = useState(false);
-  const [theme, setTheme] = useState<Theme>('dark');
+  const [theme, setTheme] = useState<Theme>(DEFAULT_THEME);
 
   useEffect(() => {
     setMounted(true);
-    const savedTheme = (localStorage.getItem('theme') as Theme | null) || 'dark';
+    const savedTheme = (localStorage.getItem(THEME_STORAGE_KEY) as Theme | null) || DEFAULT_THEME;
     setTheme(savedTheme);
   }, []);
 
   const toggleTheme = () => {
     const newTheme = theme === 'dark' ? 'light' : 'dark';
     setTheme(newTheme);
-    
-    const root = document.documentElement;
-    if (newTheme === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
-    localStorage.setItem('theme', newTheme);
+    applyTheme(newTheme);
+    localStorage.setItem(THEME_STORAGE_KEY, newTheme);
   };
 
   if (!mounted) {

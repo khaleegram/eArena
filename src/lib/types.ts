@@ -116,6 +116,8 @@ export interface Tournament {
   lastAutoResolvedAt?: UnifiedTimestamp;
   payoutInitiated?: boolean;
   payoutCompletedAt?: UnifiedTimestamp;
+  almostFullNotifiedAt?: UnifiedTimestamp;
+  regClosingNotifiedAt?: UnifiedTimestamp;
   payoutLog?: {
       uid: string;
       amount: number;
@@ -231,6 +233,10 @@ export interface Match {
   isReplay?: boolean;
   deadlineExtended?: boolean;
   summary?: string;
+  /** Set by match-reminders cron so the same match is not reminded twice. */
+  reminderSentAt?: UnifiedTimestamp;
+  /** Set by evening nudge cron. */
+  eveningNudgeSentAt?: UnifiedTimestamp;
 }
 
 export interface Highlight {

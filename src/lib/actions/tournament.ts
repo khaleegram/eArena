@@ -15,7 +15,7 @@ import { addDays, differenceInDays, format, isBefore, isAfter, isToday, isFuture
 
 import { generateRoundRobinFixtures } from '../round-robin';
 import { createWorldCupGroups, generateGroupStageFixtures, computeAllGroupStandings, seedKnockoutFromGroups, isGroupRound } from '../group-stage';
-import { generateSwissRoundFixtures, getMaxSwissRounds, isSwissRound, getSwissRoundNumber } from '../swiss';
+import { generateSwissRoundFixtures, getMaxSwissRounds, getSwissKnockoutQualifierCount, isSwissRound, getSwissRoundNumber } from '../swiss';
 import { getLatestRound, assertRoundCompleted, getWinnersForRound, getChampionIfFinalComplete, isKnockoutRound, getRoundName } from '../cup-progression';
 import { generateCupRound } from '../cup-tournament';
 import { verifyMatchScores } from '@/ai/flows/verify-match-scores';
@@ -593,31 +593,32 @@ export async function progressTournamentStage(tournamentId: string, organizerId:
                 previousMatches: allMatches,
             });
         } else {
-            // Last Swiss round is complete, now create knockout stage.
+            // Last Swiss round is complete — seed knockout from standings.
             const standings = await getStandingsForTournament(tournamentId);
-            const top16Teams = standings.slice(0, 16).map(s => s.teamId);
+            const qualifierCount = getSwissKnockoutQualifierCount(tournament.teamCount);
+            const qualifyingTeams = standings.slice(0, qualifierCount).map(s => s.teamId);
 
-            if (top16Teams.length < 16) {
-                 throw new Error("Not enough teams to proceed to the Round of 16. At least 16 teams must complete the Swiss stage.");
+            if (qualifyingTeams.length < qualifierCount) {
+                throw new Error(`Not enough teams to proceed to knockout. Need ${qualifierCount} teams from the Swiss stage.`);
             }
 
-            // Seed the Round of 16: 1st vs 16th, 2nd vs 15th, etc.
-            const roundOf16Fixtures: Omit<Match, 'id' | 'tournamentId' | 'matchDay' | 'status'>[] = [];
-            for (let i = 0; i < 8; i++) {
-                const homeTeamId = top16Teams[i]!;
-                const awayTeamId = top16Teams[15 - i]!;
-                roundOf16Fixtures.push({
-                    homeTeamId: homeTeamId,
-                    awayTeamId: awayTeamId,
-                    round: 'Round of 16',
-                    hostId: homeTeamId, // Higher seed is host
+            const roundName = getRoundName(qualifierCount);
+            const knockoutFixtures: Omit<Match, 'id' | 'tournamentId' | 'matchDay' | 'status'>[] = [];
+            for (let i = 0; i < qualifierCount / 2; i++) {
+                const homeTeamId = qualifyingTeams[i]!;
+                const awayTeamId = qualifyingTeams[qualifierCount - 1 - i]!;
+                knockoutFixtures.push({
+                    homeTeamId,
+                    awayTeamId,
+                    round: roundName,
+                    hostId: homeTeamId,
                     homeScore: null,
                     awayScore: null,
                     hostTransferRequested: false,
                 });
             }
-            
-            newFixtures = roundOf16Fixtures;
+
+            newFixtures = knockoutFixtures;
         }
     }
 

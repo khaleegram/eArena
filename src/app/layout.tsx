@@ -33,7 +33,7 @@ export const metadata: Metadata = {
 
 const MaintenancePage = () => (
     <html lang="en">
-      <body className={cn("font-body antialiased dark", inter.variable, orbitron.variable)}>
+      <body className={cn("font-body antialiased", inter.variable, orbitron.variable)}>
         <div className="flex flex-col items-center justify-center h-screen text-center bg-background text-foreground">
           <HardHat className="w-20 h-20 mb-6 text-primary" />
           <h1 className="text-4xl font-bold font-headline">Under Maintenance</h1>
@@ -72,6 +72,9 @@ export default async function RootLayout({
         <meta name="msapplication-TileColor" content="#0f172a" />
         <meta name="msapplication-config" content="/browserconfig.xml" />
         <meta name="google-site-verification" content="kYYbHnFaEuBUE0-jEPI-67wyMbbq842E2FSIRzm2dD0" />
+        <link rel="apple-touch-icon" href="/images/icons/icon-512x512.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/images/icons/icon-512x512.png" />
+        <link rel="apple-touch-icon" sizes="512x512" href="/images/icons/icon-512x512.png" />
       </head>
       <body className={cn(
           "font-body antialiased bg-background text-foreground",
