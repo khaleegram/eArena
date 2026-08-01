@@ -1,5 +1,14 @@
+import type { Metadata } from 'next'
 import { UserAuthForm } from '@/components/user-auth-form'
 import Link from 'next/link'
+import { buildMetadata } from '@/lib/seo'
+
+export const metadata: Metadata = buildMetadata({
+  title: 'Sign Up',
+  description: 'Create your free eArena account and start competing in eFootball tournaments.',
+  path: '/signup',
+  noIndex: true,
+})
 
 export default function SignupPage() {
   return (

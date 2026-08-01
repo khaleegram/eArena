@@ -1,8 +1,18 @@
+import type { Metadata } from 'next';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CircleCheckBig, Gamepad2, Trophy, Users } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { buildMetadata, SITE_NAME, SITE_TAGLINE } from '@/lib/seo';
+
+export const metadata: Metadata = buildMetadata({
+  title: `${SITE_NAME}: ${SITE_TAGLINE}`,
+  description:
+    'Welcome to eArena — the next-gen platform for eFootball. Create, manage, and dominate tournaments with seamless organization and real-time stats.',
+  path: '/',
+  absoluteTitle: true,
+});
 
 export default function Home() {
   return (
@@ -13,7 +23,7 @@ export default function Home() {
           <div className="absolute inset-0 bg-gradient-to-br from-background via-background/80 to-blue-950/50 z-0"></div>
           <Image
             src="/images/Tournament.png"
-            alt="background"
+            alt={`${SITE_NAME} eFootball tournament atmosphere`}
             fill
             sizes="100vw"
             style={{objectFit: 'cover'}}
@@ -48,7 +58,7 @@ export default function Home() {
                   src="/images/Tournament.png"
                   width="600"
                   height="600"
-                  alt="Hero"
+                  alt={`${SITE_NAME} — ${SITE_TAGLINE}`}
                   className="mx-auto aspect-square overflow-hidden rounded-xl object-cover sm:w-full lg:order-last border-4 border-primary/20 shadow-2xl shadow-primary/30"
                   data-ai-hint="gaming controller"
                   priority

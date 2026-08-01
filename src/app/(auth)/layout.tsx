@@ -1,46 +1,55 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { buildMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = buildMetadata({
+  title: "Account",
+  description: "Sign in or create your eArena account to join eFootball tournaments.",
+  path: "/login",
+  noIndex: true,
+});
 
 export default function AuthLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
   return (
     <div className="relative flex min-h-dvh flex-col items-center justify-center md:grid lg:max-w-none lg:grid-cols-2 lg:px-0">
-        <div className="relative hidden h-full min-h-dvh flex-col p-10 text-white lg:flex">
-            <div className="absolute inset-0 z-[-1]">
-              <Image 
-                src="/images/MainBackground.png"
-                alt="Authentication background"
-                fill
-                sizes="50vw"
-                style={{objectFit: 'cover'}}
-                data-ai-hint="esports gaming"
-                priority
-              />
-              <div className="absolute inset-0 bg-zinc-950/80" />
-            </div>
-            <Link href="/" className="relative z-20 flex items-center text-lg font-medium font-headline">
-                eArena
-            </Link>
-            <div className="relative z-20 mt-auto">
-                <blockquote className="space-y-2">
-                <p className="text-lg">
-                    &ldquo;The future of competition is here. eArena has redefined our leagues.&rdquo;
-                </p>
-                <footer className="text-sm">Pro Player</footer>
-                </blockquote>
-            </div>
+      <div className="relative hidden h-full min-h-dvh flex-col p-10 text-white lg:flex">
+        <div className="absolute inset-0 z-[-1]">
+          <Image
+            src="/images/MainBackground.png"
+            alt="Authentication background"
+            fill
+            sizes="50vw"
+            style={{ objectFit: "cover" }}
+            data-ai-hint="esports gaming"
+            priority
+          />
+          <div className="absolute inset-0 bg-zinc-950/80" />
         </div>
-        <div className="flex w-full flex-1 flex-col justify-center px-5 py-10 lg:p-8">
-            <Link href="/" className="mb-8 text-center text-xl font-headline font-bold lg:hidden">
-                eArena
-            </Link>
-            <div className="mx-auto flex w-full max-w-sm flex-col justify-center space-y-6">
-                {children}
-            </div>
+        <Link href="/" className="relative z-20 flex items-center text-lg font-medium font-headline">
+          eArena
+        </Link>
+        <div className="relative z-20 mt-auto">
+          <blockquote className="space-y-2">
+            <p className="text-lg">
+              &ldquo;The future of competition is here. eArena has redefined our leagues.&rdquo;
+            </p>
+            <footer className="text-sm">Pro Player</footer>
+          </blockquote>
         </div>
+      </div>
+      <div className="flex w-full flex-1 flex-col justify-center px-5 py-10 lg:p-8">
+        <Link href="/" className="mb-8 text-center text-xl font-headline font-bold lg:hidden">
+          eArena
+        </Link>
+        <div className="mx-auto flex w-full max-w-sm flex-col justify-center space-y-6">
+          {children}
+        </div>
+      </div>
     </div>
-  )
+  );
 }

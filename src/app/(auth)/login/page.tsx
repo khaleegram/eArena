@@ -1,5 +1,14 @@
+import type { Metadata } from 'next'
 import { UserAuthForm } from '@/components/user-auth-form'
 import Link from 'next/link'
+import { buildMetadata } from '@/lib/seo'
+
+export const metadata: Metadata = buildMetadata({
+  title: 'Login',
+  description: 'Log in to eArena to join tournaments, manage teams, and track your eFootball stats.',
+  path: '/login',
+  noIndex: true,
+})
 
 export default function LoginPage() {
   return (

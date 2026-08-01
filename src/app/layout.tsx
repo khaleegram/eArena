@@ -8,6 +8,15 @@ import { cn } from '@/lib/utils';
 import { getPlatformSettings } from '@/lib/settings';
 import { HardHat } from 'lucide-react';
 import { cookies } from 'next/headers';
+import { JsonLd } from '@/components/json-ld';
+import {
+  DEFAULT_OG_IMAGE,
+  SITE_DESCRIPTION,
+  SITE_NAME,
+  SITE_TAGLINE,
+  absoluteUrl,
+  getSiteUrl,
+} from '@/lib/seo';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -19,18 +28,98 @@ const orbitron = Orbitron({
   variable: '--font-headline',
 });
 
-// Prefer the custom domain when set; fall back to Vercel's deployment URL, then local.
-const baseUrl =
-  process.env.NEXT_PUBLIC_BASE_URL ||
-  (process.env.NEXT_PUBLIC_VERCEL_URL
-    ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
-    : 'http://localhost:3000');
+const siteUrl = getSiteUrl();
 
 export const metadata: Metadata = {
-  metadataBase: new URL(baseUrl),
-  title: 'eArena: Your eFootball Tournament Platform',
-  description: 'Create, manage, and compete in eFootball tournaments.',
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: `${SITE_NAME}: ${SITE_TAGLINE}`,
+    template: `%s | ${SITE_NAME}`,
+  },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  authors: [{ name: SITE_NAME, url: siteUrl }],
+  creator: SITE_NAME,
+  publisher: SITE_NAME,
+  category: 'sports',
+  keywords: [
+    'eArena',
+    'eFootball',
+    'eFootball tournaments',
+    'PES',
+    'online football tournament',
+    'esports Nigeria',
+    'tournament manager',
+    'eFootball league',
+    'earena.ng',
+  ],
   manifest: '/manifest.json',
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
+      { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/icons/android/any-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icons/android/any-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/icons/ios/180.png', sizes: '180x180', type: 'image/png' },
+      { url: '/icons/ios/192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icons/ios/512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    shortcut: '/icons/android/any-192.png',
+  },
+  appleWebApp: {
+    capable: true,
+    title: SITE_NAME,
+    statusBarStyle: 'default',
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  alternates: {
+    canonical: siteUrl,
+  },
+  openGraph: {
+    type: 'website',
+    locale: 'en_NG',
+    url: siteUrl,
+    siteName: SITE_NAME,
+    title: `${SITE_NAME}: ${SITE_TAGLINE}`,
+    description: SITE_DESCRIPTION,
+    images: [
+      {
+        url: DEFAULT_OG_IMAGE,
+        width: 1200,
+        height: 630,
+        alt: `${SITE_NAME} — ${SITE_TAGLINE}`,
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: `${SITE_NAME}: ${SITE_TAGLINE}`,
+    description: SITE_DESCRIPTION,
+    images: [DEFAULT_OG_IMAGE],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+      'max-video-preview': -1,
+    },
+  },
+  verification: {
+    google: 'kYYbHnFaEuBUE0-jEPI-67wyMbbq842E2FSIRzm2dD0',
+  },
+  other: {
+    'msapplication-TileColor': '#ffffff',
+    'msapplication-config': '/browserconfig.xml',
+  },
 };
 
 const MaintenancePage = () => (
@@ -58,31 +147,42 @@ export default async function RootLayout({
   if (settings.isMaintenanceMode && !isAdminCookie) {
     return <MaintenancePage />;
   }
+
+  const organizationLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: SITE_NAME,
+    url: siteUrl,
+    logo: absoluteUrl('/icons/android/any-512.png'),
+    description: SITE_DESCRIPTION,
+    sameAs: [
+      settings.whatsappUrl,
+      settings.facebookUrl,
+      settings.instagramUrl,
+      settings.youtubeUrl,
+    ].filter(Boolean),
+  };
+
+  const websiteLd = {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: SITE_NAME,
+    url: siteUrl,
+    description: SITE_DESCRIPTION,
+  };
   
   return (
     <html lang="en">
       <head>
-        <meta name="application-name" content="eArena" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="eArena" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/icons/ios/180.png" />
-        <link rel="manifest" href="/manifest.json" />
-        <meta name="format-detection" content="telephone=no" />
-        <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="theme-color" content="#172554" />
-        <meta name="msapplication-TileColor" content="#0f172a" />
-        <meta name="msapplication-config" content="/browserconfig.xml" />
-        <meta name="google-site-verification" content="kYYbHnFaEuBUE0-jEPI-67wyMbbq842E2FSIRzm2dD0" />
-        <link rel="apple-touch-icon" href="/images/icons/icon-512x512.png" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/images/icons/icon-512x512.png" />
-        <link rel="apple-touch-icon" sizes="512x512" href="/images/icons/icon-512x512.png" />
+        <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+        <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)" />
       </head>
       <body className={cn(
           "font-body antialiased bg-background text-foreground",
           inter.variable,
           orbitron.variable
         )}>
+        <JsonLd data={[organizationLd, websiteLd]} />
         <Providers settings={settings}>
             {children}
         </Providers>
