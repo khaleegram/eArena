@@ -6,7 +6,7 @@
 #   CRON_SECRET  → same value as Vercel env CRON_SECRET
 #
 # Fallbacks also accepted for the base URL secret name:
-#   BASE_URL, NEXT_PUBLIC_BASE_URL, NEXT_PUBLIC_APP_URL
+#   CRON_URL, BASE_URL, NEXT_PUBLIC_BASE_URL, NEXT_PUBLIC_APP_URL
 #
 # If workflows were disabled for inactivity: Actions tab → enable, then
 # run "Cron jobs" → Run workflow once to wake schedules.
@@ -54,8 +54,9 @@ jobs:
       - name: Resolve base URL
         id: base
         env:
-          # Prefer APP_URL; accept common alternate secret names
+          # Prefer APP_URL; accept common alternate secret names (incl. CRON_URL)
           APP_URL: ${{ secrets.APP_URL }}
+          CRON_URL: ${{ secrets.CRON_URL }}
           BASE_URL: ${{ secrets.BASE_URL }}
           NEXT_PUBLIC_BASE_URL: ${{ secrets.NEXT_PUBLIC_BASE_URL }}
           NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
@@ -64,6 +65,7 @@ jobs:
           set -euo pipefail
           RESOLVED=""
           if [ -n "${APP_URL:-}" ]; then RESOLVED="$APP_URL"
+          elif [ -n "${CRON_URL:-}" ]; then RESOLVED="$CRON_URL"
           elif [ -n "${BASE_URL:-}" ]; then RESOLVED="$BASE_URL"
           elif [ -n "${NEXT_PUBLIC_BASE_URL:-}" ]; then RESOLVED="$NEXT_PUBLIC_BASE_URL"
           elif [ -n "${NEXT_PUBLIC_APP_URL:-}" ]; then RESOLVED="$NEXT_PUBLIC_APP_URL"
@@ -74,7 +76,7 @@ jobs:
 
           if [ -z "$RESOLVED" ]; then
             echo "::error::Missing repository secret for the site URL."
-            echo "Add a Repository secret named APP_URL with value https://earena.ng"
+            echo "Add a Repository secret named APP_URL (or CRON_URL) with value https://earena.ng"
             echo "(Settings → Secrets and variables → Actions → Repository secrets)"
             echo "Do NOT put it only in Vercel, and not under Environment secrets unless this job uses that environment."
             exit 1
