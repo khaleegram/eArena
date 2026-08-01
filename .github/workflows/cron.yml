@@ -69,17 +69,30 @@ jobs:
           MANUAL: ${{ github.event_name == 'workflow_dispatch' && inputs.job || '' }}
         run: |
           set -euo pipefail
-          auth() { curl -fsS -X GET "$1" -H "Authorization: Bearer ${SECRET}"; }
-          auth_post() { curl -fsS -X POST "$1" -H "Authorization: Bearer ${SECRET}"; }
+          FAILED=0
+          call() {
+            local method="$1"
+            local url="$2"
+            local name="$3"
+            echo "::group::${name}"
+            # -f fails on HTTP errors; -w prints status for logs; --retry softens cold starts
+            if ! curl -fsS --retry 2 --retry-delay 3 -X "${method}" "${url}" \
+              -H "Authorization: Bearer ${SECRET}" \
+              -w "\nHTTP %{http_code}\n"; then
+              echo "::error::${name} failed (${method} ${url})"
+              FAILED=1
+            fi
+            echo "::endgroup::"
+          }
 
-          run_start() { echo "::group::start-tournaments"; auth "${BASE}/api/cron/start-tournaments"; echo; echo "::endgroup::"; }
-          run_fomo() { echo "::group::registration-fomo"; auth "${BASE}/api/cron/registration-fomo"; echo; echo "::endgroup::"; }
-          run_payouts() { echo "::group::trigger-payouts"; auth "${BASE}/api/cron/trigger-payouts"; echo; echo "::endgroup::"; }
-          run_clone() { echo "::group::clone-tournaments"; auth "${BASE}/api/cron/clone-tournaments"; echo; echo "::endgroup::"; }
-          run_reminders() { echo "::group::match-reminders"; auth "${BASE}/api/cron/match-reminders"; echo; echo "::endgroup::"; }
-          run_evening() { echo "::group::match-evening-nudge"; auth "${BASE}/api/cron/match-evening-nudge"; echo; echo "::endgroup::"; }
-          run_digest() { echo "::group::open-tournaments-digest"; auth "${BASE}/api/cron/open-tournaments-digest"; echo; echo "::endgroup::"; }
-          run_daily() { echo "::group::daily"; auth_post "${BASE}/api/cron/daily"; echo; echo "::endgroup::"; }
+          run_start() { call GET "${BASE}/api/cron/start-tournaments" "start-tournaments"; }
+          run_fomo() { call GET "${BASE}/api/cron/registration-fomo" "registration-fomo"; }
+          run_payouts() { call GET "${BASE}/api/cron/trigger-payouts" "trigger-payouts"; }
+          run_clone() { call GET "${BASE}/api/cron/clone-tournaments" "clone-tournaments"; }
+          run_reminders() { call GET "${BASE}/api/cron/match-reminders" "match-reminders"; }
+          run_evening() { call GET "${BASE}/api/cron/match-evening-nudge" "match-evening-nudge"; }
+          run_digest() { call GET "${BASE}/api/cron/open-tournaments-digest" "open-tournaments-digest"; }
+          run_daily() { call POST "${BASE}/api/cron/daily" "daily"; }
 
           if [ -n "${MANUAL}" ]; then
             case "${MANUAL}" in
@@ -96,34 +109,39 @@ jobs:
               daily) run_daily ;;
               *) echo "Unknown job ${MANUAL}"; exit 1 ;;
             esac
-            exit 0
+          else
+            case "${SCHEDULE}" in
+              "0 * * * *")
+                run_start
+                run_fomo
+                ;;
+              "0 */6 * * *")
+                run_payouts
+                ;;
+              "0 6 * * *")
+                run_clone
+                ;;
+              "0 8 * * *")
+                run_reminders
+                ;;
+              "0 17 * * *")
+                run_evening
+                ;;
+              "0 10 * * 6")
+                run_digest
+                ;;
+              "0 2 * * *")
+                run_daily
+                ;;
+              *)
+                echo "Unhandled schedule: ${SCHEDULE}"
+                exit 1
+                ;;
+            esac
           fi
 
-          case "${SCHEDULE}" in
-            "0 * * * *")
-              run_start
-              run_fomo
-              ;;
-            "0 */6 * * *")
-              run_payouts
-              ;;
-            "0 6 * * *")
-              run_clone
-              ;;
-            "0 8 * * *")
-              run_reminders
-              ;;
-            "0 17 * * *")
-              run_evening
-              ;;
-            "0 10 * * 6")
-              run_digest
-              ;;
-            "0 2 * * *")
-              run_daily
-              ;;
-            *)
-              echo "Unhandled schedule: ${SCHEDULE}"
-              exit 1
-              ;;
-          esac
+          if [ "${FAILED}" -ne 0 ]; then
+            echo "One or more cron endpoints failed."
+            exit 1
+          fi
+          echo "All cron calls succeeded."
