@@ -6,6 +6,12 @@ const withPWA = require('@ducanh2912/next-pwa').default({
   dest: 'public',
   sw: 'sw.js',
   importScripts: ['/push-handler.js'],
+  disable: process.env.NODE_ENV === 'development',
+  register: true,
+  workboxOptions: {
+    skipWaiting: true,
+    clientsClaim: true,
+  },
 });
 
 // Fix EventEmitter MaxListeners warning in development

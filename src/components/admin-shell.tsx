@@ -6,32 +6,11 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { AdminSidebar } from '@/components/admin-sidebar';
-import { Loader2, Trophy } from 'lucide-react';
+import { Trophy } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-provider';
+import { Skeleton } from '@/components/ui/skeleton';
 
-export function AdminShell({ children }: { children: React.ReactNode }) {
-  const { isAdmin, loading } = useAuth();
-  const router = useRouter();
-  const pathname = usePathname();
-
-  useEffect(() => {
-    if (!loading && !isAdmin) {
-      router.replace('/');
-    }
-  }, [isAdmin, loading, router]);
-
-  if (pathname === '/admin/settings') {
-    return <>{children}</>;
-  }
-
-  if (loading || !isAdmin) {
-    return (
-      <div className="flex h-screen w-full items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
+function AdminChrome({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full flex-col bg-background md:flex-row">
@@ -52,4 +31,34 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       </div>
     </SidebarProvider>
   );
+}
+
+export function AdminShell({ children }: { children: React.ReactNode }) {
+  const { isAdmin, loading } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  useEffect(() => {
+    if (!loading && !isAdmin) {
+      router.replace('/');
+    }
+  }, [isAdmin, loading, router]);
+
+  if (pathname === '/admin/settings') {
+    return <>{children}</>;
+  }
+
+  if (loading || !isAdmin) {
+    return (
+      <AdminChrome>
+        <div className="space-y-4">
+          <Skeleton className="h-9 w-40" />
+          <Skeleton className="h-32 w-full rounded-2xl" />
+          <Skeleton className="h-32 w-full rounded-2xl" />
+        </div>
+      </AdminChrome>
+    );
+  }
+
+  return <AdminChrome>{children}</AdminChrome>;
 }

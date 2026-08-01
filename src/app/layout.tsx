@@ -5,7 +5,7 @@ import { Orbitron } from 'next/font/google';
 import './globals.css';
 import { Providers } from '@/components/providers';
 import { cn } from '@/lib/utils';
-import { getPlatformSettings } from '@/lib/settings';
+import { getPlatformSettingsFast } from '@/lib/settings';
 import { HardHat } from 'lucide-react';
 import { cookies } from 'next/headers';
 import { JsonLd } from '@/components/json-ld';
@@ -21,11 +21,13 @@ import {
 const inter = Inter({
   subsets: ['latin'],
   variable: '--font-body',
+  display: 'swap',
 });
 const orbitron = Orbitron({
   subsets: ['latin'],
   weight: ['400', '700'],
   variable: '--font-headline',
+  display: 'swap',
 });
 
 const siteUrl = getSiteUrl();
@@ -140,7 +142,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const settings = await getPlatformSettings();
+  const settings = await getPlatformSettingsFast();
   const cookieStore = await cookies();
   const isAdminCookie = cookieStore.get('isAdmin')?.value === 'true';
 

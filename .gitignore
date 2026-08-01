@@ -61,6 +61,12 @@ next-env.d.ts # This is typically generated, so good to ignore
 # Add any specific build outputs or caches from Genkit if applicable
 # e.g., .genkit_output/
 
+# next-pwa generated service worker (must be produced by `next build`, not a committed dev SW)
+/public/sw.js
+/public/workbox-*.js
+/public/worker-*.js
+/public/swe-worker-*.js
+
 # Firebase
 firebase-debug.log
 firestore-debug.log

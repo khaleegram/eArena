@@ -20,16 +20,14 @@ export default function Home() {
       <main className="flex-grow">
         {/* Hero Section */}
         <section className="relative w-full py-12 md:py-24 lg:py-32 xl:py-48 overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-background via-background/80 to-blue-950/50 z-0"></div>
+          <div className="absolute inset-0 bg-gradient-to-br from-background via-background/90 to-primary/10 z-0" />
           <Image
-            src="/images/Tournament.png"
-            alt={`${SITE_NAME} eFootball tournament atmosphere`}
+            src="/images/tournament-bg.webp"
+            alt=""
             fill
             sizes="100vw"
-            style={{objectFit: 'cover'}}
-            className="absolute inset-0 z-[-1] opacity-20"
-            data-ai-hint="esports gaming"
-            priority
+            className="absolute inset-0 z-0 object-cover opacity-25"
+            priority={false}
           />
           <div className="container px-4 md:px-6 z-10 relative">
             <div className="grid gap-6 lg:grid-cols-2 lg:gap-12 xl:gap-24 items-center">
@@ -55,12 +53,12 @@ export default function Home() {
               </div>
               <div className="relative">
                 <Image
-                  src="/images/Tournament.png"
-                  width="600"
-                  height="600"
+                  src="/images/tournament-hero.webp"
+                  width={600}
+                  height={600}
                   alt={`${SITE_NAME} — ${SITE_TAGLINE}`}
                   className="mx-auto aspect-square overflow-hidden rounded-xl object-cover sm:w-full lg:order-last border-4 border-primary/20 shadow-2xl shadow-primary/30"
-                  data-ai-hint="gaming controller"
+                  sizes="(max-width: 768px) 90vw, 600px"
                   priority
                 />
                  <div className="absolute -inset-2 bg-primary/20 blur-2xl rounded-full z-[-1]"></div>

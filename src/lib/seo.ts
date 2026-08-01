@@ -5,7 +5,7 @@ export const SITE_TAGLINE = 'Your eFootball Tournament Platform';
 export const SITE_DESCRIPTION =
   'Create, manage, and compete in eFootball tournaments on eArena. Browse public leagues, join with a code, track standings, and climb the leaderboards.';
 
-export const DEFAULT_OG_IMAGE = '/images/Tournament.png';
+export const DEFAULT_OG_IMAGE = '/images/og-default.jpg';
 
 export function getSiteUrl(): string {
   const raw =

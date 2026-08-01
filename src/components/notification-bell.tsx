@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot, query, orderBy, limit } from "firebase/firestore";
 import type { Notification } from "@/lib/types";
-import { markNotificationsAsRead } from "@/lib/actions";
+import { markNotificationsAsRead } from "@/lib/actions/notifications";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Bell, Circle } from "lucide-react";

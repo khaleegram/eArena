@@ -20,7 +20,7 @@ export default function AuthLayout({
       <div className="relative hidden h-full min-h-dvh flex-col p-10 text-white lg:flex">
         <div className="absolute inset-0 z-[-1]">
           <Image
-            src="/images/MainBackground.png"
+            src="/images/auth-bg.webp"
             alt="Authentication background"
             fill
             sizes="50vw"

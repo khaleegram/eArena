@@ -1,5 +1,6 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
@@ -25,11 +26,14 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/hooks/use-auth';
 import { auth } from '@/lib/firebase';
-import { NotificationBell } from './notification-bell';
 import { ReputationAvatar } from './reputation-avatar';
 import { ThemeToggle } from './theme-provider';
 import { MobileNavSheet } from './mobile-nav-sheet';
 
+const NotificationBell = dynamic(
+  () => import('./notification-bell').then((m) => m.NotificationBell),
+  { ssr: false, loading: () => <Skeleton className="h-10 w-10 rounded-full" /> }
+);
 export function Header() {
   const { user, userProfile, loading, isAdmin } = useAuth();
   const router = useRouter();

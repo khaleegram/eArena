@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type ElementType } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, getDocs } from 'firebase/firestore';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { useAuth } from '@/hooks/use-auth';
 import type { Tournament, TournamentStatus, UnifiedTimestamp } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
@@ -332,19 +332,25 @@ export default function MyTournamentsPage() {
     }
 
     setLoading(true);
-    let organizedUnsub: () => void;
-    let joinedUnsub: () => void;
+    let settled = false;
+    const markReady = () => {
+      if (!settled) {
+        settled = true;
+        setLoading(false);
+      }
+    };
 
     const orgQuery = query(collection(db, 'tournaments'), where('organizerId', '==', user.uid));
-    organizedUnsub = onSnapshot(orgQuery, (querySnapshot) => {
+    const organizedUnsub = onSnapshot(orgQuery, (querySnapshot) => {
       const userTournaments = querySnapshot.docs.map(
         (doc) => ({ id: doc.id, ...doc.data() }) as Tournament
       );
       setOrganizedTournaments(userTournaments);
+      markReady();
     });
 
     const joinedQuery = query(collection(db, 'userMemberships'), where('userId', '==', user.uid));
-    joinedUnsub = onSnapshot(joinedQuery, async (snapshot) => {
+    const joinedUnsub = onSnapshot(joinedQuery, async (snapshot) => {
       const tournamentIds = snapshot.docs.map((doc) => doc.data().tournamentId);
       if (tournamentIds.length > 0) {
         const tournaments = await getTournamentsByIds(tournamentIds);
@@ -352,32 +358,12 @@ export default function MyTournamentsPage() {
       } else {
         setJoinedTournaments([]);
       }
+      markReady();
     });
 
-    const initialLoad = async () => {
-      const orgSnapshot = await getDocs(orgQuery);
-      const joinedSnapshot = await getDocs(joinedQuery);
-
-      const orgTournaments = orgSnapshot.docs.map(
-        (doc) => ({ id: doc.id, ...doc.data() }) as Tournament
-      );
-      setOrganizedTournaments(orgTournaments);
-
-      const tournamentIds = joinedSnapshot.docs.map((doc) => doc.data().tournamentId);
-      if (tournamentIds.length > 0) {
-        const joinedData = await getTournamentsByIds(tournamentIds);
-        setJoinedTournaments(joinedData);
-      } else {
-        setJoinedTournaments([]);
-      }
-      setLoading(false);
-    };
-
-    initialLoad();
-
     return () => {
-      if (organizedUnsub) organizedUnsub();
-      if (joinedUnsub) joinedUnsub();
+      organizedUnsub();
+      joinedUnsub();
     };
   }, [user]);
 
@@ -386,7 +372,7 @@ export default function MyTournamentsPage() {
     return joinedTournaments.filter((t) => !organizedIds.has(t.id));
   }, [joinedTournaments, organizedTournaments]);
 
-  if (loading || platformSettings === null) {
+  if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />

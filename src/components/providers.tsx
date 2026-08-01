@@ -1,12 +1,21 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { AuthProvider } from './auth-provider';
 import { AppShell } from './app-shell';
 import { Toaster } from './ui/toaster';
 import type { PlatformSettings } from '@/lib/types';
-import { PushPermissionPrompt } from './push-permission-prompt';
 import { ThemeProvider } from './theme-provider';
-import { IosInstallPrompt } from './ios-install-prompt';
+
+const PushPermissionPrompt = dynamic(
+  () => import('./push-permission-prompt').then((m) => m.PushPermissionPrompt),
+  { ssr: false }
+);
+
+const IosInstallPrompt = dynamic(
+  () => import('./ios-install-prompt').then((m) => m.IosInstallPrompt),
+  { ssr: false }
+);
 
 export function Providers({
   children,

@@ -2,7 +2,7 @@
 'use server';
 import { adminDb } from '@/lib/firebase-admin';
 import { getStorage } from 'firebase-admin/storage';
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import type { PlatformSettings } from '@/lib/types';
 
 export async function updatePlatformSettings(formData: FormData) {
@@ -50,6 +50,7 @@ export async function updatePlatformSettings(formData: FormData) {
     settings.backgroundMusic = existingMusicUrls.filter(url => url !== null) as string[];
 
     await settingsRef.set(settings, { merge: true });
+    revalidateTag('platform-settings');
     revalidatePath('/admin/settings');
     revalidatePath('/'); // Revalidate home page as well
 }

@@ -20,10 +20,6 @@ if (typeof window !== 'undefined' && !firebaseConfig.apiKey) {
     );
 }
 
-// Log the authDomain to help with debugging the "unauthorized domain" error.
-console.log(`[Firebase Config] Using authDomain: ${firebaseConfig.authDomain}`);
-
-
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
