@@ -1,9 +1,12 @@
 # Calls eArena cron API routes on a schedule.
 # GitHub Actions replaces Vercel Cron (Hobby cannot run hourly jobs).
 #
-# Required repo secrets (Settings → Secrets and variables → Actions):
+# Required repo secrets (Settings → Secrets and variables → Actions → Repository secrets):
 #   APP_URL      → https://earena.ng   (no trailing slash)
 #   CRON_SECRET  → same value as Vercel env CRON_SECRET
+#
+# Fallbacks also accepted for the base URL secret name:
+#   BASE_URL, NEXT_PUBLIC_BASE_URL, NEXT_PUBLIC_APP_URL
 #
 # If workflows were disabled for inactivity: Actions tab → enable, then
 # run "Cron jobs" → Run workflow once to wake schedules.
@@ -50,20 +53,44 @@ jobs:
     steps:
       - name: Resolve base URL
         id: base
+        env:
+          # Prefer APP_URL; accept common alternate secret names
+          APP_URL: ${{ secrets.APP_URL }}
+          BASE_URL: ${{ secrets.BASE_URL }}
+          NEXT_PUBLIC_BASE_URL: ${{ secrets.NEXT_PUBLIC_BASE_URL }}
+          NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          if [ -z "${{ secrets.APP_URL }}" ]; then
-            echo "Missing secret APP_URL (e.g. https://earena.ng)"
+          set -euo pipefail
+          RESOLVED=""
+          if [ -n "${APP_URL:-}" ]; then RESOLVED="$APP_URL"
+          elif [ -n "${BASE_URL:-}" ]; then RESOLVED="$BASE_URL"
+          elif [ -n "${NEXT_PUBLIC_BASE_URL:-}" ]; then RESOLVED="$NEXT_PUBLIC_BASE_URL"
+          elif [ -n "${NEXT_PUBLIC_APP_URL:-}" ]; then RESOLVED="$NEXT_PUBLIC_APP_URL"
+          fi
+
+          # Trim trailing slash
+          RESOLVED="${RESOLVED%/}"
+
+          if [ -z "$RESOLVED" ]; then
+            echo "::error::Missing repository secret for the site URL."
+            echo "Add a Repository secret named APP_URL with value https://earena.ng"
+            echo "(Settings → Secrets and variables → Actions → Repository secrets)"
+            echo "Do NOT put it only in Vercel, and not under Environment secrets unless this job uses that environment."
             exit 1
           fi
-          if [ -z "${{ secrets.CRON_SECRET }}" ]; then
-            echo "Missing secret CRON_SECRET"
+          if [ -z "${CRON_SECRET:-}" ]; then
+            echo "::error::Missing repository secret CRON_SECRET."
+            echo "Add CRON_SECRET with the same value as Vercel CRON_SECRET."
             exit 1
           fi
-          echo "url=${{ secrets.APP_URL }}" >> "$GITHUB_OUTPUT"
+
+          echo "Using base URL host: $(echo "$RESOLVED" | sed -E 's#https?://##')"
+          echo "url=$RESOLVED" >> "$GITHUB_OUTPUT"
 
       - name: Run scheduled / manual cron calls
         env:
-          BASE: ${{ secrets.APP_URL }}
+          BASE: ${{ steps.base.outputs.url }}
           SECRET: ${{ secrets.CRON_SECRET }}
           SCHEDULE: ${{ github.event.schedule }}
           MANUAL: ${{ github.event_name == 'workflow_dispatch' && inputs.job || '' }}
