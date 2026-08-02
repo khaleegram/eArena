@@ -93,6 +93,8 @@ export interface Tournament {
   tournamentStartDate: UnifiedTimestamp;
   tournamentEndDate: UnifiedTimestamp;
   endedAt?: UnifiedTimestamp;
+  /** Set by cron when a tournament is auto-closed without a normal finish. */
+  closeReason?: 'expired_never_started' | 'insufficient_teams' | 'end_date_passed';
   maxTeams: number;
   rules?: string;
   organizerId: string;

@@ -668,14 +668,23 @@ export async function startTournamentAndGenerateFixtures(tournamentId: string, o
         throw new Error("You are not authorized to perform this action.");
     }
 
-    // Path A: Organizer generates fixtures from open registration
+    const now = new Date();
+
+    // Path A: Generate fixtures from open registration (organizer OR cron after reg ends)
     if (tournament.status === 'open_for_registration') {
       if (fromCron) {
-        throw new Error('Cannot auto-start a tournament still open for registration.');
+        const regEnd = endOfDay(toDate(tournament.registrationEndDate));
+        if (isBefore(now, regEnd)) {
+          // Registration still open — wait.
+          return { skipped: true, reason: 'registration_still_open' as const };
+        }
       }
 
       const teamsSnapshot = await tournamentRef.collection('teams').where('isApproved', '==', true).get();
       if (teamsSnapshot.docs.length < 4) {
+          if (fromCron) {
+            return { skipped: true, reason: 'insufficient_teams' as const, teamCount: teamsSnapshot.docs.length };
+          }
           throw new Error("A minimum of 4 approved teams is required to start the tournament.");
       }
 
@@ -692,7 +701,7 @@ export async function startTournamentAndGenerateFixtures(tournamentId: string, o
         await generateFixturesForTournament(tournamentRef, tournamentForGen, teamIds);
 
         const playStartDate = toDate(tournament.tournamentStartDate);
-        const isReadyEarly = isBefore(new Date(), playStartDate);
+        const isReadyEarly = isBefore(now, playStartDate);
         const newStatus = isReadyEarly ? 'ready_to_start' : 'in_progress';
         await tournamentRef.update({ status: newStatus, teamCount: teamIds.length });
 
@@ -716,7 +725,7 @@ export async function startTournamentAndGenerateFixtures(tournamentId: string, o
         }
 
         revalidatePath(`/tournaments/${tournamentId}`);
-        return;
+        return { status: newStatus as 'ready_to_start' | 'in_progress' };
       } catch (e) {
         await tournamentRef.update({ status: 'open_for_registration' });
         revalidatePath(`/tournaments/${tournamentId}`);
@@ -724,12 +733,40 @@ export async function startTournamentAndGenerateFixtures(tournamentId: string, o
       }
     }
 
-    // Path B: Go live from ready_to_start (cron or organizer start-immediately)
+    // Path B: Go live from ready_to_start (cron or organizer)
     if (tournament.status === 'ready_to_start') {
       const playStartDate = toDate(tournament.tournamentStartDate);
-      if (fromCron && isBefore(new Date(), playStartDate)) {
-        return; // not time yet
+      if (fromCron && isBefore(now, playStartDate)) {
+        return { skipped: true, reason: 'before_start_date' as const };
       }
+
+      // Ensure fixtures exist (older cron only flipped status without generating)
+      const existingMatches = await tournamentRef.collection('matches').limit(1).get();
+      if (existingMatches.empty) {
+        const teamsSnapshot = await tournamentRef.collection('teams').where('isApproved', '==', true).get();
+        if (teamsSnapshot.docs.length < 4) {
+          if (fromCron) {
+            return { skipped: true, reason: 'insufficient_teams' as const, teamCount: teamsSnapshot.docs.length };
+          }
+          throw new Error("A minimum of 4 approved teams is required to start the tournament.");
+        }
+        const teamIds = teamsSnapshot.docs.map(doc => doc.id);
+        if (tournament.format === 'swiss' && teamIds.length % 2 !== 0) {
+          throw new Error(`Swiss needs an even number of approved teams. You have ${teamIds.length}.`);
+        }
+        await tournamentRef.update({ status: 'generating_fixtures' });
+        try {
+          await generateFixturesForTournament(
+            tournamentRef,
+            { ...tournament, teamCount: teamIds.length },
+            teamIds
+          );
+        } catch (e) {
+          await tournamentRef.update({ status: 'ready_to_start' });
+          throw e;
+        }
+      }
+
       await tournamentRef.update({ status: 'in_progress' });
       const teamsSnapshot = await tournamentRef.collection('teams').get();
       const allPlayerIds = teamsSnapshot.docs.flatMap(doc => (doc.data() as Team).playerIds || []);
@@ -746,7 +783,7 @@ export async function startTournamentAndGenerateFixtures(tournamentId: string, o
         )
       );
       revalidatePath(`/tournaments/${tournamentId}`);
-      return;
+      return { status: 'in_progress' as const };
     }
 
     throw new Error(`Cannot start tournament from status "${tournament.status}".`);

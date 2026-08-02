@@ -634,7 +634,10 @@ export async function approveMatchResult(tournamentId: string, matchId: string, 
             : finalApproved;
 
     if (shouldComplete) {
-        await tournamentRef.update({ status: 'completed' });
+        await tournamentRef.update({
+          status: 'completed',
+          endedAt: FieldValue.serverTimestamp(),
+        });
         await awardBadges(tournamentId);
 
         if (tournamentData) {
